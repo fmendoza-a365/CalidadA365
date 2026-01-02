@@ -1,0 +1,46 @@
+databases:
+  - name: qa365-db
+    plan: starter
+    databaseName: qa365
+    user: qa365_user
+
+services:
+  - type: web
+    name: qa365-app
+    env: docker
+    plan: starter
+    healthCheckPath: /up
+    envVars:
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: "QA365"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_URL
+        value: https://qa365-app.onrender.com
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DATABASE_URL
+        fromDatabase:
+          name: qa365-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: qa365-redis
+          property: connectionString
+      - key: SESSION_DRIVER
+        value: redis
+      - key: CACHE_STORE
+        value: redis
+      - key: QUEUE_CONNECTION
+        value: redis
+
+  - type: redis
+    name: qa365-redis
+    plan: starter
