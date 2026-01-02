@@ -10,7 +10,6 @@ php artisan db:seed --class=AdminSeeder --force || true
 
 # Cache Config
 php artisan config:cache
-php artisan route:cache
 php artisan view:cache
 
 # Configure Nginx with dynamic PORT
