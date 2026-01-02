@@ -27,10 +27,10 @@
         </div>
     </x-slot>
 
-    <div class="max-w-5xl mx-auto space-y-8 pb-12">
+    <div class="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-12 px-4 md:px-0">
         <!-- Info Card Compact -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                     <span class="block text-xs text-gray-500 uppercase tracking-wider font-semibold">Fecha</span>
                     <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->occurred_at->format('d/m/Y H:i') }}</span>
@@ -43,7 +43,7 @@
                     <span class="block text-xs text-gray-500 uppercase tracking-wider font-semibold">Formulario</span>
                     <span class="font-medium text-gray-900 dark:text-white">{{ $formVersion->form->name }} (v{{ $formVersion->version_number }})</span>
                 </div>
-                <div class="flex items-center justify-end">
+                <div class="flex items-center justify-start sm:justify-end">
                      <span class="status-badge status-{{ $interaction->status }}">
                         {{ ucfirst($interaction->status) }}
                     </span>
@@ -154,15 +154,16 @@
             @endforeach
 
             <!-- Action Bar Sticky Bottom -->
-            <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 shadow-lg z-50">
-                <div class="max-w-5xl mx-auto flex justify-between items-center">
-                    <div class="text-sm text-gray-500">
+            <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 md:p-4 shadow-lg z-50">
+                <div class="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                    <div class="text-sm text-gray-500 text-center sm:text-left">
                         <span class="hidden md:inline">Revisa cuidadosamente cada punto antes de guardar.</span>
+                        <span class="md:hidden">Revisa cada punt antes de guardar</span>
                     </div>
-                    <div class="flex gap-4">
-                        <a href="{{ route('evaluations.index') }}" class="btn-ghost text-gray-600">Cancelar</a>
-                        <button type="submit" class="btn-primary px-8 shadow-lg transform hover:-translate-y-0.5 transition-all">
-                            Guardar Evaluación
+                    <div class="flex gap-2 sm:gap-4">
+                        <a href="{{ route('evaluations.index') }}" class="btn-ghost text-gray-600 flex-1 sm:flex-none justify-center">Cancelar</a>
+                        <button type="submit" class="btn-primary flex-1 sm:flex-none justify-center px-6 sm:px-8 shadow-lg transform hover:-translate-y-0.5 transition-all">
+                            Guardar
                         </button>
                     </div>
                 </div>
