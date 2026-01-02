@@ -55,19 +55,19 @@ class InsightsController extends Controller
         $topPerformers = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
-            ->having('eval_count', '>=', 3)
+            ->havingRaw('COUNT(*) >= ?', [3])
             ->orderByDesc('avg_score')
             ->limit(3)
-            ->with('agent:id,name') // Only load needed columns
+            ->with('agent:id,name')
             ->get();
 
         $bottomPerformers = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
-            ->having('eval_count', '>=', 3)
+            ->havingRaw('COUNT(*) >= ?', [3])
             ->orderBy('avg_score')
             ->limit(3)
-            ->with('agent:id,name') // Only load needed columns
+            ->with('agent:id,name')
             ->get();
 
         $stats = [
