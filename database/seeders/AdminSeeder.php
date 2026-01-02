@@ -28,6 +28,7 @@ class AdminSeeder extends Seeder
         // Create permanent super admin user
         $admin = User::create([
             'name' => 'Fernando Mendoza',
+            'username' => 'fmendoza',
             'email' => $adminEmail,
             'password' => Hash::make('@Asdasd23**'),
             'email_verified_at' => now(),
