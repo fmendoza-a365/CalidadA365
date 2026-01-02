@@ -16,7 +16,7 @@ class AdminSeeder extends Seeder
     public function run(): void
     {
         // Check if admin user already exists
-        $adminEmail = 'admin@qa365.com';
+        $adminEmail = 'fmendoza@a365.com.pe';
         
         $existingAdmin = User::where('email', $adminEmail)->first();
         
@@ -27,9 +27,9 @@ class AdminSeeder extends Seeder
 
         // Create permanent super admin user
         $admin = User::create([
-            'name' => 'Super Admin',
+            'name' => 'Fernando Mendoza',
             'email' => $adminEmail,
-            'password' => Hash::make('admin123'), // Change after first login!
+            'password' => Hash::make('@Asdasd23**'),
             'email_verified_at' => now(),
         ]);
 
@@ -37,9 +37,6 @@ class AdminSeeder extends Seeder
         $admin->assignRole('qa_manager');
 
         $this->command->info("✓ Super admin created successfully!");
-        $this->command->warn("⚠ Default credentials:");
-        $this->command->warn("   Email: {$adminEmail}");
-        $this->command->warn("   Password: admin123");
-        $this->command->warn("   PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!");
+        $this->command->info("   Email: {$adminEmail}");
     }
 }
