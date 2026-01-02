@@ -1,15 +1,13 @@
-databases:
-  - name: qa365-db
-    plan: starter
-    databaseName: qa365
-    user: qa365_user
-
 services:
   - type: web
     name: qa365-app
     env: docker
-    plan: starter
+    plan: free
     healthCheckPath: /up
+    disk:
+      name: qa365-data
+      mountPath: /var/www/html/database
+      sizeGB: 1
     envVars:
       - key: APP_KEY
         generateValue: true
@@ -24,11 +22,9 @@ services:
       - key: LOG_CHANNEL
         value: stderr
       - key: DB_CONNECTION
-        value: pgsql
-      - key: DATABASE_URL
-        fromDatabase:
-          name: qa365-db
-          property: connectionString
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/www/html/database/database.sqlite
       - key: SESSION_DRIVER
         value: file
       - key: CACHE_STORE
