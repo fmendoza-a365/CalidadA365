@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libpq-dev \
     libzip-dev \
+    libicu-dev \
     nginx \
     nodejs \
     npm
