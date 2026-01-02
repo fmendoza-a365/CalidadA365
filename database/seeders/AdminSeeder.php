@@ -34,8 +34,8 @@ class AdminSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        // Assign qa_manager role (highest permission level)
-        $admin->assignRole('qa_manager');
+        // Assign admin role (highest permission level)
+        $admin->assignRole('admin');
 
         $this->command->info("✓ Super admin created successfully!");
         $this->command->info("   Email: {$adminEmail}");
