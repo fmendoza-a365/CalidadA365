@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Fix permissions FIRST - Railway keeps resetting them
+mkdir -p /var/www/html/storage/framework/{cache,sessions,views,testing}
+mkdir -p /var/www/html/storage/framework/cache/data
+mkdir -p /var/www/html/storage/logs
+mkdir -p /var/www/html/bootstrap/cache
+
+chown -R www-data:www-data /var/www/html/storage
+chown -R www-data:www-data /var/www/html/bootstrap/cache
+chmod -R 777 /var/www/html/storage
+chmod -R 777 /var/www/html/bootstrap/cache
+
 # Run Migrations
 php artisan migrate --force || true
 
