@@ -5,7 +5,9 @@ nixPkgs = ['nodejs', 'npm', 'php83', 'php83Extensions.pdo', 'php83Extensions.pdo
 cmds = [
   'composer install --no-dev --optimize-autoloader',
   'npm install',
-  'npm run build'
+  'npm run build',
+  'chmod +x railway-setup.sh',
+  './railway-setup.sh'
 ]
 
 [phases.build]
