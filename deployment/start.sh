@@ -1,11 +1,7 @@
 #!/bin/bash
 
 # Run Migrations
-php artisan migrate --force
-
-# Seed roles and permissions (idempotent)
-php artisan db:seed --class=RoleSeeder --force
-php artisan db:seed --class=PermissionSeeder --force
+php artisan migrate --force || true
 
 # Cache Config
 php artisan config:cache
