@@ -15,17 +15,26 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-        // Check if admin user already exists
+        // Admin user configuration
         $adminEmail = 'fmendoza@a365.com.pe';
         
         $existingAdmin = User::where('email', $adminEmail)->first();
         
         if ($existingAdmin) {
-            $this->command->info("✓ Admin user already exists: {$adminEmail}");
+            // Update existing user to admin role
+            $this->command->info("✓ Admin user exists, updating to admin role...");
+            
+            // Remove all current roles
+            $existingAdmin->syncRoles([]);
+            
+            // Assign admin role
+            $existingAdmin->assignRole('admin');
+            
+            $this->command->info("✓ User updated to admin role: {$adminEmail}");
             return;
         }
 
-        // Create permanent super admin user
+        // Create new admin user
         $admin = User::create([
             'name' => 'Fernando Mendoza',
             'username' => 'fmendoza',
