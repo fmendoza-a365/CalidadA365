@@ -37,8 +37,8 @@
             </form>
         </div>
 
-        <!-- Table -->
-        <div class="table-container">
+        {{-- Desktop Table View --}}
+        <div class="hidden md:block table-container">
             <table class="table">
                 <thead class="sticky top-0 z-10 text-xs uppercase tracking-wide bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
                     <tr>
@@ -115,6 +115,77 @@
                     @endforelse
                 </tbody>
             </table>
+        </div>
+
+        {{-- Mobile Card View --}}
+        <div class="md:hidden space-y-4">
+            @forelse($evaluations as $evaluation)
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-gray-900 dark:text-white mb-1">
+                                {{ $evaluation->campaign->name }}
+                            </h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                {{ $evaluation->agent->name }}
+                            </p>
+                        </div>
+                        <div class="ml-3">
+                            @php
+                                $score = $evaluation->percentage_score;
+                                $scoreClass = match(true) {
+                                    $score >= 90 => 'text-emerald-600 dark:text-emerald-400',
+                                    $score >= 80 => 'text-indigo-600 dark:text-indigo-400',
+                                    $score >= 70 => 'text-amber-600 dark:text-amber-400',
+                                    default => 'text-rose-600 dark:text-rose-400',
+                                };
+                            @endphp
+                            <div class="text-2xl font-bold {{ $scoreClass }}">
+                                {{ number_format($score, 0) }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $evaluation->created_at->format('d/m/Y H:i') }}
+                        </span>
+                        <span class="text-gray-300 dark:text-gray-600">•</span>
+                        @if($evaluation->status === 'visible_to_agent')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                Pendiente Firma
+                            </span>
+                        @elseif($evaluation->status === 'agent_responded')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                Firmada
+                            </span>
+                        @elseif($evaluation->status === 'disputed')
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
+                                En Disputa
+                            </span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                                {{ ucfirst(str_replace('_', ' ', $evaluation->status)) }}
+                            </span>
+                        @endif
+                    </div>
+                    
+                    <a href="{{ route('evaluations.show', $evaluation) }}" class="btn-secondary btn-sm w-full text-center justify-center">
+                        Ver Detalles
+                    </a>
+                </div>
+            @empty
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center">
+                    <div class="empty-state">
+                        <div class="empty-state-icon mb-2">
+                            <svg class="w-8 h-8 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <p class="text-gray-500 dark:text-gray-400">No hay evaluaciones disponibles</p>
+                    </div>
+                </div>
+            @endforelse
         </div>
         
         @if($evaluations->hasPages())
