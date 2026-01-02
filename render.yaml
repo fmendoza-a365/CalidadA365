@@ -29,18 +29,9 @@ services:
         fromDatabase:
           name: qa365-db
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: qa365-redis
-          property: connectionString
       - key: SESSION_DRIVER
-        value: redis
+        value: file
       - key: CACHE_STORE
-        value: redis
+        value: file
       - key: QUEUE_CONNECTION
-        value: redis
-
-  - type: redis
-    name: qa365-redis
-    plan: starter
+        value: sync
