@@ -9,6 +9,11 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\AgentResponseController;
 use Illuminate\Support\Facades\Route;
 
+// Healthcheck route for Railway
+Route::get('/up', function () {
+    return response()->json(['status' => 'ok'], 200);
+});
+
 Route::get('/', function () {
     return view('welcome');
 });
