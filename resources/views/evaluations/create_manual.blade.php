@@ -115,24 +115,24 @@
                                         <div class="grid grid-cols-3 gap-2">
                                             <label class="cursor-pointer">
                                                 <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="compliant" class="peer sr-only" required {{ $aiStatus === 'compliant' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium text-sm transition-all
-                                                    peer-checked:bg-emerald-500 peer-checked:text-white peer-checked:border-emerald-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
+                                                    peer-checked:bg-emerald-500 peer-checked:text-white peer-checked:border-emerald-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
                                                     Cumple
                                                 </div>
                                             </label>
                                             
                                             <label class="cursor-pointer">
                                                 <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="non_compliant" class="peer sr-only" {{ $aiStatus === 'non_compliant' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium text-sm transition-all
-                                                    peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
+                                                    peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
                                                     No
                                                 </div>
                                             </label>
                                             
                                             <label class="cursor-pointer">
                                                 <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="not_found" class="peer sr-only" {{ $aiStatus === 'not_found' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium text-sm transition-all
-                                                    peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
+                                                    peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
                                                     N/A
                                                 </div>
                                             </label>
