@@ -35,7 +35,7 @@ class ManualEvaluationController extends Controller
         $validated = $request->validate([
             'form_version_id' => 'required|exists:quality_form_versions,id',
             'items' => 'required|array',
-            'items.*.subattribute_id' => 'required|exists:quality_sub_attributes,id',
+            'items.*.subattribute_id' => 'required|exists:quality_subattributes,id',
             'items.*.status' => 'required|in:compliant,non_compliant,not_found',
             'items.*.notes' => 'nullable|string',
         ]);
