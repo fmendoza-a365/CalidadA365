@@ -199,7 +199,8 @@ class WidgetDataController extends Controller
         if ($metric === 'agent_performance') {
             $agents = \App\Models\User::role('agent')
                 ->with(['evaluations' => function ($query) {
-                    $query->where('created_at', '>=', now()->subDays(30));
+                    $query->forUser(auth()->user())
+                          ->where('created_at', '>=', now()->subDays(30));
                 }])
                 ->get()
                 ->map(function ($agent) {
@@ -320,7 +321,8 @@ class WidgetDataController extends Controller
         }
 
         if ($type === 'top_agents') {
-            $topAgents = Evaluation::select('agent_id', 
+            $topAgents = Evaluation::forUser(auth()->user())
+                ->select('agent_id', 
                     \DB::raw('AVG(percentage_score) as avg_score'),
                     \DB::raw('COUNT(*) as eval_count'))
                 ->where('created_at', '>=', now()->subDays(30))
@@ -344,7 +346,8 @@ class WidgetDataController extends Controller
         }
 
         if ($type === 'bottom_agents') {
-            $bottomAgents = Evaluation::select('agent_id', 
+            $bottomAgents = Evaluation::forUser(auth()->user())
+                ->select('agent_id', 
                     \DB::raw('AVG(percentage_score) as avg_score'),
                     \DB::raw('COUNT(*) as eval_count'))
                 ->where('created_at', '>=', now()->subDays(30))
@@ -368,7 +371,12 @@ class WidgetDataController extends Controller
         }
 
         if ($type === 'disputed_items') {
-             $disputes = \App\Models\DisputeResolution::with(['evaluation.agent'])
+             $disputes = \App\Models\DisputeResolution::with(['evaluation' => function($query) {
+                    $query->forUser(auth()->user());
+                }, 'evaluation.agent'])
+                ->whereHas('evaluation', function($query) {
+                    $query->forUser(auth()->user());
+                })
                 ->whereNull('resolved_at')
                 ->latest()
                 ->limit($limit)

@@ -24,14 +24,18 @@ class InsightsController extends Controller
         $campaigns = Campaign::where('is_active', true)->get();
 
         // Comprehensive Stats
-        $totalEvaluations = Evaluation::count();
-        $avgScore = Evaluation::avg('percentage_score') ?? 0;
+        $user = auth()->user();
+        $totalEvaluations = Evaluation::forUser($user)->count();
+        $avgScore = Evaluation::forUser($user)->avg('percentage_score') ?? 0;
         $complianceRate = $totalEvaluations > 0 
-            ? (Evaluation::where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100 
+            ? (Evaluation::forUser($user)->where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100 
             : 0;
 
         // Top Failed Criteria
-        $topFailedCriteria = \App\Models\EvaluationItem::where('status', 'non_compliant')
+        $topFailedCriteria = \App\Models\EvaluationItem::whereHas('evaluation', function($query) use ($user) {
+                $query->forUser($user);
+            })
+            ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
             ->selectRaw('quality_subattributes.name, count(*) as count')
             ->groupBy('quality_subattributes.name')
@@ -40,19 +44,23 @@ class InsightsController extends Controller
             ->get();
 
         // Critical Failures (Critical items that failed)
-        $criticalFailures = \App\Models\EvaluationItem::where('status', 'non_compliant')
+        $criticalFailures = \App\Models\EvaluationItem::whereHas('evaluation', function($query) use ($user) {
+                $query->forUser($user);
+            })
+            ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
             ->where('quality_subattributes.is_critical', true)
             ->count();
 
         // Score Trend (last 30 days vs previous 30 days)
-        $currentPeriodAvg = Evaluation::where('created_at', '>=', now()->subDays(30))->avg('percentage_score') ?? 0;
-        $previousPeriodAvg = Evaluation::whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])->avg('percentage_score') ?? 0;
+        $currentPeriodAvg = Evaluation::forUser($user)->where('created_at', '>=', now()->subDays(30))->avg('percentage_score') ?? 0;
+        $previousPeriodAvg = Evaluation::forUser($user)->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])->avg('percentage_score') ?? 0;
         $trendDirection = $currentPeriodAvg > $previousPeriodAvg ? 'up' : ($currentPeriodAvg < $previousPeriodAvg ? 'down' : 'stable');
         $trendChange = $previousPeriodAvg > 0 ? (($currentPeriodAvg - $previousPeriodAvg) / $previousPeriodAvg) * 100 : 0;
 
         // Top/Bottom Performers (last 30 days, min 3 evals)
-        $topPerformers = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
+        $topPerformers = Evaluation::forUser($user)
+            ->select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
             ->havingRaw('COUNT(*) >= ?', [3])
@@ -61,7 +69,8 @@ class InsightsController extends Controller
             ->with('agent:id,name')
             ->get();
 
-        $bottomPerformers = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
+        $bottomPerformers = Evaluation::forUser($user)
+            ->select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
             ->havingRaw('COUNT(*) >= ?', [3])

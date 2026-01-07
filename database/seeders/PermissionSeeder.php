@@ -87,5 +87,55 @@ class PermissionSeeder extends Seeder
         if ($agentRole) {
             $agentRole->givePermissionTo(['view_own_evaluations', 'view_agent_dashboard']);
         }
+
+        // Assign Manager Permissions (Sees ALL data like Admin, but cannot manage system)
+        $managerRole = \Spatie\Permission\Models\Role::where('name', 'manager')->first();
+        if ($managerRole) {
+            $managerRole->givePermissionTo([
+                'view_all_evaluations',
+                'view_campaigns',
+                'view_quality_forms',
+                'view_manager_dashboard',
+                'view_insights',
+                'view_users',
+            ]);
+        }
+
+        // Assign Supervisor Permissions (Sees team data only)
+        $supervisorRole = \Spatie\Permission\Models\Role::where('name', 'supervisor')->first();
+        if ($supervisorRole) {
+            $supervisorRole->givePermissionTo([
+                'view_team_evaluations',
+                'view_campaigns',
+                'view_quality_forms',
+                'view_supervisor_dashboard',
+                'view_insights',
+            ]);
+        }
+
+        // Assign QA Monitor Permissions (Creates evaluations, sees only assigned)
+        $qaMonitorRole = \Spatie\Permission\Models\Role::where('name', 'qa_monitor')->first();
+        if ($qaMonitorRole) {
+            $qaMonitorRole->givePermissionTo([
+                'create_evaluations',
+                'view_assigned_evaluations',
+                'view_campaigns',
+                'view_quality_forms',
+                'view_monitor_dashboard',
+            ]);
+        }
+
+        // Assign QA Coordinator Permissions (Manages monitors, sees team evaluations)
+        $qaCoordinatorRole = \Spatie\Permission\Models\Role::where('name', 'qa_coordinator')->first();
+        if ($qaCoordinatorRole) {
+            $qaCoordinatorRole->givePermissionTo([
+                'view_team_evaluations',
+                'create_evaluations',
+                'view_campaigns',
+                'view_quality_forms',
+                'view_coordinator_dashboard',
+                'view_insights',
+            ]);
+        }
     }
 }
