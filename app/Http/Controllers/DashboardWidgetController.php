@@ -99,10 +99,4 @@ class DashboardWidgetController extends Controller
 
         return response()->json(['message' => 'Widgets updated successfully']);
     }
-}                ]);
-            }
-        }
-
-        return response()->json(['message' => 'Widgets updated successfully']);
-    }
 }
