@@ -507,14 +507,23 @@
                 },
 
                 async addWidget(type, title) {
-                    const newWidget = {
+                    // 1. Create Optimistic Widget (Temp ID)
+                    const tempId = 'temp-' + Date.now();
+                    const optimisticWidget = {
+                        id: tempId,
                         widget_type: type,
                         title: title,
                         config: this.getDefaultConfig(type),
                         width: type === 'table' ? 'full' : 'sm',
-                        sort_order: this.widgets.length
+                        sort_order: this.widgets.length,
+                        is_optimistic: true
                     };
 
+                    // 2. Render Immediately
+                    this.widgets.push(optimisticWidget);
+                    this.showAddWidget = false;
+                    
+                    // 3. Send Request in Background
                     try {
                         const response = await fetch('{{ route("dashboard.widgets.store") }}', {
                             method: 'POST',
@@ -522,18 +531,35 @@
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
                             },
-                            body: JSON.stringify(newWidget)
+                            body: JSON.stringify({
+                                widget_type: type,
+                                title: title,
+                                config: optimisticWidget.config,
+                                width: optimisticWidget.width,
+                                sort_order: optimisticWidget.sort_order
+                            })
                         });
 
-                        const widget = await response.json();
-                        this.widgets.push(widget);
-                        this.showAddWidget = false;
+                        if (!response.ok) throw new Error('Failed to create widget');
+
+                        const realWidget = await response.json();
                         
-                        this.$nextTick(() => {
-                            this.fetchWidgetData(widget);
-                        });
+                        // 4. Swap Temp Widget with Real Widget
+                        const index = this.widgets.findIndex(w => w.id === tempId);
+                        if (index !== -1) {
+                            // Preserve any local state if needed (none really for new widgets)
+                            this.widgets[index] = realWidget;
+                            
+                            // 5. Fetch Data for the Real Widget
+                            this.$nextTick(() => {
+                                this.fetchWidgetData(realWidget);
+                            });
+                        }
                     } catch (error) {
                         console.error('Error adding widget:', error);
+                        // Rollback on error
+                        this.widgets = this.widgets.filter(w => w.id !== tempId);
+                        alert('Error al crear el widget. Por favor intenta de nuevo.');
                     }
                 },
 
