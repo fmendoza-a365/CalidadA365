@@ -56,12 +56,7 @@
         <div x-show="widgets.length > 0" class="grid-stack" id="widget-grid">
             <template x-for="widget in widgets" :key="widget.id">
                 <div class="grid-stack-item" 
-                     :data-widget-id="widget.id"
-                     :gs-id="widget.id"
-                     :gs-x="widget.position_x" 
-                     :gs-y="widget.position_y"
-                     :gs-w="widget.width" 
-                     :gs-h="widget.height">
+                     :data-widget-id="widget.id">
                     <div class="grid-stack-item-content">
                         <!-- Widget Card -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
