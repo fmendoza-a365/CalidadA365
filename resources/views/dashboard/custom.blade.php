@@ -56,11 +56,12 @@
         <div x-show="widgets.length > 0" class="grid-stack" id="widget-grid">
             <template x-for="widget in widgets" :key="widget.id">
                 <div class="grid-stack-item" 
-                     :gs-id="widget.id"
-                     :gs-x="widget.position_x" 
-                     :gs-y="widget.position_y"
-                     :gs-w="widget.width" 
-                     :gs-h="widget.height">
+                     x-bind:gs-id="widget.id"
+                     x-bind:gs-x="widget.position_x" 
+                     x-bind:gs-y="widget.position_y"
+                     x-bind:gs-w="widget.width" 
+                     x-bind:gs-h="widget.height"
+                     x-init="$nextTick(() => { if (grid && !grid.engine.nodes.find(n => n.id == widget.id)) { grid.makeWidget($el); } })">
                     <div class="grid-stack-item-content">
                         <!-- Widget Card -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
