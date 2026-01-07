@@ -398,9 +398,16 @@
                         this.widgets = await response.json();
                         this.loading = false;
                         
+                        console.log('Widgets loaded:', this.widgets.length, this.widgets);
+                        
                         this.$nextTick(() => {
                             this.initGrid();
                             this.loadAllWidgetData();
+                            
+                            // Initialize grid widgets after data is loaded
+                            setTimeout(() => {
+                                this.initializeGridWidgets();
+                            }, 500);
                         });
                     } catch (error) {
                         console.error('Error loading widgets:', error);
@@ -426,33 +433,7 @@
                         disableResize: !this.editMode,
                     });
 
-                    console.log('GridStack initialized:', this.grid);
-
-                    // Load existing widgets into grid
-                    this.$nextTick(() => {
-                        setTimeout(() => {
-                            this.widgets.forEach(widget => {
-                                const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
-                                if (el && !el.gridstackNode) {
-                                    console.log('Adding widget to grid:', widget.id, {
-                                        x: widget.position_x,
-                                        y: widget.position_y,
-                                        w: widget.width,
-                                        h: widget.height
-                                    });
-                                    
-                                    // Pass configuration directly to makeWidget
-                                    this.grid.makeWidget(el, {
-                                        x: widget.position_x,
-                                        y: widget.position_y,
-                                        w: widget.width,
-                                        h: widget.height,
-                                        id: widget.id.toString()
-                                    });
-                                }
-                            });
-                        }, 200); // Give Alpine time to render
-                    });
+                    console.log('GridStack initialized successfully');
 
                     // Watch editMode changes
                     this.$watch('editMode', (value) => {
@@ -474,6 +455,45 @@
                             this.savePositions(items);
                         }
                     });
+                },
+
+                initializeGridWidgets() {
+                    console.log('Initializing grid widgets...');
+                    console.log('Total widgets to add:', this.widgets.length);
+                    
+                    this.widgets.forEach(widget => {
+                        const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
+                        console.log(`Looking for widget ${widget.id}:`, el ? 'FOUND' : 'NOT FOUND');
+                        
+                        if (el) {
+                            if (el.gridstackNode) {
+                                console.log(`Widget ${widget.id} already in grid, skipping`);
+                                return;
+                            }
+                            
+                            console.log('Adding widget to grid:', widget.id, {
+                                x: widget.position_x,
+                                y: widget.position_y,
+                                w: widget.width,
+                                h: widget.height
+                            });
+                            
+                            // Pass configuration directly to makeWidget
+                            this.grid.makeWidget(el, {
+                                x: widget.position_x,
+                                y: widget.position_y,
+                                w: widget.width,
+                                h: widget.height,
+                                id: widget.id.toString(),
+                                noResize: false,
+                                noMove: false
+                            });
+                            
+                            console.log(`Widget ${widget.id} added successfully`);
+                        }
+                    });
+                    
+                    console.log('Grid widgets initialization complete');
                 },
 
                 async loadAllWidgetData() {
