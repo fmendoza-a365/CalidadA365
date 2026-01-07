@@ -56,12 +56,12 @@
         <div x-show="widgets.length > 0" class="grid-stack" id="widget-grid">
             <template x-for="widget in widgets" :key="widget.id">
                 <div class="grid-stack-item" 
-                     x-bind:gs-id="widget.id"
-                     x-bind:gs-x="widget.position_x" 
-                     x-bind:gs-y="widget.position_y"
-                     x-bind:gs-w="widget.width" 
-                     x-bind:gs-h="widget.height"
-                     x-init="$nextTick(() => { if (grid && !grid.engine.nodes.find(n => n.id == widget.id)) { grid.makeWidget($el); } })">
+                     :data-widget-id="widget.id"
+                     :gs-id="widget.id"
+                     :gs-x="widget.position_x" 
+                     :gs-y="widget.position_y"
+                     :gs-w="widget.width" 
+                     :gs-h="widget.height">
                     <div class="grid-stack-item-content">
                         <!-- Widget Card -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
@@ -410,6 +410,11 @@
 
                 initGrid() {
                     console.log('Initializing GridStack...');
+                    if (this.grid) {
+                        console.log('Grid already exists, destroying...');
+                        this.grid.destroy(false);
+                    }
+                    
                     this.grid = GridStack.init({
                         cellHeight: 80,
                         animate: true,
@@ -417,23 +422,37 @@
                         minRow: 1,
                         column: 12,
                         margin: 8,
-                        disableDrag: true,
-                        disableResize: true,
+                        disableDrag: !this.editMode,
+                        disableResize: !this.editMode,
                     });
 
                     console.log('GridStack initialized:', this.grid);
+
+                    // Load existing widgets into grid
+                    this.$nextTick(() => {
+                        this.widgets.forEach(widget => {
+                            const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
+                            if (el && !el.gridstackNode) {
+                                console.log('Adding widget to grid:', widget.id, {
+                                    x: widget.position_x,
+                                    y: widget.position_y,
+                                    w: widget.width,
+                                    h: widget.height
+                                });
+                                this.grid.makeWidget(el);
+                            }
+                        });
+                    });
 
                     // Watch editMode changes
                     this.$watch('editMode', (value) => {
                         console.log('Edit mode changed to:', value);
                         if (this.grid) {
                             if (value) {
-                                this.grid.enableMove(true);
-                                this.grid.enableResize(true);
+                                this.grid.enable();
                                 console.log('GridStack enabled for editing');
                             } else {
-                                this.grid.enableMove(false);
-                                this.grid.enableResize(false);
+                                this.grid.disable();
                                 console.log('GridStack disabled');
                             }
                         }
