@@ -56,7 +56,11 @@
         <div x-show="widgets.length > 0" class="grid-stack" id="widget-grid">
             <template x-for="widget in widgets" :key="widget.id">
                 <div class="grid-stack-item" 
-                     :data-widget-id="widget.id">
+                     :gs-id="widget.id"
+                     :gs-x="widget.position_x" 
+                     :gs-y="widget.position_y"
+                     :gs-w="widget.width" 
+                     :gs-h="widget.height">
                     <div class="grid-stack-item-content">
                         <!-- Widget Card -->
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
@@ -393,16 +397,9 @@
                         this.widgets = await response.json();
                         this.loading = false;
                         
-                        console.log('Widgets loaded:', this.widgets.length, this.widgets);
-                        
                         this.$nextTick(() => {
                             this.initGrid();
                             this.loadAllWidgetData();
-                            
-                            // Initialize grid widgets after data is loaded
-                            setTimeout(() => {
-                                this.initializeGridWidgets();
-                            }, 500);
                         });
                     } catch (error) {
                         console.error('Error loading widgets:', error);
@@ -412,11 +409,6 @@
 
                 initGrid() {
                     console.log('Initializing GridStack...');
-                    if (this.grid) {
-                        console.log('Grid already exists, destroying...');
-                        this.grid.destroy(false);
-                    }
-                    
                     this.grid = GridStack.init({
                         cellHeight: 80,
                         animate: true,
@@ -424,21 +416,23 @@
                         minRow: 1,
                         column: 12,
                         margin: 8,
-                        disableDrag: !this.editMode,
-                        disableResize: !this.editMode,
+                        disableDrag: true,
+                        disableResize: true,
                     });
 
-                    console.log('GridStack initialized successfully');
+                    console.log('GridStack initialized:', this.grid);
 
                     // Watch editMode changes
                     this.$watch('editMode', (value) => {
                         console.log('Edit mode changed to:', value);
                         if (this.grid) {
                             if (value) {
-                                this.grid.enable();
+                                this.grid.enableMove(true);
+                                this.grid.enableResize(true);
                                 console.log('GridStack enabled for editing');
                             } else {
-                                this.grid.disable();
+                                this.grid.enableMove(false);
+                                this.grid.enableResize(false);
                                 console.log('GridStack disabled');
                             }
                         }
@@ -450,45 +444,6 @@
                             this.savePositions(items);
                         }
                     });
-                },
-
-                initializeGridWidgets() {
-                    console.log('Initializing grid widgets...');
-                    console.log('Total widgets to add:', this.widgets.length);
-                    
-                    this.widgets.forEach(widget => {
-                        const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
-                        console.log(`Looking for widget ${widget.id}:`, el ? 'FOUND' : 'NOT FOUND');
-                        
-                        if (el) {
-                            if (el.gridstackNode) {
-                                console.log(`Widget ${widget.id} already in grid, skipping`);
-                                return;
-                            }
-                            
-                            console.log('Adding widget to grid:', widget.id, {
-                                x: widget.position_x,
-                                y: widget.position_y,
-                                w: widget.width,
-                                h: widget.height
-                            });
-                            
-                            // Pass configuration directly to makeWidget
-                            this.grid.makeWidget(el, {
-                                x: widget.position_x,
-                                y: widget.position_y,
-                                w: widget.width,
-                                h: widget.height,
-                                id: widget.id.toString(),
-                                noResize: false,
-                                noMove: false
-                            });
-                            
-                            console.log(`Widget ${widget.id} added successfully`);
-                        }
-                    });
-                    
-                    console.log('Grid widgets initialization complete');
                 },
 
                 async loadAllWidgetData() {
