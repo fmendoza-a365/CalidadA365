@@ -287,6 +287,13 @@
                                     <option value="avg_score">Promedio de Calidad</option>
                                     <option value="pending_disputes">Disputas Pendientes</option>
                                     <option value="active_campaigns">Campañas Activas</option>
+                                    <option value="total_agents">Total de Agentes</option>
+                                    <option value="evaluations_this_month">Evaluaciones Este Mes</option>
+                                    <option value="compliance_rate">Tasa de Cumplimiento</option>
+                                    <option value="response_rate">Tasa de Respuesta</option>
+                                    <option value="avg_resolution_time">Tiempo Prom. Resolución</option>
+                                    <option value="top_performer">Mejor Agente (30d)</option>
+                                    <option value="worst_performer">Peor Agente (30d)</option>
                                 </select>
                             </div>
 
@@ -305,6 +312,8 @@
                             <div>
                                 <label class="form-label">Métrica</label>
                                 <select x-model="configForm.metric" class="form-select">
+                                    <option value="campaign_performance">Rendimiento por Campaña</option>
+                                    <option value="agent_performance">Rendimiento por Agente</option>
                                     <option value="avg_score">Promedio de Calidad</option>
                                     <option value="count">Cantidad de Evaluaciones</option>
                                 </select>
@@ -329,6 +338,9 @@
                                 <label class="form-label">Tipo de Tabla</label>
                                 <select x-model="configForm.type" class="form-select">
                                     <option value="recent_evaluations">Evaluaciones Recientes</option>
+                                    <option value="top_agents">Top 10 Agentes</option>
+                                    <option value="bottom_agents">Bolttom 10 Agentes</option>
+                                    <option value="disputed_items">Items en Disputa</option>
                                 </select>
                             </div>
                             <div>
@@ -645,7 +657,14 @@
                         total_evaluations: 'Total Evaluaciones',
                         avg_score: 'Promedio de Calidad',
                         pending_disputes: 'Disputas Pendientes',
-                        active_campaigns: 'Campañas Activas'
+                        active_campaigns: 'Campañas Activas',
+                        total_agents: 'Total de Agentes',
+                        evaluations_this_month: 'Evaluaciones Este Mes',
+                        compliance_rate: 'Tasa de Cumplimiento',
+                        response_rate: 'Tasa de Respuesta',
+                        avg_resolution_time: 'Tiempo Prom. Resolución',
+                        top_performer: 'Mejor Agente (30d)',
+                        worst_performer: 'Peor Agente (30d)'
                     };
 
                     const iconMap = {
@@ -661,8 +680,11 @@
 
                     const label = metricLabels[data.metric] || data.metric;
                     const value = data.value;
-                    const suffix = data.metric === 'avg_score' ? '%' : '';
+                    const suffix = data.metric === 'avg_score' || data.metric === 'compliance_rate' || data.metric === 'response_rate' ? '%' 
+                                 : data.metric === 'avg_resolution_time' ? ' días' 
+                                 : '';
                     const displayIcon = iconMap[icon] || '📊';
+                    const isNameMetric = data.metric === 'top_performer' || data.metric === 'worst_performer';
 
                     // Calculate progress if target exists
                     const hasTarget = target && target > 0;
@@ -687,6 +709,7 @@
                                 
                                 <!-- Value -->
                                 <div class="text-6xl font-black mb-3 leading-none" 
+                                     :class="isNameMetric ? 'text-3xl' : ''"
                                      style="color: ${color};">
                                     ${value}${suffix}
                                 </div>
