@@ -8,23 +8,16 @@ class DashboardWidget extends Model
 {
     protected $fillable = [
         'user_id',
-        'widget_type',
+        'widget_type', // stats_card, line_chart, bar_chart, pie_chart, table
         'title',
-        'config',
-        'position_x',
-        'position_y',
-        'width',
-        'height',
-        'order',
+        'config', // JSON field for specific settings
+        'width', // sm, md, lg, full
+        'sort_order',
     ];
 
     protected $casts = [
         'config' => 'array',
-        'position_x' => 'integer',
-        'position_y' => 'integer',
-        'width' => 'integer',
-        'height' => 'integer',
-        'order' => 'integer',
+        'sort_order' => 'integer',
     ];
 
     public function user()

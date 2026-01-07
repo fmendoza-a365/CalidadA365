@@ -29,14 +29,13 @@ class DashboardWidgetController extends Controller
             'widget_type' => 'required|string|in:stats_card,line_chart,bar_chart,table,pie_chart',
             'title' => 'required|string|max:255',
             'config' => 'nullable|array',
-            'position_x' => 'integer|min:0',
-            'position_y' => 'integer|min:0',
-            'width' => 'integer|min:1|max:12',
-            'height' => 'integer|min:1|max:12',
-            'order' => 'integer|min:0',
+            'width' => 'nullable|string|in:sm,md,lg,full',
+            'sort_order' => 'nullable|integer',
         ]);
 
         $validated['user_id'] = auth()->id();
+        $validated['width'] = $validated['width'] ?? 'sm';
+        $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
         $widget = DashboardWidget::create($validated);
 
@@ -56,11 +55,8 @@ class DashboardWidgetController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'config' => 'sometimes|array',
-            'position_x' => 'sometimes|integer|min:0',
-            'position_y' => 'sometimes|integer|min:0',
-            'width' => 'sometimes|integer|min:1|max:12',
-            'height' => 'sometimes|integer|min:1|max:12',
-            'order' => 'sometimes|integer|min:0',
+            'width' => 'sometimes|string|in:sm,md,lg,full',
+            'sort_order' => 'sometimes|integer',
         ]);
 
         $widget->update($validated);
@@ -84,29 +80,26 @@ class DashboardWidgetController extends Controller
     }
 
     /**
-     * Bulk update widget positions (for drag-and-drop)
+     * Bulk update widget positions (reordering)
      */
     public function bulkUpdate(Request $request)
     {
         $validated = $request->validate([
             'widgets' => 'required|array',
             'widgets.*.id' => 'required|exists:dashboard_widgets,id',
-            'widgets.*.position_x' => 'required|integer|min:0',
-            'widgets.*.position_y' => 'required|integer|min:0',
-            'widgets.*.width' => 'sometimes|integer|min:1|max:12',
-            'widgets.*.height' => 'sometimes|integer|min:1|max:12',
+            'widgets.*.sort_order' => 'required|integer',
         ]);
 
         foreach ($validated['widgets'] as $widgetData) {
             $widget = DashboardWidget::find($widgetData['id']);
-            
             if ($widget && $widget->user_id === auth()->id()) {
-                $widget->update([
-                    'position_x' => $widgetData['position_x'],
-                    'position_y' => $widgetData['position_y'],
-                    'width' => $widgetData['width'] ?? $widget->width,
-                    'height' => $widgetData['height'] ?? $widget->height,
-                ]);
+                $widget->update(['sort_order' => $widgetData['sort_order']]);
+            }
+        }
+
+        return response()->json(['message' => 'Widgets updated successfully']);
+    }
+}                ]);
             }
         }
 
