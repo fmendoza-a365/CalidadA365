@@ -54,6 +54,59 @@ class WidgetDataController extends Controller
             'avg_score' => round($query->avg('percentage_score') ?? 0, 2),
             'pending_disputes' => DisputeResolution::whereNull('resolved_at')->count(),
             'active_campaigns' => Campaign::active()->count(),
+            
+            // NEW METRICS
+            'total_agents' => \App\Models\User::role('agent')->count(),
+            
+            'evaluations_this_month' => Evaluation::query()
+                ->forUser(auth()->user())
+                ->whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->count(),
+            
+            'compliance_rate' => (function() use ($query) {
+                $total = (clone $query)->count();
+                if ($total === 0) return 0;
+                $compliant = (clone $query)->where('percentage_score', '>=', 80)->count();
+                return round(($compliant / $total) * 100, 2);
+            })(),
+            
+            'response_rate' => (function() {
+                $visible = Evaluation::where('status', 'visible_to_agent')->count();
+                if ($visible === 0) return 100;
+                $responded = Evaluation::where('status', 'agent_responded')->count();
+                return round(($responded / ($visible + $responded)) * 100, 2);
+            })(),
+            
+            'avg_resolution_time' => (function() {
+                $avgSeconds = DisputeResolution::whereNotNull('resolved_at')
+                    ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, created_at, resolved_at)) as avg_time')
+                    ->value('avg_time');
+                return $avgSeconds ? round($avgSeconds / 86400, 1) : 0; // Convert to days
+            })(),
+            
+            'top_performer' => (function() {
+                $topAgent = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'))
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->groupBy('agent_id')
+                    ->havingRaw('COUNT(*) >= 3')
+                    ->orderByDesc('avg_score')
+                    ->with('agent:id,name')
+                    ->first();
+                return $topAgent ? $topAgent->agent->name : 'N/A';
+            })(),
+            
+            'worst_performer' => (function() {
+                $worstAgent = Evaluation::select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'))
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->groupBy('agent_id')
+                    ->havingRaw('COUNT(*) >= 3')
+                    ->orderBy('avg_score')
+                    ->with('agent:id,name')
+                    ->first();
+                return $worstAgent ? $worstAgent->agent->name : 'N/A';
+            })(),
+            
             default => 0,
         };
 
@@ -123,6 +176,34 @@ class WidgetDataController extends Controller
             ];
         }
 
+        if ($metric === 'agent_performance') {
+            $agents = \App\Models\User::role('agent')
+                ->with(['evaluations' => function ($query) {
+                    $query->where('created_at', '>=', now()->subDays(30));
+                }])
+                ->get()
+                ->map(function ($agent) {
+                    return [
+                        'name' => $agent->name,
+                        'avg_score' => $agent->evaluations->avg('percentage_score') ?? 0
+                    ];
+                })
+                ->filter(fn($agent) => $agent['avg_score'] > 0)
+                ->sortByDesc('avg_score')
+                ->take(10);
+
+            return [
+                'labels' => $agents->pluck('name')->toArray(),
+                'datasets' => [
+                    [
+                        'label' => 'Promedio de Calidad',
+                        'data' => $agents->pluck('avg_score')->toArray(),
+                        'backgroundColor' => '#10B981',
+                    ]
+                ]
+            ];
+        }
+
         return ['labels' => [], 'datasets' => []];
     }
 
@@ -178,6 +259,74 @@ class WidgetDataController extends Controller
                         $eval->agent->name,
                         number_format($eval->percentage_score, 0) . '%',
                         $eval->status,
+                    ];
+                })->toArray()
+            ];
+        }
+
+        if ($type === 'top_agents') {
+            $topAgents = Evaluation::select('agent_id', 
+                    \DB::raw('AVG(percentage_score) as avg_score'),
+                    \DB::raw('COUNT(*) as eval_count'))
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy('agent_id')
+                ->havingRaw('COUNT(*) >= 3')
+                ->orderByDesc('avg_score')
+                ->limit($limit)
+                ->with('agent:id,name')
+                ->get();
+
+            return [
+                'columns' => ['Agente', 'Promedio', 'Evaluaciones'],
+                'rows' => $topAgents->map(function ($item) {
+                    return [
+                        $item->agent->name,
+                        number_format($item->avg_score, 1) . '%',
+                        $item->eval_count,
+                    ];
+                })->toArray()
+            ];
+        }
+
+        if ($type === 'bottom_agents') {
+            $bottomAgents = Evaluation::select('agent_id', 
+                    \DB::raw('AVG(percentage_score) as avg_score'),
+                    \DB::raw('COUNT(*) as eval_count'))
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy('agent_id')
+                ->havingRaw('COUNT(*) >= 3')
+                ->orderBy('avg_score')
+                ->limit($limit)
+                ->with('agent:id,name')
+                ->get();
+
+            return [
+                'columns' => ['Agente', 'Promedio', 'Evaluaciones'],
+                'rows' => $bottomAgents->map(function ($item) {
+                    return [
+                        $item->agent->name,
+                        number_format($item->avg_score, 1) . '%',
+                        $item->eval_count,
+                    ];
+                })->toArray()
+            ];
+        }
+
+        if ($type === 'disputed_items') {
+            $disputes = \App\Models\AgentResponse::with(['evaluation.agent', 'evaluation.campaign'])
+                ->where('status', 'disputed')
+                ->latest()
+                ->limit($limit)
+                ->get();
+
+            return [
+                'columns' => ['Fecha', 'Agente', 'Campaña', 'Motivo'],
+                'rows' => $disputes->map(function ($dispute) {
+                    return [
+                        $dispute->created_at->format('d/m/Y'),
+                        $dispute->evaluation->agent->name ?? 'N/A',
+                        $dispute->evaluation->campaign->name ?? 'N/A',
+                        \Str::limit($dispute->comments ?? 'Sin motivo', 30),
                     ];
                 })->toArray()
             ];

@@ -13,7 +13,7 @@ class DashboardWidgetController extends Controller
     public function index()
     {
         $widgets = auth()->user()
-            ->hasMany(DashboardWidget::class)
+            ->dashboardWidgets()
             ->orderBy('order')
             ->get();
 

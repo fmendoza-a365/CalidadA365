@@ -121,4 +121,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\CampaignUserAssignment::class, 'agent_id');
     }
+
+    public function dashboardWidgets()
+    {
+        return $this->hasMany(\App\Models\DashboardWidget::class);
+    }
 }
