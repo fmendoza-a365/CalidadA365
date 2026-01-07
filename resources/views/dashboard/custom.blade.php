@@ -737,6 +737,9 @@
                                  : '';
                     const displayIcon = iconMap[icon] || '📊';
                     const isNameMetric = data.metric === 'top_performer' || data.metric === 'worst_performer';
+                    
+                    // Determine text size based on metric type
+                    const valueTextSize = isNameMetric ? 'text-3xl' : 'text-6xl';
 
                     // Calculate progress if target exists
                     const hasTarget = target && target > 0;
@@ -760,8 +763,7 @@
                                 </div>
                                 
                                 <!-- Value -->
-                                <div class="text-6xl font-black mb-3 leading-none" 
-                                     :class="isNameMetric ? 'text-3xl' : ''"
+                                <div class="${valueTextSize} font-black mb-3 leading-none" 
                                      style="color: ${color};">
                                     ${value}${suffix}
                                 </div>
