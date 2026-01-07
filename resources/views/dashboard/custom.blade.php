@@ -53,63 +53,82 @@
         </div>
 
         <!-- Widget Grid -->
-        <div x-show="widgets.length > 0" class="grid-stack" id="widget-grid">
-            <template x-for="widget in widgets" :key="widget.id">
-                <div class="grid-stack-item" 
-                     :gs-id="widget.id"
-                     :gs-x="widget.position_x" 
-                     :gs-y="widget.position_y"
-                     :gs-w="widget.width" 
-                     :gs-h="widget.height">
-                    <div class="grid-stack-item-content">
-                        <!-- Widget Card -->
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col">
-                            <!-- Widget Header (only for non-stats cards) -->
-                            <div x-show="widget.widget_type !== 'stats_card'" 
-                                 class="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
-                                <h4 class="font-semibold text-gray-900 dark:text-white" x-text="widget.title"></h4>
-                                <div class="flex items-center gap-2" x-show="editMode">
-                                    <button @click="openConfigModal(widget)" 
-                                            class="text-gray-400 hover:text-indigo-600 transition-colors"
-                                            title="Configurar">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </button>
-                                    <button @click="deleteWidget(widget.id)" 
-                                            class="text-gray-400 hover:text-rose-600 transition-colors"
-                                            title="Eliminar">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
+        <div x-show="widgets.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-max">
+            <template x-for="(widget, index) in widgets" :key="widget.id">
+                <div :class="{
+                        'col-span-1': widget.width === 'sm',
+                        'col-span-1 md:col-span-2': widget.width === 'md',
+                        'col-span-1 md:col-span-2 lg:col-span-3': widget.width === 'lg',
+                        'col-span-1 md:col-span-2 lg:col-span-4': widget.width === 'full',
+                        'h-[300px]': widget.widget_type !== 'table', 
+                        'h-[400px]': widget.widget_type === 'table'
+                     }"
+                     class="transition-all duration-300 ease-in-out">
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-full flex flex-col hover:shadow-md transition-shadow">
+                        <!-- Widget Header -->
+                        <div x-show="widget.widget_type !== 'stats_card' || editMode" 
+                             class="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
                             
-                            <!-- Edit buttons for stats cards (floating) -->
-                            <div x-show="widget.widget_type === 'stats_card' && editMode" 
-                                 class="absolute top-2 right-2 z-20 flex items-center gap-1">
-                                <button @click="openConfigModal(widget)" 
-                                        class="p-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-md text-gray-400 hover:text-indigo-600 transition-colors"
-                                        title="Configurar">
+                            <!-- Title (or Type for stats) -->
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-semibold text-gray-900 dark:text-white truncate max-w-[150px]" x-text="widget.title"></h4>
+                            </div>
+
+                            <!-- Edit Controls -->
+                            <div class="flex items-center gap-1" x-show="editMode">
+                                <!-- Move Left/Up -->
+                                <button @click="moveWidget(index, -1)" :disabled="index === 0"
+                                        class="p-1 text-gray-400 hover:text-indigo-600 disabled:opacity-30">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                
+                                <!-- Move Right/Down -->
+                                <button @click="moveWidget(index, 1)" :disabled="index === widgets.length - 1"
+                                        class="p-1 text-gray-400 hover:text-indigo-600 disabled:opacity-30">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                                
+                                <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+
+                                <!-- Resize Dropdown -->
+                                <div class="relative" x-data="{ open: false }">
+                                    <button @click="open = !open" @click.away="open = false" 
+                                            class="p-1 text-gray-400 hover:text-indigo-600" title="Cambiar tamaño">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                        </svg>
+                                    </button>
+                                    <div x-show="open" 
+                                         class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 rounded shadow-lg border border-gray-100 z-50 text-xs py-1">
+                                        <button @click="updateWidgetSize(widget, 'sm'); open = false" class="block w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">Pequeño (1/4)</button>
+                                        <button @click="updateWidgetSize(widget, 'md'); open = false" class="block w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">Mediano (1/2)</button>
+                                        <button @click="updateWidgetSize(widget, 'lg'); open = false" class="block w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">Grande (3/4)</button>
+                                        <button @click="updateWidgetSize(widget, 'full'); open = false" class="block w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">Completo (4/4)</button>
+                                    </div>
+                                </div>
+
+                                <button @click="openConfigModal(widget)" class="p-1 text-gray-400 hover:text-indigo-600">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                 </button>
-                                <button @click="deleteWidget(widget.id)" 
-                                        class="p-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-md text-gray-400 hover:text-rose-600 transition-colors"
-                                        title="Eliminar">
+                                
+                                <button @click="deleteWidget(widget.id)" class="p-1 text-gray-400 hover:text-rose-600">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </button>
                             </div>
-                            
-                            <!-- Widget Content -->
-                            <div class="flex-1 overflow-auto" x-html="renderWidget(widget)"></div>
                         </div>
+                        
+                        <!-- Widget Content -->
+                        <div class="flex-1 overflow-hidden relative p-4" x-html="renderWidgetContent(widget, widgetData[widget.id])"></div>
                     </div>
                 </div>
             </template>
@@ -386,10 +405,6 @@
     </div>
 
     @push('scripts')
-    <!-- Gridstack.js -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@latest/dist/gridstack.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/gridstack@latest/dist/gridstack-all.js"></script>
-    
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
@@ -433,61 +448,24 @@
                 async loadWidgets() {
                     try {
                         const response = await fetch('{{ route("dashboard.widgets.index") }}');
-                        this.widgets = await response.json();
+                        const widgets = await response.json();
+                        
+                        // Sort by order
+                        this.widgets = widgets.sort((a, b) => a.sort_order - b.sort_order);
+                        
                         this.loading = false;
                         
-                        this.$nextTick(() => {
-                            this.initGrid();
-                            this.loadAllWidgetData();
-                        });
+                        if (this.widgets.length > 0) {
+                            // Render contents
+                            this.$nextTick(async () => {
+                                for (const widget of this.widgets) {
+                                    await this.fetchWidgetData(widget);
+                                }
+                            });
+                        }
                     } catch (error) {
                         console.error('Error loading widgets:', error);
                         this.loading = false;
-                    }
-                },
-
-                initGrid() {
-                    console.log('Initializing GridStack...');
-                    this.grid = GridStack.init({
-                        cellHeight: 80,
-                        animate: true,
-                        float: false,
-                        minRow: 1,
-                        column: 12,
-                        margin: 8,
-                        disableDrag: true,
-                        disableResize: true,
-                    });
-
-                    console.log('GridStack initialized:', this.grid);
-
-                    // Watch editMode changes
-                    this.$watch('editMode', (value) => {
-                        console.log('Edit mode changed to:', value);
-                        if (this.grid) {
-                            if (value) {
-                                this.grid.enableMove(true);
-                                this.grid.enableResize(true);
-                                console.log('GridStack enabled for editing');
-                            } else {
-                                this.grid.enableMove(false);
-                                this.grid.enableResize(false);
-                                console.log('GridStack disabled');
-                            }
-                        }
-                    });
-
-                    this.grid.on('change', (event, items) => {
-                        console.log('GridStack change event:', items);
-                        if (this.editMode && items && items.length > 0) {
-                            this.savePositions(items);
-                        }
-                    });
-                },
-
-                async loadAllWidgetData() {
-                    for (const widget of this.widgets) {
-                        await this.fetchWidgetData(widget);
                     }
                 },
 
@@ -533,11 +511,8 @@
                         widget_type: type,
                         title: title,
                         config: this.getDefaultConfig(type),
-                        position_x: 0,
-                        position_y: 0,
-                        width: type === 'stats_card' ? 3 : 6,
-                        height: type === 'table' ? 4 : type === 'stats_card' ? 2 : 3,
-                        order: this.widgets.length
+                        width: type === 'table' ? 'full' : 'sm',
+                        sort_order: this.widgets.length
                     };
 
                     try {
@@ -555,11 +530,7 @@
                         this.showAddWidget = false;
                         
                         this.$nextTick(() => {
-                            const el = document.querySelector(`[gs-id="${widget.id}"]`);
-                            if (el) {
-                                this.grid.makeWidget(el);
-                                this.fetchWidgetData(widget);
-                            }
+                            this.fetchWidgetData(widget);
                         });
                     } catch (error) {
                         console.error('Error adding widget:', error);
@@ -590,11 +561,6 @@
 
                         this.widgets = this.widgets.filter(w => w.id !== widgetId);
                         
-                        const el = document.querySelector(`[gs-id="${widgetId}"]`);
-                        if (el && this.grid) {
-                            this.grid.removeWidget(el);
-                        }
-
                         // Destroy chart if exists
                         if (this.charts[widgetId]) {
                             this.charts[widgetId].destroy();
@@ -889,32 +855,35 @@
                     if (['line_chart', 'bar_chart', 'pie_chart'].includes(widget.widget_type)) {
                         // Destroy existing chart first
                         if (this.charts[widget.id]) {
-                            console.log('Destroying existing chart before render:', widget.id);
                             this.charts[widget.id].destroy();
                             delete this.charts[widget.id];
                         }
                         
                         this.$nextTick(() => {
-                            // Wait for DOM cleanup and rendering
                             setTimeout(() => {
                                 const canvas = document.getElementById(`chart-${widget.id}`);
                                 if (canvas) {
-                                    console.log('Rendering chart:', widget.id, widget.widget_type);
-                                    
-                                    const ctx = canvas.getContext('2d');
-                                    if (!ctx) {
-                                        console.error('Failed to get canvas context for widget:', widget.id);
-                                        return;
+                                    // Ensure container has size
+                                    if (canvas.parentElement) {
+                                        canvas.parentElement.style.position = 'relative';
+                                        canvas.parentElement.style.height = '100%';
+                                        canvas.parentElement.style.width = '100%';
                                     }
-                                    
-                                    const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
-                                    
-                                    this.charts[widget.id] = new Chart(ctx, chartConfig);
-                                    console.log('Chart created successfully:', widget.id);
-                                } else {
-                                    console.error('Canvas not found for widget:', widget.id);
+
+                                    const ctx = canvas.getContext('2d');
+                                    if (ctx) {
+                                        const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
+                                        // Force responsive true
+                                        chartConfig.options = { 
+                                            ...chartConfig.options, 
+                                            responsive: true, 
+                                            maintainAspectRatio: false,
+                                            resizeDelay: 200 // Debounce resize
+                                        };
+                                        this.charts[widget.id] = new Chart(ctx, chartConfig);
+                                    }
                                 }
-                            }, 150);
+                            }, 50);
                         });
                     }
                 },
