@@ -128,7 +128,7 @@
                         </div>
                         
                         <!-- Widget Content -->
-                        <div class="flex-1 overflow-hidden relative p-4" x-html="renderWidgetContent(widget, widgetData[widget.id])"></div>
+                        <div class="flex-1 overflow-hidden relative p-4" x-html="renderWidget(widget)"></div>
                     </div>
                 </div>
             </template>
@@ -661,6 +661,66 @@
                     } catch (error) {
                         console.error('Error saving config:', error);
                         alert('Error al guardar la configuración. Por favor intenta de nuevo.');
+                    }
+                },
+
+                async moveWidget(index, direction) {
+                    const newIndex = index + direction;
+                    if (newIndex < 0 || newIndex >= this.widgets.length) return;
+
+                    // Swap in array
+                    const temp = this.widgets[index];
+                    this.widgets[index] = this.widgets[newIndex];
+                    this.widgets[newIndex] = temp;
+
+                    // Update sort_order for all widgets to be safe
+                    const updates = this.widgets.map((w, i) => ({
+                        id: w.id,
+                        sort_order: i
+                    }));
+
+                    // Optimistic UI update
+                    // this.widgets is already updated
+
+                    try {
+                        await fetch('{{ route("dashboard.widgets.bulk-update") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({ widgets: updates })
+                        });
+                    } catch (error) {
+                        console.error('Error moving widget:', error);
+                        // Revert on error? For now just log
+                    }
+                },
+
+                async updateWidgetSize(widget, size) {
+                    widget.width = size;
+                    
+                    try {
+                        await fetch(`/dashboard/widgets/${widget.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                title: widget.title,
+                                width: size,
+                                sort_order: widget.sort_order, // Ensure we keep order
+                                config: widget.config
+                            })
+                        });
+                        
+                        // Force chart resize if needed
+                        if (['line_chart', 'bar_chart', 'pie_chart'].includes(widget.widget_type)) {
+                            this.renderWidgetContent(widget, this.widgetData[widget.id]);
+                        }
+                    } catch (error) {
+                        console.error('Error updating widget size:', error);
                     }
                 },
 
