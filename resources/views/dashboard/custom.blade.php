@@ -489,7 +489,6 @@
                         }
 
                         const data = await response.json();
-                        console.log('Data fetched for widget:', widget.id, data);
                         
                         // Force Alpine reactivity by creating new object
                         this.widgetData = {
@@ -502,7 +501,11 @@
                         });
                     } catch (error) {
                         console.error(`Error fetching data for widget ${widget.id}:`, error);
-                        alert('Error al cargar datos del widget. Por favor recarga la página.');
+                        // Set error state to remove spinner
+                        this.widgetData = {
+                            ...this.widgetData,
+                            [widget.id]: { error: true, message: 'Error al cargar datos' }
+                        };
                     }
                 },
 
@@ -750,31 +753,7 @@
                     }
                 },
 
-                async savePositions(items) {
-                    const updates = items.map(item => {
-                        const id = parseInt(item.el.getAttribute('gs-id'));
-                        return {
-                            id: id,
-                            position_x: item.x,
-                            position_y: item.y,
-                            width: item.w,
-                            height: item.h
-                        };
-                    });
-
-                    try {
-                        await fetch('{{ route("dashboard.widgets.bulk-update") }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                            },
-                            body: JSON.stringify({ widgets: updates })
-                        });
-                    } catch (error) {
-                        console.error('Error saving positions:', error);
-                    }
-                },
+                // Method removed: savePositions (no longer needed for strict grid)
 
                 renderWidget(widget) {
                     const data = this.widgetData[widget.id];
@@ -782,6 +761,17 @@
                     if (!data) {
                         return `<div class="flex items-center justify-center h-full">
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                        </div>`;
+                    }
+
+                    if (data.error) {
+                        return `<div class="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center">
+                            <svg class="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span class="text-xs">${data.message}</span>
+                            <button onclick="document.getElementById('retry-${widget.id}').click()" class="mt-2 text-xs underline cursor-pointer">Reintentar</button>
+                            <button id="retry-${widget.id}" class="hidden" @click="fetchWidgetData(widgets.find(w => w.id === ${widget.id}))"></button>
                         </div>`;
                     }
 
@@ -945,31 +935,34 @@
                             delete this.charts[widget.id];
                         }
                         
-                        this.$nextTick(() => {
-                            setTimeout(() => {
-                                const canvas = document.getElementById(`chart-${widget.id}`);
-                                if (canvas) {
-                                    // Ensure container has size
-                                    if (canvas.parentElement) {
-                                        canvas.parentElement.style.position = 'relative';
-                                        canvas.parentElement.style.height = '100%';
-                                        canvas.parentElement.style.width = '100%';
-                                    }
+                        // Use requestAnimationFrame for better render timing
+                        requestAnimationFrame(() => {
+                            const canvas = document.getElementById(`chart-${widget.id}`);
+                            
+                            // Safety Check: Canvas must exist and be connected to DOM
+                            if (!canvas || !canvas.isConnected) {
+                                return;
+                            }
 
-                                    const ctx = canvas.getContext('2d');
-                                    if (ctx) {
-                                        const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
-                                        // Force responsive true
-                                        chartConfig.options = { 
-                                            ...chartConfig.options, 
-                                            responsive: true, 
-                                            maintainAspectRatio: false,
-                                            resizeDelay: 200 // Debounce resize
-                                        };
-                                        this.charts[widget.id] = new Chart(ctx, chartConfig);
-                                    }
-                                }
-                            }, 50);
+                            // Ensure container has size
+                            if (canvas.parentElement) {
+                                canvas.parentElement.style.position = 'relative';
+                                canvas.parentElement.style.height = '100%';
+                                canvas.parentElement.style.width = '100%';
+                            }
+
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                                const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
+                                // Force responsive true
+                                chartConfig.options = { 
+                                    ...chartConfig.options, 
+                                    responsive: true, 
+                                    maintainAspectRatio: false,
+                                    resizeDelay: 200 // Debounce resize
+                                };
+                                this.charts[widget.id] = new Chart(ctx, chartConfig);
+                            }
                         });
                     }
                 },
