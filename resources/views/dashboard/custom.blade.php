@@ -627,6 +627,19 @@
                         // Refetch data with new config
                         await this.fetchWidgetData(updatedWidget);
                         
+                        // Force UI update for the specific widget
+                        this.$nextTick(() => {
+                            const widgetEl = document.querySelector(`[data-widget-id="${widgetId}"]`);
+                            if (widgetEl) {
+                                // Trigger a re-render by touching Alpine's reactive system
+                                const temp = this.widgetData[widgetId];
+                                this.widgetData[widgetId] = null;
+                                this.$nextTick(() => {
+                                    this.widgetData[widgetId] = temp;
+                                });
+                            }
+                        });
+                        
                         this.showConfigModal = false;
                         
                         console.log('Config saved successfully');
