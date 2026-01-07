@@ -430,18 +430,28 @@
 
                     // Load existing widgets into grid
                     this.$nextTick(() => {
-                        this.widgets.forEach(widget => {
-                            const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
-                            if (el && !el.gridstackNode) {
-                                console.log('Adding widget to grid:', widget.id, {
-                                    x: widget.position_x,
-                                    y: widget.position_y,
-                                    w: widget.width,
-                                    h: widget.height
-                                });
-                                this.grid.makeWidget(el);
-                            }
-                        });
+                        setTimeout(() => {
+                            this.widgets.forEach(widget => {
+                                const el = document.querySelector(`[data-widget-id="${widget.id}"]`);
+                                if (el && !el.gridstackNode) {
+                                    console.log('Adding widget to grid:', widget.id, {
+                                        x: widget.position_x,
+                                        y: widget.position_y,
+                                        w: widget.width,
+                                        h: widget.height
+                                    });
+                                    
+                                    // Pass configuration directly to makeWidget
+                                    this.grid.makeWidget(el, {
+                                        x: widget.position_x,
+                                        y: widget.position_y,
+                                        w: widget.width,
+                                        h: widget.height,
+                                        id: widget.id.toString()
+                                    });
+                                }
+                            });
+                        }, 200); // Give Alpine time to render
                     });
 
                     // Watch editMode changes
