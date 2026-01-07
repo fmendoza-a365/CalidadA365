@@ -820,20 +820,26 @@
 
                 renderWidgetContent(widget, data) {
                     if (['line_chart', 'bar_chart', 'pie_chart'].includes(widget.widget_type)) {
+                        // Destroy existing chart first
+                        if (this.charts[widget.id]) {
+                            console.log('Destroying existing chart before render:', widget.id);
+                            this.charts[widget.id].destroy();
+                            delete this.charts[widget.id];
+                        }
+                        
                         this.$nextTick(() => {
-                            // Wait a bit more for DOM to be ready
+                            // Wait for DOM cleanup and rendering
                             setTimeout(() => {
                                 const canvas = document.getElementById(`chart-${widget.id}`);
                                 if (canvas) {
                                     console.log('Rendering chart:', widget.id, widget.widget_type);
                                     
-                                    // Destroy existing chart if any
-                                    if (this.charts[widget.id]) {
-                                        console.log('Destroying existing chart:', widget.id);
-                                        this.charts[widget.id].destroy();
-                                    }
-
                                     const ctx = canvas.getContext('2d');
+                                    if (!ctx) {
+                                        console.error('Failed to get canvas context for widget:', widget.id);
+                                        return;
+                                    }
+                                    
                                     const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
                                     
                                     this.charts[widget.id] = new Chart(ctx, chartConfig);
@@ -841,7 +847,7 @@
                                 } else {
                                     console.error('Canvas not found for widget:', widget.id);
                                 }
-                            }, 100);
+                            }, 150);
                         });
                     }
                 },
