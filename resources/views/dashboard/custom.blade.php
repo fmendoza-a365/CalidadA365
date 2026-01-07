@@ -297,6 +297,12 @@
                                 </select>
                             </div>
 
+                            <!-- Comparison Toggle -->
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" x-model="configForm.show_comparison" class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                                <label class="form-label mb-0">Comparar con periodo anterior</label>
+                            </div>
+
                             <!-- Target/Goal -->
                             <div>
                                 <label class="form-label">Objetivo/Meta (opcional)</label>
@@ -318,15 +324,30 @@
                                     <option value="count">Cantidad de Evaluaciones</option>
                                 </select>
                             </div>
+                            
                             <div x-show="configWidget?.widget_type === 'line_chart'">
-                                <label class="form-label">Rango de Días</label>
-                                <select x-model="configForm.days" class="form-select">
-                                    <option value="7">Últimos 7 días</option>
-                                    <option value="15">Últimos 15 días</option>
-                                    <option value="30">Últimos 30 días</option>
-                                    <option value="60">Últimos 60 días</option>
-                                    <option value="90">Últimos 90 días</option>
-                                </select>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="form-label">Rango de Días</label>
+                                        <select x-model="configForm.days" class="form-select">
+                                            <option value="7">Últimos 7 días</option>
+                                            <option value="15">Últimos 15 días</option>
+                                            <option value="30">Últimos 30 días</option>
+                                            <option value="60">Últimos 60 días</option>
+                                            <option value="90">Últimos 90 días</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label">Agrupar por</label>
+                                        <select x-model="configForm.group_by" class="form-select">
+                                            <option value="hour">Hora</option>
+                                            <option value="day">Día</option>
+                                            <option value="week">Semana</option>
+                                            <option value="month">Mes</option>
+                                            <option value="year">Año</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -381,6 +402,7 @@
                 showConfigModal: false,
                 configWidget: null,
                 configForm: {},
+                availableColumns: [], // New property
                 loading: true,
                 grid: null,
                 widgetData: {},
@@ -389,6 +411,23 @@
                 init() {
                     console.log('Dashboard initializing...');
                     this.loadWidgets();
+                },
+
+                updateAvailableColumns() { // New method
+                    const type = this.configForm.type || 'recent_evaluations';
+                    const columnsMap = {
+                        'recent_evaluations': ['ID', 'Fecha', 'Campaña', 'Agente', 'Puntaje', 'Estado'],
+                        'top_agents': ['Agente', 'Promedio', 'Evaluaciones'],
+                        'bottom_agents': ['Agente', 'Promedio', 'Evaluaciones'],
+                        'disputed_items': ['Fecha', 'Agente', 'Motivo', 'Estado']
+                    };
+                    
+                    this.availableColumns = columnsMap[type] || [];
+                    
+                    // Reset visible columns if not set or if type changes
+                    if (!this.configForm.visible_columns || this.configForm.visible_columns.length === 0 || !this.availableColumns.every(col => this.configForm.visible_columns.includes(col))) {
+                        this.configForm.visible_columns = [...this.availableColumns];
+                    }
                 },
 
                 async loadWidgets() {
@@ -571,8 +610,18 @@
                     this.configForm = { 
                         title: widget.title,
                         color: widget.config.color || '#4F46E5',
+                        show_comparison: widget.config.show_comparison || false,
+                        group_by: widget.config.group_by || 'day',
+                        days: widget.config.days || 30,
+                        type: widget.config.type || 'recent_evaluations',
+                        visible_columns: widget.config.visible_columns || [],
                         ...widget.config 
                     };
+                    
+                    if (widget.widget_type === 'table') {
+                        this.updateAvailableColumns();
+                    }
+                    
                     this.showConfigModal = true;
                 },
 
@@ -744,6 +793,20 @@
                     // Calculate progress if target exists
                     const hasTarget = target && target > 0;
                     const progress = hasTarget ? Math.min((value / target) * 100, 100) : 0;
+                    
+                    // Comparison Badge
+                    const comparison = data.comparison;
+                    let comparisonHtml = '';
+                    if (comparison) {
+                        const isUp = comparison.direction === 'up';
+                        const colorClass = isUp ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400' : 'text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-400';
+                        const arrow = isUp ? '↑' : '↓';
+                        comparisonHtml = `
+                            <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${colorClass} mb-2">
+                                <span class="mr-1">${arrow}</span> ${Math.abs(comparison.change)}% vs periodo anterior
+                            </div>
+                        `;
+                    }
 
                     return `
                         <div class="h-full w-full flex flex-col justify-center p-6 rounded-lg relative overflow-hidden"
@@ -754,13 +817,17 @@
                                 ${displayIcon}
                             </div>
                             
-                            <!-- Content -->
                             <div class="relative z-10">
-                                <!-- Label -->
-                                <div class="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75" 
-                                     style="color: ${color};">
-                                    ${label}
+                                <!-- Title -->
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-2xl opacity-80">${displayIcon}</span>
+                                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        ${widget.title || label}
+                                    </h3>
                                 </div>
+                                
+                                <!-- Comparison -->
+                                ${comparisonHtml}
                                 
                                 <!-- Value -->
                                 <div class="${valueTextSize} font-black mb-3 leading-none" 
