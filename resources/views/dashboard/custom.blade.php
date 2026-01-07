@@ -454,6 +454,7 @@
 
                 async fetchWidgetData(widget) {
                     try {
+                        console.log('Fetching data for widget:', widget.id, widget.widget_type);
                         const response = await fetch('{{ route("dashboard.widgets.data") }}', {
                             method: 'POST',
                             headers: {
@@ -466,14 +467,25 @@
                             })
                         });
 
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch widget data');
+                        }
+
                         const data = await response.json();
-                        this.widgetData[widget.id] = data;
+                        console.log('Data fetched for widget:', widget.id, data);
+                        
+                        // Force Alpine reactivity by creating new object
+                        this.widgetData = {
+                            ...this.widgetData,
+                            [widget.id]: data
+                        };
                         
                         this.$nextTick(() => {
                             this.renderWidgetContent(widget, data);
                         });
                     } catch (error) {
                         console.error(`Error fetching data for widget ${widget.id}:`, error);
+                        alert('Error al cargar datos del widget. Por favor recarga la página.');
                     }
                 },
 
@@ -567,8 +579,19 @@
                 async saveConfig() {
                     try {
                         const { title, color, ...config } = this.configForm;
+                        const widgetId = this.configWidget.id;
+                        const widgetType = this.configWidget.widget_type;
                         
-                        const response = await fetch(`/dashboard/widgets/${this.configWidget.id}`, {
+                        // Destroy existing chart if it's a chart widget
+                        if (['line_chart', 'bar_chart', 'pie_chart'].includes(widgetType)) {
+                            if (this.charts[widgetId]) {
+                                console.log('Destroying chart:', widgetId);
+                                this.charts[widgetId].destroy();
+                                delete this.charts[widgetId];
+                            }
+                        }
+                        
+                        const response = await fetch(`/dashboard/widgets/${widgetId}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -580,20 +603,36 @@
                             })
                         });
 
+                        if (!response.ok) {
+                            throw new Error('Failed to save configuration');
+                        }
+
                         const updatedWidget = await response.json();
+                        console.log('Widget updated:', updatedWidget);
                         
-                        // Update widget in array
+                        // Update widget in array (trigger Alpine reactivity)
                         const index = this.widgets.findIndex(w => w.id === updatedWidget.id);
                         if (index !== -1) {
-                            this.widgets[index] = updatedWidget;
+                            // Force reactivity by creating new array
+                            this.widgets = [
+                                ...this.widgets.slice(0, index),
+                                updatedWidget,
+                                ...this.widgets.slice(index + 1)
+                            ];
                         }
+
+                        // Clear old widget data
+                        delete this.widgetData[widgetId];
 
                         // Refetch data with new config
                         await this.fetchWidgetData(updatedWidget);
                         
                         this.showConfigModal = false;
+                        
+                        console.log('Config saved successfully');
                     } catch (error) {
                         console.error('Error saving config:', error);
+                        alert('Error al guardar la configuración. Por favor intenta de nuevo.');
                     }
                 },
 
@@ -767,24 +806,36 @@
                 renderWidgetContent(widget, data) {
                     if (['line_chart', 'bar_chart', 'pie_chart'].includes(widget.widget_type)) {
                         this.$nextTick(() => {
-                            const canvas = document.getElementById(`chart-${widget.id}`);
-                            if (canvas) {
-                                // Destroy existing chart if any
-                                if (this.charts[widget.id]) {
-                                    this.charts[widget.id].destroy();
-                                }
+                            // Wait a bit more for DOM to be ready
+                            setTimeout(() => {
+                                const canvas = document.getElementById(`chart-${widget.id}`);
+                                if (canvas) {
+                                    console.log('Rendering chart:', widget.id, widget.widget_type);
+                                    
+                                    // Destroy existing chart if any
+                                    if (this.charts[widget.id]) {
+                                        console.log('Destroying existing chart:', widget.id);
+                                        this.charts[widget.id].destroy();
+                                    }
 
-                                const ctx = canvas.getContext('2d');
-                                const chartConfig = this.getChartConfig(widget.widget_type, data);
-                                
-                                this.charts[widget.id] = new Chart(ctx, chartConfig);
-                            }
+                                    const ctx = canvas.getContext('2d');
+                                    const chartConfig = this.getChartConfig(widget.widget_type, data, widget);
+                                    
+                                    this.charts[widget.id] = new Chart(ctx, chartConfig);
+                                    console.log('Chart created successfully:', widget.id);
+                                } else {
+                                    console.error('Canvas not found for widget:', widget.id);
+                                }
+                            }, 100);
                         });
                     }
                 },
 
-                getChartConfig(type, data) {
-                    const widget = this.widgets.find(w => this.widgetData[w.id] === data);
+                getChartConfig(type, data, widget) {
+                    // Accept widget as parameter or find it
+                    if (!widget) {
+                        widget = this.widgets.find(w => this.widgetData[w.id] === data);
+                    }
                     const color = widget?.config?.color || '#4F46E5';
                     
                     const commonOptions = {
