@@ -14,7 +14,7 @@ class DashboardWidgetController extends Controller
     {
         $widgets = auth()->user()
             ->dashboardWidgets()
-            ->orderBy('order')
+            ->orderBy('sort_order')
             ->get();
 
         return response()->json($widgets);
