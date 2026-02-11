@@ -49,4 +49,5 @@ RUN chown -R www-data:www-data /var/www/html \
 EXPOSE 80
 
 # Start Nginx and PHP-FPM
-CMD sh -c "nginx && docker-php-entrypoint php-fpm"
+# Start Nginx and PHP-FPM
+CMD sh -c "sed -i 's/80/${PORT:-80}/g' /etc/nginx/sites-available/default && php artisan migrate --force && php artisan optimize && nginx && docker-php-entrypoint php-fpm"

@@ -94,12 +94,13 @@ class QualityAnalyticsService
 
         switch ($groupBy) {
             case 'month':
-                $query->selectRaw("strftime('%Y-%m', evaluations.created_at) as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'month')} as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'week':
-                $query->selectRaw("'Sem. ' || strftime('%W', evaluations.created_at) as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
-                    ->groupBy('label')->orderByRaw("strftime('%W', evaluations.created_at)");
+                $label = $this->getDateFormatSql('evaluations.created_at', 'week');
+                $query->selectRaw("'Sem. ' || $label as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                    ->groupByRaw($label)->orderByRaw($label);
                 break;
             case 'campaign':
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
@@ -113,7 +114,7 @@ class QualityAnalyticsService
                     ->orderByDesc('avg_score');
                 break;
             case 'daily':
-                $query->selectRaw("date(evaluations.created_at) as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'day')} as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'agent':
@@ -144,12 +145,13 @@ class QualityAnalyticsService
 
         switch ($groupBy) {
             case 'month':
-                $query->selectRaw("strftime('%Y-%m', evaluations.created_at) as label, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'month')} as label, COUNT(*) as count")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'week':
-                $query->selectRaw("'Sem. ' || strftime('%W', evaluations.created_at) as label, COUNT(*) as count")
-                    ->groupBy('label')->orderByRaw("strftime('%W', evaluations.created_at)");
+                $label = $this->getDateFormatSql('evaluations.created_at', 'week');
+                $query->selectRaw("'Sem. ' || $label as label, COUNT(*) as count")
+                    ->groupByRaw($label)->orderByRaw($label);
                 break;
             case 'campaign':
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
@@ -163,7 +165,7 @@ class QualityAnalyticsService
                     ->orderByDesc('count');
                 break;
             case 'daily':
-                $query->selectRaw("date(evaluations.created_at) as label, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'day')} as label, COUNT(*) as count")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'agent':
@@ -244,11 +246,12 @@ class QualityAnalyticsService
      */
     public function getFeedbackByWeek(array $filters = []): array
     {
+        $label = $this->getDateFormatSql('evaluations.created_at', 'week');
         return Evaluation::query()
             ->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->selectRaw("'Sem. ' || strftime('%W', evaluations.created_at) as label, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
-            ->groupByRaw("strftime('%W', evaluations.created_at)")
-            ->orderByRaw("strftime('%W', evaluations.created_at)")
+            ->selectRaw("'Sem. ' || $label as label, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
+            ->groupByRaw($label)
+            ->orderByRaw($label)
             ->get()
             ->map(fn($item) => [
                 'label' => $item->label,
@@ -308,6 +311,31 @@ class QualityAnalyticsService
                 'count' => (int) $item->count,
             ])
             ->toArray();
+    }
+
+    /**
+     * Helper to get date format SQL based on driver
+     */
+    private function getDateFormatSql(string $column, string $type): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            return match ($type) {
+                'month' => "strftime('%Y-%m', $column)",
+                'week' => "strftime('%W', $column)",
+                'day' => "date($column)",
+                default => $column,
+            };
+        }
+
+        // PostgreSQL
+        return match ($type) {
+            'month' => "TO_CHAR($column, 'YYYY-MM')",
+            'week' => "TO_CHAR($column, 'IW')", // ISO week
+            'day' => "TO_CHAR($column, 'YYYY-MM-DD')", // or $column::date
+            default => $column,
+        };
     }
 
     /**
