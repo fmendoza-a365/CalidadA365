@@ -1,61 +1,54 @@
 <x-app-layout>
     <x-slot name="header">Transcripciones</x-slot>
 
+    <div class="card">
+        <!-- Toolbar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-2">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Listado de Transcripciones</h3>
+                <span class="badge badge-neutral">{{ $interactions->total() }}</span>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                 <!-- Filters (Inline for better space usage, or keep separate if too many) -->
+                <form method="GET" action="{{ route('transcripts.index') }}" class="flex items-center gap-2">
+                    <select name="campaign_id" class="form-select py-1 text-sm w-40" onchange="this.form.submit()">
+                        <option value="">Todas las campañas</option>
+                        @foreach($campaigns as $campaign)
+                            <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
+                                {{ $campaign->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    
+                    <select name="status" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
+                        <option value="">Estado: Todos</option>
+                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
+                        <option value="evaluated" {{ request('status') == 'evaluated' ? 'selected' : '' }}>Evaluada</option>
+                    </select>
+                    
+                    @if(request('campaign_id') || request('status'))
+                        <a href="{{ route('transcripts.index') }}" class="btn-ghost btn-sm text-gray-500" title="Limpiar filtros">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </a>
+                    @endif
+                </form>
 
-
-    <div class="card flex flex-col h-[calc(100vh-12rem)] overflow-hidden">
-        <!-- Rigid Header (Toolbar + Filters) -->
-        <div class="flex-none z-20 relative rounded-t-2xl bg-white dark:bg-[#141414]">
-            <!-- Toolbar -->
-            <div
-                class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-gray-100 dark:border-gray-800">
-                <div class="flex items-center gap-2">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Listado de Transcripciones</h3>
-                    <span class="badge badge-neutral">{{ $interactions->total() }}</span>
-                </div>
                 <a href="{{ route('transcripts.create') }}" class="btn-primary btn-md">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
-                    Cargar Nueva
+                    <span class="hidden sm:inline">Cargar Nueva</span>
                 </a>
-            </div>
-
-            <!-- Filters -->
-            <div class="p-4 bg-gray-50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
-                <form method="GET" action="{{ route('transcripts.index') }}"
-                    class="flex flex-col sm:flex-row gap-4 items-end">
-                    <div class="flex-1 min-w-0">
-                        <label for="campaign_id" class="form-label">Campaña</label>
-                        <select name="campaign_id" id="campaign_id" class="form-select" onchange="this.form.submit()">
-                            <option value="">Todas las campañas</option>
-                            @foreach($campaigns as $campaign)
-                                <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
-                                    {{ $campaign->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <label for="status" class="form-label">Estado</label>
-                        <select name="status" id="status" class="form-select" onchange="this.form.submit()">
-                            <option value="">Todos</option>
-                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente
-                            </option>
-                            <option value="evaluated" {{ request('status') == 'evaluated' ? 'selected' : '' }}>Evaluada
-                            </option>
-                        </select>
-                    </div>
-                    <a href="{{ route('transcripts.index') }}"
-                        class="btn-secondary btn-md whitespace-nowrap">Limpiar</a>
-                </form>
             </div>
         </div>
 
-        <!-- Scrollable Table -->
-        <div class="flex-1 overflow-x-auto overflow-y-auto min-h-0">
-            <table class="table relative w-full">
+        <!-- Table -->
+        <div class="table-container">
+            <table class="table">
                 <thead class="sticky top-0 z-10">
                     <tr>
                         <th class="w-16">ID</th>
@@ -63,7 +56,7 @@
                         <th>Campaña</th>
                         <th>Fecha Llamada</th>
                         <th class="text-center w-32">Estado</th>
-                        <th class="text-center w-32">Acciones</th>
+                        <th class="text-right w-32">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -88,8 +81,7 @@
                                 </div>
                             </td>
                             <td>
-                                <span
-                                    class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->name ?? '—' }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->name ?? '—' }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->campaign?->name ?? '—' }}
@@ -110,7 +102,6 @@
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
-                                    <!-- View -->
                                     <a href="{{ route('transcripts.show', $interaction) }}"
                                         class="btn-ghost btn-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
                                         title="Ver Detalle">
@@ -122,7 +113,6 @@
                                         </svg>
                                     </a>
 
-                                    <!-- Download -->
                                     <a href="{{ route('transcripts.download', $interaction) }}"
                                         class="btn-ghost btn-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
                                         title="Descargar Original">
@@ -132,7 +122,6 @@
                                         </svg>
                                     </a>
 
-                                    <!-- Evaluate with AI (if not evaluated) -->
                                     @if(!$interaction->evaluation)
                                         <form method="POST" action="{{ route('transcripts.evaluate', $interaction) }}"
                                             class="inline">
@@ -148,7 +137,6 @@
                                         </form>
                                     @endif
 
-                                    <!-- Edit -->
                                     <a href="{{ route('transcripts.edit', $interaction) }}"
                                         class="btn-ghost btn-sm text-indigo-600 hover:text-indigo-700" title="Editar">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -157,7 +145,6 @@
                                         </svg>
                                     </a>
 
-                                    <!-- Delete -->
                                     <button type="button"
                                         @click="$dispatch('open-modal', 'delete-transcript-{{ $interaction->id }}')"
                                         class="btn-ghost btn-sm text-rose-600 hover:text-rose-700" title="Eliminar">
@@ -181,7 +168,6 @@
                                             confirmText="Sí, eliminar" type="danger" />
                                     </div>
 
-                                    <!-- View Evaluation (if exists) -->
                                     @if($interaction->evaluation)
                                         <a href="{{ route('evaluations.show', $interaction->evaluation) }}"
                                             class="btn-ghost btn-sm text-emerald-600 hover:text-emerald-700"
@@ -223,8 +209,7 @@
         </div>
 
         @if($interactions->hasPages())
-            <div
-                class="flex-none px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-[#141414] rounded-b-2xl">
+            <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-800">
                 {{ $interactions->links() }}
             </div>
         @endif

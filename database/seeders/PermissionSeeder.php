@@ -16,12 +16,12 @@ class PermissionSeeder extends Seeder
             'view_team_evaluations',     // Supervisor/Coordinator
             'view_assigned_evaluations', // Monitor (ones they performed)
             'view_own_evaluations',      // Agent (ones received)
-            
+
             // Evaluation Actions
             'create_evaluations',
             'edit_evaluations',
             'delete_evaluations',
-            
+
             // Campaigns
             'view_campaigns',
             'create_campaigns',
@@ -50,7 +50,7 @@ class PermissionSeeder extends Seeder
             'view_monitor_dashboard',
             'view_coordinator_dashboard',
             'view_manager_dashboard',
-            
+
             // System
             'view_system_settings',
             'manage_ai_settings',
@@ -88,11 +88,11 @@ class PermissionSeeder extends Seeder
             $agentRole->givePermissionTo(['view_own_evaluations', 'view_agent_dashboard']);
         }
 
-        // Assign Manager Permissions (Sees ALL data like Admin, but cannot manage system)
+        // Assign Manager Permissions (Sees ALL data for their campaigns)
         $managerRole = \Spatie\Permission\Models\Role::where('name', 'manager')->first();
         if ($managerRole) {
             $managerRole->givePermissionTo([
-                'view_all_evaluations',
+                'view_all_evaluations', // We use this but filter by campaign in scope
                 'view_campaigns',
                 'view_quality_forms',
                 'view_manager_dashboard',
@@ -105,7 +105,7 @@ class PermissionSeeder extends Seeder
         $supervisorRole = \Spatie\Permission\Models\Role::where('name', 'supervisor')->first();
         if ($supervisorRole) {
             $supervisorRole->givePermissionTo([
-                'view_team_evaluations',
+                'view_team_evaluations', // Scope filters by agent assignment
                 'view_campaigns',
                 'view_quality_forms',
                 'view_supervisor_dashboard',
@@ -118,7 +118,7 @@ class PermissionSeeder extends Seeder
         if ($qaMonitorRole) {
             $qaMonitorRole->givePermissionTo([
                 'create_evaluations',
-                'view_assigned_evaluations',
+                'view_assigned_evaluations', // Scope filters by evaluator_id
                 'view_campaigns',
                 'view_quality_forms',
                 'view_monitor_dashboard',
@@ -129,7 +129,7 @@ class PermissionSeeder extends Seeder
         $qaCoordinatorRole = \Spatie\Permission\Models\Role::where('name', 'qa_coordinator')->first();
         if ($qaCoordinatorRole) {
             $qaCoordinatorRole->givePermissionTo([
-                'view_team_evaluations',
+                'view_team_evaluations', // Scope filters by monitor assignment
                 'create_evaluations',
                 'view_campaigns',
                 'view_quality_forms',

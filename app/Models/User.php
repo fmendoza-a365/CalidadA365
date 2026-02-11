@@ -74,9 +74,9 @@ class User extends Authenticatable
 
     public function getAvatarUrlAttribute()
     {
-        return $this->profile_photo_path 
-            ? asset('storage/' . $this->profile_photo_path) 
-            : 'https://ui-avatars.com/api/?name='.urlencode($this->name).'&color=7F9CF5&background=EBF4FF';
+        return $this->profile_photo_path
+            ? asset('storage/' . $this->profile_photo_path)
+            : 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&color=7F9CF5&background=EBF4FF';
     }
 
     public function getFrameClassAttribute()
@@ -108,8 +108,18 @@ class User extends Authenticatable
         if (str_contains($this->email, 'risk')) {
             return 'ring-2 ring-offset-1 ring-red-500/80';
         }
-        
+
         return 'ring-1 ring-gray-200 dark:ring-gray-700'; // Default clean
+    }
+
+    public function monitors()
+    {
+        return $this->hasMany(User::class, 'supervisor_id');
+    }
+
+    public function managedCampaigns()
+    {
+        return $this->belongsToMany(Campaign::class, 'campaign_managers', 'user_id', 'campaign_id');
     }
 
     public function supervisorAssignments()

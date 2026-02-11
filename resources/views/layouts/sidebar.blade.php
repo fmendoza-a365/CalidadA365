@@ -70,7 +70,7 @@
                 </x-nav-link-sidebar>
 
                 <x-nav-link-sidebar :href="route('insights.index')" :active="request()->routeIs('insights.*')"
-                    icon="chart-bar" :open="true">
+                    icon="document-report" :open="true">
                     Insights IA
                 </x-nav-link-sidebar>
             </div>

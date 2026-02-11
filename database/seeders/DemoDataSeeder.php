@@ -22,12 +22,13 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 1. USUARIOS
         // ========================================
-        
+
         // Admin
         $admin = User::firstOrCreate(
             ['email' => 'admin@calidad.com'],
             [
                 'name' => 'Administrador Sistema',
+                'username' => 'admin_sys', // Changed to avoid conflict
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
@@ -39,6 +40,7 @@ class DemoDataSeeder extends Seeder
             ['email' => 'supervisor1@calidad.com'],
             [
                 'name' => 'María García',
+                'username' => 'supervisor1_demo',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
@@ -49,13 +51,52 @@ class DemoDataSeeder extends Seeder
             ['email' => 'supervisor2@calidad.com'],
             [
                 'name' => 'Carlos Rodríguez',
+                'username' => 'supervisor2_demo',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]
         );
         $supervisor2->assignRole('supervisor');
 
-        // Asesores
+        // 6. QA Coordinator y Monitors
+        $qaCoordinator = User::firstOrCreate(
+            ['email' => 'coordinator@calidad.com'],
+            [
+                'name' => 'Roberto QA',
+                'username' => 'coordinator_demo',
+                'password' => Hash::make('password')
+            ]
+        );
+        $qaCoordinator->assignRole('qa_coordinator');
+
+        $qaMonitor = User::firstOrCreate(
+            ['email' => 'monitor@calidad.com'],
+            [
+                'name' => 'Lucia Monitor',
+                'username' => 'monitor_demo',
+                'password' => Hash::make('password'),
+                'supervisor_id' => $qaCoordinator->id
+            ]
+        );
+        $qaMonitor->assignRole('qa_monitor');
+
+        // 7. Manager
+        $manager = User::firstOrCreate(
+            ['email' => 'manager@calidad.com'],
+            [
+                'name' => 'Director Operaciones',
+                'username' => 'manager_demo',
+                'password' => Hash::make('password')
+            ]
+        );
+        $manager->assignRole('manager');
+
+        // Asignar Manager a Campaña 1
+        \Illuminate\Support\Facades\DB::table('campaign_managers')->updateOrInsert(
+            ['campaign_id' => 1, 'user_id' => $manager->id],
+            ['created_at' => now(), 'updated_at' => now()]
+        );
+
         $agents = [];
         $agentData = [
             ['name' => 'Ana López', 'email' => 'ana.lopez@calidad.com'],
@@ -71,6 +112,7 @@ class DemoDataSeeder extends Seeder
                 ['email' => $data['email']],
                 [
                     'name' => $data['name'],
+                    'username' => explode('@', $data['email'])[0],
                     'password' => Hash::make('password'),
                     'email_verified_at' => now(),
                 ]
@@ -82,7 +124,7 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 2. CAMPAÑAS
         // ========================================
-        
+
         $campaign1 = Campaign::firstOrCreate(
             ['name' => 'Atención al Cliente'],
             [
@@ -110,7 +152,7 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 3. ASIGNACIONES
         // ========================================
-        
+
         // Campaña 1: 4 agentes con supervisor 1
         foreach (array_slice($agents, 0, 4) as $agent) {
             CampaignUserAssignment::firstOrCreate([
@@ -138,7 +180,7 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 4. FICHAS DE CALIDAD
         // ========================================
-        
+
         // Ficha para Atención al Cliente
         $form1 = QualityForm::firstOrCreate(
             ['name' => 'Ficha Atención al Cliente', 'campaign_id' => $campaign1->id],
@@ -187,12 +229,12 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 5. INTERACCIONES (TRANSCRIPCIONES)
         // ========================================
-        
+
         $transcriptSamples = [
             "Agente: Buenos días, gracias por llamar a Servicio al Cliente, mi nombre es %AGENT%, ¿en qué puedo ayudarle?\nCliente: Hola, buenos días. Tengo un problema con mi factura del mes pasado.\nAgente: Entiendo su preocupación. Permítame verificar su cuenta. ¿Me puede proporcionar su número de cliente?\nCliente: Sí, es el 12345678.\nAgente: Perfecto, ya tengo su información. Veo que hay un cargo adicional de $50 que no reconoce, ¿es correcto?\nCliente: Exacto, no sé de dónde salió ese cargo.\nAgente: Déjeme revisar... Efectivamente, parece ser un error de facturación. Procederé a realizar la corrección y el ajuste aparecerá en su próxima factura.\nCliente: Muchas gracias, eso era todo lo que necesitaba.\nAgente: Es un placer ayudarle. ¿Hay algo más en lo que pueda asistirle?\nCliente: No, eso es todo.\nAgente: Gracias por comunicarse con nosotros. Que tenga un excelente día.",
-            
+
             "Agente: Buenas tardes, bienvenido a Atención al Cliente, soy %AGENT%. ¿Cómo puedo asistirle hoy?\nCliente: Buenas tardes. Quiero hacer un reclamo porque mi pedido llegó incompleto.\nAgente: Lamento mucho escuchar eso. Permítame registrar su reclamo. ¿Cuál es su número de pedido?\nCliente: Es el PED-2024-5678.\nAgente: Gracias. Veo su pedido aquí. ¿Qué artículos faltaron?\nCliente: Faltó una camiseta azul talla M.\nAgente: Entiendo. Voy a procesar el envío del artículo faltante sin costo adicional. Debería recibirlo en 2-3 días hábiles.\nCliente: Perfecto, gracias por la solución rápida.\nAgente: No se preocupe, es nuestro deber. Le enviaré un correo con el número de seguimiento. ¿Desea algo más?\nCliente: No, gracias.\nAgente: Gracias por su paciencia. Que tenga un buen día.",
-            
+
             "Agente: Hola, gracias por llamar. Mi nombre es %AGENT%, ¿en qué le puedo ayudar?\nCliente: Necesito información sobre los planes de suscripción.\nAgente: Con gusto le explico. Tenemos tres planes: Básico a $29, Premium a $49 y Empresarial a $99 mensuales.\nCliente: ¿Qué incluye el Premium?\nAgente: El plan Premium incluye acceso ilimitado, soporte prioritario 24/7, y 5 usuarios adicionales.\nCliente: Me interesa. ¿Cómo puedo contratarlo?\nAgente: Puedo procesarlo ahora mismo. Solo necesito algunos datos. ¿Desea proceder?\nCliente: Sí, adelante.\nAgente: Excelente. Primero, ¿su nombre completo?\nCliente: Juan Pérez González.\nAgente: Perfecto. Su suscripción ha sido activada. Recibirá un correo con los detalles de acceso.\nCliente: Muchas gracias por la ayuda.\nAgente: Gracias a usted por elegirnos. Que tenga un excelente día.",
         ];
 
@@ -200,7 +242,7 @@ class DemoDataSeeder extends Seeder
         foreach (array_slice($agents, 0, 4) as $agentIndex => $agent) {
             for ($i = 0; $i < 3; $i++) {
                 $transcript = str_replace('%AGENT%', $agent->name, $transcriptSamples[$i % 3]);
-                
+
                 $interaction = Interaction::create([
                     'campaign_id' => $campaign1->id,
                     'agent_id' => $agent->id,
@@ -232,7 +274,7 @@ class DemoDataSeeder extends Seeder
                             $isCompliant = rand(0, 100) > 20; // 80% de cumplimiento
                             $score = $isCompliant ? 1 : 0;
                             $effectiveWeight = ($attribute->weight * $subAttribute->weight_percent) / 100;
-                            
+
                             EvaluationItem::create([
                                 'evaluation_id' => $evaluation->id,
                                 'subattribute_id' => $subAttribute->id,
@@ -241,8 +283,8 @@ class DemoDataSeeder extends Seeder
                                 'max_score' => 1,
                                 'weighted_score' => $score * $effectiveWeight,
                                 'confidence' => rand(85, 99) / 100,
-                                'evidence_quote' => $isCompliant 
-                                    ? 'El agente cumplió correctamente con este criterio.' 
+                                'evidence_quote' => $isCompliant
+                                    ? 'El agente cumplió correctamente con este criterio.'
                                     : 'No se encontró evidencia de cumplimiento.',
                             ]);
                         }
@@ -261,7 +303,8 @@ class DemoDataSeeder extends Seeder
 
     private function createAttributesForVersion(QualityFormVersion $version): void
     {
-        if ($version->attributes()->count() > 0) return;
+        if ($version->attributes()->count() > 0)
+            return;
 
         // Atributo 1: Saludo y Protocolo
         $attr1 = QualityAttribute::create([
@@ -392,7 +435,8 @@ class DemoDataSeeder extends Seeder
 
     private function createSalesAttributesForVersion(QualityFormVersion $version): void
     {
-        if ($version->attributes()->count() > 0) return;
+        if ($version->attributes()->count() > 0)
+            return;
 
         // Atributo 1: Apertura de Venta
         $attr1 = QualityAttribute::create([
@@ -512,4 +556,3 @@ class DemoDataSeeder extends Seeder
         ]);
     }
 }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
