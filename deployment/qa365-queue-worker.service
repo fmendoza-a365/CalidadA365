@@ -1,0 +1,27 @@
+[Unit]
+Description=QA365 Queue Worker
+After=network.target redis.service mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+Restart=always
+RestartSec=10
+
+# Working directory
+WorkingDirectory=/var/www/qa365
+
+# Command to run
+ExecStart=/usr/bin/php /var/www/qa365/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600 --timeout=300
+
+# Logging
+StandardOutput=append:/var/log/qa365-queue-worker.log
+StandardError=append:/var/log/qa365-queue-worker-error.log
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
