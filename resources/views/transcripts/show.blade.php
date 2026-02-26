@@ -443,14 +443,14 @@
                                             <!-- Modern Floating AI Element -->
                                             <div class="relative w-32 h-32 mb-8">
                                                 <!-- Outer Radar Ping -->
-                                                <div class="absolute inset-0 rounded-full bg-indigo-500 opacity-20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                                                <div class="absolute inset-0 rounded-full bg-purple-500 opacity-20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
                                                 
                                                 <!-- Spinning Ring -->
-                                                <div class="absolute inset-2 rounded-full border-4 border-gray-700 border-t-indigo-500 border-r-indigo-500 animate-[spin_1.5s_linear_infinite]"></div>
+                                                <div class="absolute inset-2 rounded-full border-4 border-gray-700 border-t-purple-500 border-r-purple-500 animate-[spin_1.5s_linear_infinite]"></div>
                                                 
                                                 <!-- Inner Icon Container -->
-                                                <div class="absolute inset-4 rounded-full bg-gray-800 flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.5)] border border-gray-700">
-                                                    <svg class="w-10 h-10 text-indigo-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <div class="absolute inset-4 rounded-full bg-gray-800 flex items-center justify-center shadow-[0_0_30px_rgba(168,85,247,0.5)] border border-gray-700">
+                                                    <svg class="w-10 h-10 text-purple-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                                             d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                                     </svg>
