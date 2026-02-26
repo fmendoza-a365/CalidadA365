@@ -429,9 +429,48 @@
                             </div>
                         </div>
                         @if($interaction->campaign?->activeFormVersion)
-                            <form method="POST" action="{{ route('transcripts.evaluate', $interaction) }}" x-data="{ submitting: false }" @submit="if(submitting) { $event.preventDefault(); } else { submitting = true; }">
-                                @csrf
-                                <button type="submit" class="btn-primary btn-md" :disabled="submitting" :class="{ 'opacity-70 cursor-not-allowed': submitting }">
+                                <form method="POST" action="{{ route('transcripts.evaluate', $interaction) }}" x-data="{ submitting: false }" @submit="if(submitting) { $event.preventDefault(); } else { submitting = true; }">
+                                    @csrf
+                                    
+                                    <!-- Full Screen Loading Overlay for AI Evaluation -->
+                                    <template x-teleport="body">
+                                        <div x-show="submitting" style="display: none;" 
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 backdrop-blur-none"
+                                             x-transition:enter-end="opacity-100 backdrop-blur-sm"
+                                             class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm">
+                                            
+                                            <!-- Modern Floating AI Element -->
+                                            <div class="relative w-32 h-32 mb-8">
+                                                <!-- Outer Radar Ping -->
+                                                <div class="absolute inset-0 rounded-full bg-indigo-500 opacity-20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                                                
+                                                <!-- Spinning Ring -->
+                                                <div class="absolute inset-2 rounded-full border-4 border-gray-700 border-t-indigo-500 border-r-indigo-500 animate-[spin_1.5s_linear_infinite]"></div>
+                                                
+                                                <!-- Inner Icon Container -->
+                                                <div class="absolute inset-4 rounded-full bg-gray-800 flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.5)] border border-gray-700">
+                                                    <svg class="w-10 h-10 text-indigo-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Animated Text -->
+                                            <div class="text-center">
+                                                <h2 class="text-2xl sm:text-3xl font-bold font-heading text-white mb-3 tracking-wide">
+                                                    La IA está evaluando<span x-data="{ dots: '' }" x-init="setInterval(() => { dots = dots.length >= 3 ? '' : dots + '.' }, 500)" x-text="dots" class="inline-block w-6 text-left"></span>
+                                                </h2>
+                                                <p class="text-indigo-200 text-sm sm:text-base animate-pulse">
+                                                    Analizando el contexto, sentimiento y criterios de calidad...<br>
+                                                    <span class="text-gray-400 text-xs mt-2 block">(Esto toma entre 10 y 20 segundos)</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <button type="submit" class="btn-primary btn-md" :disabled="submitting" :class="{ 'opacity-70 cursor-not-allowed': submitting }">
                                     <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
