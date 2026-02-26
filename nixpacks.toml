@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ['nodejs', 'npm', 'php83', 'php83Extensions.pdo', 'php83Extensions.pdo_pgsql', 'php83Extensions.mbstring', 'php83Extensions.gd', 'php83Extensions.intl', 'php83Extensions.zip', 'php83Extensions.bcmath']
+configurationFiles = ['php.ini']
+
+[phases.install]
+cmds = [
+  'composer install --no-dev --optimize-autoloader',
+  'npm install',
+  'npm run build'
+]
+
+[phases.build]
+cmds = ['php artisan config:cache', 'php artisan view:cache']
+
+[start]
+cmd = "sh railway-setup.sh && php artisan config:clear && php artisan serve --host=0.0.0.0 --port=$PORT"

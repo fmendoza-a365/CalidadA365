@@ -1,0 +1,10 @@
+Categoria,Peso_Categoria,Orden_Categoria,Concepto_Categoria,Item,Peso_Item,Critico,Concepto_Item,Ayuda_Referencia,Orden_Item
+"Saludo y Protocolo",30,1,"Evalúa el inicio de la interacción.","Saludo Institucional",40,"NO","El agente debe saludar mencionando la marca y su nombre.","Ej: 'Hola, habla con [Nombre] de [Empresa]...'",1
+"Saludo y Protocolo",30,1,"Evalúa el inicio de la interacción.","Confirmación de Datos",60,"NO","Validar nombre y DNI del cliente.","Debe pedir DNI explícitamente.",2
+"Manejo de Llamada",45,2,"Habilidades blandas y resolución.","Escucha Activa",40,"NO","El agente no interrumpe y presta atención.","Evitar pisar al cliente.",1
+"Manejo de Llamada",45,2,"Habilidades blandas y resolución.","Resolución",60,"NO","Brinda una solución correcta al problema planteado.","Verificar en sistema si se aplicó el cambio.",2
+"Cierre",25,3,"Evalúa el cierre de la interacción.","Despedida Protocolar",50,"NO","El agente se despide con frase institucional.","Ej: 'Gracias por comunicarse con...'",1
+"Cierre",25,3,"Evalúa el cierre de la interacción.","Ofrecimiento Adicional",50,"NO","Pregunta si puede ayudar en algo más.","Debe preguntar antes de cerrar.",2
+"Malas Prácticas",0,4,"Ítems críticos que anulan la evaluación si fallan (score = 0%).","Información Falsa",0,"SI","El agente brinda información incorrecta o falsa al cliente.","Cualquier dato erróneo verificable.",1
+"Malas Prácticas",0,4,"Ítems críticos que anulan la evaluación si fallan (score = 0%).","Trato Irrespetuoso",0,"SI","El agente falta el respeto al cliente o usa lenguaje inapropiado.","Cualquier expresión ofensiva o despectiva.",2
+"Malas Prácticas",0,4,"Ítems críticos que anulan la evaluación si fallan (score = 0%).","Corte de Llamada Intencional",0,"SI","El agente corta la llamada sin justificación válida.","Incluye transferencias innecesarias para evadir.",3
