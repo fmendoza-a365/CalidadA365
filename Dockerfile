@@ -54,4 +54,4 @@ EXPOSE 80
 
 # Start Nginx and PHP-FPM
 # Start Nginx and PHP-FPM
-CMD sh -c "sed -i 's/80/${PORT:-80}/g' /etc/nginx/sites-available/default && php artisan config:clear && php artisan migrate:fresh --seed --force && rm -rf public/storage && php artisan storage:link && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && php artisan optimize && nginx && docker-php-entrypoint php-fpm"
+CMD sh -c "sed -i 's/80/${PORT:-80}/g' /etc/nginx/sites-available/default && php artisan config:clear && php artisan migrate --force && rm -rf public/storage && php artisan storage:link && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && php artisan optimize && nginx && docker-php-entrypoint php-fpm"

@@ -2,7 +2,7 @@
 set -e
 
 echo "🔧 Running database migrations..."
-php artisan migrate:fresh --force
+php artisan migrate --force
 
 echo "🌱 Running seeders..."
 php artisan db:seed --class=RoleSeeder --force
