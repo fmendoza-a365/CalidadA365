@@ -48,7 +48,7 @@ class DashboardQualityController extends Controller
         $topDefects = $this->analytics->getTopDefects($filters);
         $evalsByCampaign = $this->analytics->getEvalsByCampaign($filters);
 
-        $campaigns = Campaign::all();
+        $campaigns = Campaign::forUser(auth()->user())->orderBy('name')->get();
 
         return view('dashboard.quality.index', compact(
             'stats',

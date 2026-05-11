@@ -29,7 +29,8 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::all();
-        return view('users.create', compact('roles'));
+        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+        return view('users.create', compact('roles', 'campaigns'));
     }
 
     /**
@@ -46,6 +47,8 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|string|exists:roles,name',
             'profile_photo' => 'nullable|image|max:2048', // 2MB Max
+            'campaign_ids' => 'nullable|array',
+            'campaign_ids.*' => 'exists:campaigns,id',
         ]);
 
         $userData = $request->except(['password', 'password_confirmation', 'role', 'profile_photo']);
@@ -60,6 +63,10 @@ class UserController extends Controller
         $user = User::create($userData);
         $user->assignRole($request->role);
 
+        if ($request->has('campaign_ids') && in_array($request->role, ['qa_monitor', 'qa_coordinator', 'manager'])) {
+            $user->managedCampaigns()->sync($request->campaign_ids);
+        }
+
         return redirect()->route('users.index')
             ->with('success', 'Usuario creado exitosamente.');
     }
@@ -70,7 +77,9 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::all();
-        return view('users.edit', compact('user', 'roles'));
+        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+        $user->load('managedCampaigns');
+        return view('users.edit', compact('user', 'roles', 'campaigns'));
     }
 
     /**
@@ -85,6 +94,8 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'role' => 'required|string|exists:roles,name',
             'profile_photo' => 'nullable|image|max:2048',
+            'campaign_ids' => 'nullable|array',
+            'campaign_ids.*' => 'exists:campaigns,id',
         ]);
 
         $userData = $request->except(['password', 'password_confirmation', 'role', 'profile_photo']);
@@ -107,6 +118,12 @@ class UserController extends Controller
 
         $user->update($userData);
         $user->syncRoles([$request->role]);
+
+        if (in_array($request->role, ['qa_monitor', 'qa_coordinator', 'manager'])) {
+            $user->managedCampaigns()->sync($request->campaign_ids ?? []);
+        } else {
+            $user->managedCampaigns()->detach();
+        }
 
         return redirect()->route('users.index')
             ->with('success', 'Usuario actualizado correctamente.');

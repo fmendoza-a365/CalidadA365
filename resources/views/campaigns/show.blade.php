@@ -4,7 +4,8 @@
     @if(session('success'))
         <div class="alert alert-success mb-6">
             <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {{ session('success') }}
         </div>
@@ -63,6 +64,23 @@
                     <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Creada</div>
                     <p class="text-gray-900 dark:text-white">{{ $campaign->created_at->format('d/m/Y') }}</p>
                 </div>
+
+                <div class="pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">Auditores y Gestores</div>
+                    <div class="flex flex-wrap gap-2">
+                        @forelse($campaign->managers as $manager)
+                            <div class="flex items-center gap-2 px-2 py-1 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600"
+                                title="{{ ucfirst(str_replace('_', ' ', $manager->roles->first()?->name)) }}">
+                                <img src="{{ $manager->avatar_url }}" class="w-5 h-5 rounded-full"
+                                    alt="{{ $manager->name }}">
+                                <span
+                                    class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ $manager->name }}</span>
+                            </div>
+                        @empty
+                            <span class="text-xs text-gray-400 italic">Sin personal encargado asignado</span>
+                        @endforelse
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -71,7 +89,8 @@
             <div class="card-header flex items-center justify-between">
                 <h3 class="font-semibold text-gray-900 dark:text-white">Asignaciones de Asesores</h3>
                 <div class="flex gap-2">
-                    <a href="{{ route('campaigns.assignments.index', $campaign) }}" class="btn-ghost btn-sm text-indigo-600">
+                    <a href="{{ route('campaigns.assignments.index', $campaign) }}"
+                        class="btn-ghost btn-sm text-indigo-600">
                         Ver todas / Gestionar
                     </a>
                     <a href="{{ route('campaigns.assignments.create', $campaign) }}" class="btn-primary btn-sm">
@@ -104,7 +123,8 @@
                                         <span class="badge badge-neutral">Inactiva</span>
                                     @endif
                                 </td>
-                                <td class="text-gray-500 dark:text-gray-400">{{ $assignment->start_date?->format('d/m/Y') ?? '—' }}</td>
+                                <td class="text-gray-500 dark:text-gray-400">
+                                    {{ $assignment->start_date?->format('d/m/Y') ?? '—' }}</td>
                             </tr>
                         @empty
                             <tr>

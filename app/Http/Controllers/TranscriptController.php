@@ -14,7 +14,9 @@ class TranscriptController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Interaction::with(['campaign', 'agent', 'supervisor']);
+        $user = auth()->user();
+        $query = Interaction::with(['campaign', 'agent', 'supervisor'])
+            ->forUser($user);
 
         if ($request->campaign_id) {
             $query->where('campaign_id', $request->campaign_id);
@@ -25,18 +27,21 @@ class TranscriptController extends Controller
         }
 
         $interactions = $query->latest('occurred_at')->paginate(20);
-        $campaigns = Campaign::active()->get();
+        $campaigns = Campaign::active()->forUser($user)->get();
 
         return view('transcripts.index', compact('interactions', 'campaigns'));
     }
 
     public function create()
     {
-        $campaigns = Campaign::active()->get();
-        // Fetch active quality forms grouped by campaign for the frontend
-        $qualityForms = \App\Models\QualityForm::whereHas('versions', function ($q) {
-            $q->where('status', 'published');
-        })
+        $user = auth()->user();
+        $campaigns = Campaign::active()->forUser($user)->get();
+        $campaignIds = $campaigns->pluck('id');
+
+        $qualityForms = \App\Models\QualityForm::whereIn('campaign_id', $campaignIds)
+            ->whereHas('versions', function ($q) {
+                $q->where('status', 'published');
+            })
             ->get()
             ->map(function ($form) {
                 return [
@@ -47,8 +52,34 @@ class TranscriptController extends Controller
             })
             ->groupBy('campaign_id');
 
-        $agents = \App\Models\User::role('agent')->orderBy('name')->get();
-        return view('transcripts.create', compact('campaigns', 'agents', 'qualityForms'));
+        // Agents list needs to be filtered by assignment.
+        // Also provide all agents for fallback or non-javascript users
+        $assignmentsQuery = \App\Models\CampaignUserAssignment::with('agent')
+            ->whereIn('campaign_id', $campaignIds)
+            ->where('is_active', true);
+
+        if ($user->hasRole('supervisor')) {
+            $assignmentsQuery->where('supervisor_id', $user->id);
+            $agentIds = $assignmentsQuery->pluck('agent_id');
+            $agents = \App\Models\User::whereIn('id', $agentIds)->orderBy('name')->get();
+        } elseif ($user->hasRole('agent')) {
+            $agents = collect([$user]);
+            $assignmentsQuery->where('agent_id', $user->id);
+        } else {
+            $agents = \App\Models\User::role('agent')->orderBy('name')->get();
+        }
+
+        $assignments = $assignmentsQuery->get();
+        $agentsByCampaign = $assignments->groupBy('campaign_id')->map(function ($assignedAgents) {
+            return $assignedAgents->map(function ($assignment) {
+                return [
+                    'id' => $assignment->agent->id,
+                    'name' => $assignment->agent->name,
+                ];
+            })->unique('id')->values();
+        });
+
+        return view('transcripts.create', compact('campaigns', 'agents', 'qualityForms', 'agentsByCampaign'));
     }
 
     public function store(Request $request)
@@ -142,17 +173,32 @@ class TranscriptController extends Controller
 
     public function show(Interaction $interaction)
     {
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para ver esta transcripción.');
+        }
+
         $interaction->load(['campaign', 'agent', 'supervisor', 'evaluation.items.subAttribute']);
         return view('transcripts.show', compact('interaction'));
     }
 
     public function download(Interaction $interaction)
     {
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para descargar esta transcripción.');
+        }
+
         return Storage::disk('local')->download($interaction->file_path, $interaction->file_name);
     }
 
     public function audio(Interaction $interaction)
     {
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para escuchar esta transcripción.');
+        }
+
         if (!$interaction->isAudio()) {
             abort(404, 'This interaction does not have an audio file.');
         }
@@ -181,6 +227,11 @@ class TranscriptController extends Controller
 
     public function evaluate(Interaction $interaction)
     {
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para evaluar esta transcripción.');
+        }
+
         $lock = \Illuminate\Support\Facades\Cache::lock('evaluate_interaction_' . $interaction->id, 60);
 
         if (!$lock->get()) {
@@ -211,13 +262,34 @@ class TranscriptController extends Controller
 
     public function edit(Interaction $interaction)
     {
-        $campaigns = Campaign::active()->get();
-        $agents = \App\Models\User::role('agent')->orderBy('name')->get();
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para editar esta transcripción.');
+        }
+
+        $campaigns = Campaign::active()->forUser($user)->get();
+        // Similarly filter agents
+        if ($user->hasRole('supervisor')) {
+            $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
+                ->where('is_active', true)
+                ->pluck('agent_id');
+            $agents = \App\Models\User::whereIn('id', $agentIds)->orderBy('name')->get();
+        } elseif ($user->hasRole('agent')) {
+            $agents = collect([$user]);
+        } else {
+            $agents = \App\Models\User::role('agent')->orderBy('name')->get();
+        }
+
         return view('transcripts.edit', compact('interaction', 'campaigns', 'agents'));
     }
 
     public function update(Request $request, Interaction $interaction)
     {
+        $user = auth()->user();
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para actualizar esta transcripción.');
+        }
+
         $validated = $request->validate([
             'campaign_id' => 'required|exists:campaigns,id',
             'agent_id' => 'required|exists:users,id',
@@ -250,6 +322,17 @@ class TranscriptController extends Controller
 
     public function destroy(Interaction $interaction)
     {
+        $user = auth()->user();
+        // Typically only admin/managers can delete, but let's at least enforce they can see it
+        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para eliminar esta transcripción.');
+        }
+
+        // Prevent agents from deleting
+        if ($user->hasRole('agent')) {
+            abort(403, 'Los asesores no pueden eliminar transcripciones.');
+        }
+
         // Eliminar archivo físico si existe
         if ($interaction->file_path && Storage::disk('local')->exists($interaction->file_path)) {
             Storage::disk('local')->delete($interaction->file_path);

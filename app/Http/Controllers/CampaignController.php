@@ -9,13 +9,15 @@ class CampaignController extends Controller
 {
     public function index()
     {
-        $campaigns = Campaign::with('activeFormVersion')->latest()->paginate(15);
+        $user = auth()->user();
+        $campaigns = Campaign::forUser($user)->with('activeFormVersion')->latest()->paginate(15);
         return view('campaigns.index', compact('campaigns'));
     }
 
     public function create()
     {
-        return view('campaigns.create');
+        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
+        return view('campaigns.create', compact('monitors'));
     }
 
     public function store(Request $request)
@@ -32,6 +34,8 @@ class CampaignController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'script_url' => 'nullable|url',
+            'monitor_ids' => 'nullable|array',
+            'monitor_ids.*' => 'exists:users,id',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -41,14 +45,23 @@ class CampaignController extends Controller
 
         $campaign = Campaign::create($validated);
 
+        if ($request->has('monitor_ids')) {
+            $campaign->managers()->sync($request->monitor_ids);
+        }
+
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campaña creada exitosamente.');
     }
 
     public function show(Campaign $campaign)
     {
-        $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor']);
-        
+        $user = auth()->user();
+        if (!Campaign::forUser($user)->where('id', $campaign->id)->exists()) {
+            abort(403, 'No tiene permiso para ver esta campaña.');
+        }
+
+        $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor', 'managers']);
+
         $stats = [
             'total_interactions' => $campaign->interactions()->count(),
             'total_evaluations' => $campaign->evaluations()->count(),
@@ -61,7 +74,9 @@ class CampaignController extends Controller
 
     public function edit(Campaign $campaign)
     {
-        return view('campaigns.edit', compact('campaign'));
+        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
+        $campaign->load('managers');
+        return view('campaigns.edit', compact('campaign', 'monitors'));
     }
 
     public function update(Request $request, Campaign $campaign)
@@ -78,6 +93,8 @@ class CampaignController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'script_url' => 'nullable|url',
+            'monitor_ids' => 'nullable|array',
+            'monitor_ids.*' => 'exists:users,id',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -90,6 +107,12 @@ class CampaignController extends Controller
         }
 
         $campaign->update($validated);
+
+        if ($request->has('monitor_ids')) {
+            $campaign->managers()->sync($request->monitor_ids);
+        } else {
+            $campaign->managers()->detach();
+        }
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campaña actualizada exitosamente.');

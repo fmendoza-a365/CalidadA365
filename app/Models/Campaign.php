@@ -33,8 +33,8 @@ class Campaign extends Model
 
     public function getLogoUrlAttribute()
     {
-        return $this->logo_path 
-            ? asset('storage/' . $this->logo_path) 
+        return $this->logo_path
+            ? asset('storage/' . $this->logo_path)
             : null;
     }
 
@@ -69,8 +69,40 @@ class Campaign extends Model
         return $this->hasMany(Evaluation::class);
     }
 
+    public function managers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'campaign_managers', 'campaign_id', 'user_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeForUser($query, $user)
+    {
+        // 1. View All (Admin, Managers)
+        if ($user->hasAnyRole(['admin', 'manager', 'qa_manager'])) {
+            return $query;
+        }
+
+        // 2. Supervisor, Agent: View only campaigns they are assigned to
+        // Supervisors and Agents use CampaignUserAssignment
+        if ($user->hasAnyRole(['supervisor', 'agent'])) {
+            return $query->whereHas('assignments', function ($q) use ($user) {
+                $q->where('agent_id', $user->id)
+                    ->orWhere('supervisor_id', $user->id);
+            });
+        }
+
+        // 3. QA Monitor / Coordinator: View only their assigned (managed) campaigns
+        if ($user->hasAnyRole(['qa_monitor', 'qa_coordinator'])) {
+            return $query->whereHas('managers', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            });
+        }
+
+        // Default: No access
+        return $query->whereRaw('1 = 0');
     }
 }

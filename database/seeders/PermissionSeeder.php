@@ -51,6 +51,12 @@ class PermissionSeeder extends Seeder
             'view_coordinator_dashboard',
             'view_manager_dashboard',
 
+            // Transcripts
+            'view_transcripts',
+            'create_transcripts',
+            'edit_transcripts',
+            'delete_transcripts',
+
             // System
             'view_system_settings',
             'manage_ai_settings',
@@ -95,6 +101,7 @@ class PermissionSeeder extends Seeder
                 'view_all_evaluations', // We use this but filter by campaign in scope
                 'view_campaigns',
                 'view_quality_forms',
+                'view_transcripts',
                 'view_manager_dashboard',
                 'view_insights',
                 'view_users',
@@ -108,6 +115,7 @@ class PermissionSeeder extends Seeder
                 'view_team_evaluations', // Scope filters by agent assignment
                 'view_campaigns',
                 'view_quality_forms',
+                'view_transcripts',
                 'view_supervisor_dashboard',
                 'view_insights',
             ]);
@@ -121,6 +129,8 @@ class PermissionSeeder extends Seeder
                 'view_assigned_evaluations', // Scope filters by evaluator_id
                 'view_campaigns',
                 'view_quality_forms',
+                'view_transcripts',
+                'create_transcripts',
                 'view_monitor_dashboard',
             ]);
         }
@@ -133,6 +143,10 @@ class PermissionSeeder extends Seeder
                 'create_evaluations',
                 'view_campaigns',
                 'view_quality_forms',
+                'view_transcripts',
+                'create_transcripts',
+                'edit_transcripts',
+                'delete_transcripts',
                 'view_coordinator_dashboard',
                 'view_insights',
             ]);

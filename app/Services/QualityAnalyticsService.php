@@ -270,7 +270,54 @@ class QualityAnalyticsService
     public function getAgentRanking(array $filters = [], int $limit = 20): array
     {
         $query = Evaluation::query();
-        $this->applyFilters($query, $filters);
+
+        // 1. Determine whose evaluations to query for the ranking
+        $user = auth()->user();
+        $agentIds = null;
+
+        if ($user && $user->hasRole('agent')) {
+            // If the user is an agent, get all agents under their active supervisors
+            $supervisorIds = \App\Models\CampaignUserAssignment::where('agent_id', $user->id)
+                ->where('is_active', true)
+                ->pluck('supervisor_id');
+
+            $agentIds = \App\Models\CampaignUserAssignment::whereIn('supervisor_id', $supervisorIds)
+                ->where('is_active', true)
+                ->pluck('agent_id')
+                ->push($user->id) // Always include themselves
+                ->unique();
+        }
+
+        // Apply visual logic
+        if ($agentIds) {
+            // Explicitly set agent_ids to force the query to only consider these agents
+            // We temporarily remove the global forUser scope's agent check by overriding it
+            // The standard `applyFilters` will add `forUser`, which for agents restricts to `agent_id = $user->id`.
+            // So we MUST NOT call `$this->applyFilters($query, $filters)` directly for this specific query
+            // OR we customize `applyFilters` to not apply `forUser` if we are doing a team ranking.
+            // Better approach: apply standard date/campaign filters, but handle `forUser` manually here.
+
+            if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+                $query->whereBetween('evaluations.created_at', [
+                    Carbon::parse($filters['start_date'])->startOfDay(),
+                    Carbon::parse($filters['end_date'])->endOfDay()
+                ]);
+            }
+
+            if (!empty($filters['campaign_id'])) {
+                $query->where('evaluations.campaign_id', $filters['campaign_id']);
+            }
+
+            if (!empty($filters['agent_id'])) {
+                $query->where('evaluations.agent_id', $filters['agent_id']);
+            } else {
+                $query->whereIn('evaluations.agent_id', $agentIds);
+            }
+
+        } else {
+            // Normal apply filters for supervisors/admins
+            $this->applyFilters($query, $filters);
+        }
 
         return $query->join('users', 'evaluations.agent_id', '=', 'users.id')
             ->selectRaw("
@@ -286,6 +333,7 @@ class QualityAnalyticsService
             ->limit($limit)
             ->get()
             ->map(fn($item) => [
+                'id' => $item->id,
                 'label' => $item->label,
                 'avg_score' => round((float) $item->avg_score, 2),
                 'total_evals' => (int) $item->total_evals,
@@ -345,7 +393,15 @@ class QualityAnalyticsService
      */
     protected function applyFilters($query, array $filters): void
     {
+        // Enforce user visibility scope globally to all analytics
+        if (auth()->check()) {
+            $query->forUser(auth()->user());
+        }
+
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            // Check if table joining is happening to avoid ambiguous columns
+            // Some queries use raw Evaluation::query() which defaults to evaluations.*
+            // We use evaluations.created_at to be safe because of joins in other methods.
             $query->whereBetween('evaluations.created_at', [
                 Carbon::parse($filters['start_date'])->startOfDay(),
                 Carbon::parse($filters['end_date'])->endOfDay()
@@ -359,5 +415,46 @@ class QualityAnalyticsService
         if (!empty($filters['agent_id'])) {
             $query->where('evaluations.agent_id', $filters['agent_id']);
         }
+    }
+
+    /**
+     * Determines League (Elo) based on average score
+     */
+    public function getAgentLeague(float $averageScore): array
+    {
+        if ($averageScore >= 100)
+            return ['name' => 'Retador', 'color' => 'text-amber-300', 'bg' => 'bg-amber-900', 'border' => 'border-amber-400', 'icon' => '👑'];
+        if ($averageScore >= 99)
+            return ['name' => 'Gran Maestro', 'color' => 'text-red-400', 'bg' => 'bg-red-900', 'border' => 'border-red-500', 'icon' => '🛡️'];
+        if ($averageScore >= 98)
+            return ['name' => 'Maestro', 'color' => 'text-purple-400', 'bg' => 'bg-purple-900', 'border' => 'border-purple-500', 'icon' => '👁️'];
+        if ($averageScore >= 95)
+            return ['name' => 'Diamante', 'color' => 'text-blue-300', 'bg' => 'bg-blue-900', 'border' => 'border-blue-400', 'icon' => '💎'];
+        if ($averageScore >= 90)
+            return ['name' => 'Esmeralda', 'color' => 'text-emerald-400', 'bg' => 'bg-emerald-900', 'border' => 'border-emerald-500', 'icon' => '❇️'];
+        if ($averageScore >= 85)
+            return ['name' => 'Platino', 'color' => 'text-teal-300', 'bg' => 'bg-teal-900', 'border' => 'border-teal-400', 'icon' => '💠'];
+        if ($averageScore >= 80)
+            return ['name' => 'Oro', 'color' => 'text-yellow-400', 'bg' => 'bg-yellow-900', 'border' => 'border-yellow-500', 'icon' => '🏆'];
+        if ($averageScore >= 70)
+            return ['name' => 'Plata', 'color' => 'text-gray-300', 'bg' => 'bg-gray-800', 'border' => 'border-gray-400', 'icon' => '🥈'];
+        if ($averageScore >= 60)
+            return ['name' => 'Bronce', 'color' => 'text-orange-400', 'bg' => 'bg-orange-900', 'border' => 'border-orange-500', 'icon' => '🥉'];
+        return ['name' => 'Hierro', 'color' => 'text-gray-500', 'bg' => 'bg-gray-900', 'border' => 'border-gray-600', 'icon' => '⚔️'];
+    }
+
+    /**
+     * Get recent Match History (Evaluations) for an agent
+     */
+    public function getAgentMatchHistory(array $filters = [], int $limit = 5): \Illuminate\Database\Eloquent\Collection
+    {
+        $query = Evaluation::query()
+            ->with(['campaign', 'evaluator:id,name'])
+            ->orderByDesc('created_at')
+            ->limit($limit);
+
+        $this->applyFilters($query, $filters);
+
+        return $query->get();
     }
 }

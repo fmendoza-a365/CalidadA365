@@ -91,12 +91,6 @@ class DemoDataSeeder extends Seeder
         );
         $manager->assignRole('manager');
 
-        // Asignar Manager a Campaña 1
-        \Illuminate\Support\Facades\DB::table('campaign_managers')->updateOrInsert(
-            ['campaign_id' => 1, 'user_id' => $manager->id],
-            ['created_at' => now(), 'updated_at' => now()]
-        );
-
         $agents = [];
         $agentData = [
             ['name' => 'Ana López', 'email' => 'ana.lopez@calidad.com'],
@@ -152,6 +146,12 @@ class DemoDataSeeder extends Seeder
         // ========================================
         // 3. ASIGNACIONES
         // ========================================
+
+        // Asignar Manager a Campaña 1
+        \Illuminate\Support\Facades\DB::table('campaign_managers')->updateOrInsert(
+            ['campaign_id' => $campaign1->id, 'user_id' => $manager->id],
+            ['created_at' => now(), 'updated_at' => now()]
+        );
 
         // Campaña 1: 4 agentes con supervisor 1
         foreach (array_slice($agents, 0, 4) as $agent) {

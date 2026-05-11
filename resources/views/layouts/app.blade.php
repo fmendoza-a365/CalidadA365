@@ -63,44 +63,52 @@
                     <span>Dashboard Calidad</span>
                 </a>
 
-                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'supervisor']))
+                @if(auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts') || auth()->user()->can('view_insights'))
                     <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestión</p>
 
-                    <a href="{{ route('campaigns.index') }}"
-                        class="nav-item {{ request()->routeIs('campaigns.*') ? 'nav-item-active' : '' }}">
-                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <span>Campañas</span>
-                    </a>
+                    @if(auth()->user()->can('view_campaigns'))
+                        <a href="{{ route('campaigns.index') }}"
+                            class="nav-item {{ request()->routeIs('campaigns.*') ? 'nav-item-active' : '' }}">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            <span>Campañas</span>
+                        </a>
+                    @endif
 
-                    <a href="{{ route('quality-forms.index') }}"
-                        class="nav-item {{ request()->routeIs('quality-forms.*') ? 'nav-item-active' : '' }}">
-                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        <span>Fichas de Calidad</span>
-                    </a>
+                    @if(auth()->user()->can('view_quality_forms'))
+                        <a href="{{ route('quality-forms.index') }}"
+                            class="nav-item {{ request()->routeIs('quality-forms.*') ? 'nav-item-active' : '' }}">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            <span>Fichas de Calidad</span>
+                        </a>
+                    @endif
 
-                    <a href="{{ route('transcripts.index') }}"
-                        class="nav-item {{ request()->routeIs('transcripts.*') ? 'nav-item-active' : '' }}">
-                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>Transcripciones</span>
-                    </a>
+                    @if(auth()->user()->can('view_transcripts'))
+                        <a href="{{ route('transcripts.index') }}"
+                            class="nav-item {{ request()->routeIs('transcripts.*') ? 'nav-item-active' : '' }}">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Transcripciones</span>
+                        </a>
+                    @endif
 
-                    <a href="{{ route('insights.index') }}"
-                        class="nav-item {{ request()->routeIs('insights.*') ? 'nav-item-active' : '' }}">
-                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>Insights IA</span>
-                    </a>
+                    @if(auth()->user()->can('view_insights'))
+                        <a href="{{ route('insights.index') }}"
+                            class="nav-item {{ request()->routeIs('insights*') ? 'nav-item-active' : '' }}">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Insights IA</span>
+                        </a>
+                    @endif
                 @endif
 
                 <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Operación</p>

@@ -26,7 +26,7 @@
     <!-- Navigation -->
     <nav
         class="fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-neutral-800/50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo -->
                 <a href="/" class="flex items-center gap-3">
@@ -91,7 +91,7 @@
             </div>
         </div>
 
-        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="relative z-10 w-full mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <!-- Badge -->
             <div
                 class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 dark:bg-white/5 border border-indigo-200 dark:border-white/10 mb-8">
@@ -164,7 +164,7 @@
 
     <!-- Features Section -->
     <section id="features" class="py-24 bg-gray-50 dark:bg-[#0a0a0a]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-3xl md:text-4xl font-bold mb-4">Todo lo que Necesitas</h2>
                 <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -226,7 +226,7 @@
 
     <!-- How it Works -->
     <section id="how-it-works" class="py-24">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-3xl md:text-4xl font-bold mb-4">Cómo Funciona</h2>
                 <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -264,7 +264,7 @@
 
     <!-- Footer -->
     <footer class="bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-neutral-800 py-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
                     <img src="{{ asset('infoarchives/QALogo.png') }}" alt="QA Center"

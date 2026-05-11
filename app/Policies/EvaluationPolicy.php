@@ -14,7 +14,7 @@ class EvaluationPolicy
 
     public function view(User $user, Evaluation $evaluation): bool
     {
-        return $user->hasAnyRole(['admin', 'qa_manager'])
+        return $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager'])
             || $user->id === $evaluation->agent_id
             || $user->id === $evaluation->interaction->supervisor_id;
     }

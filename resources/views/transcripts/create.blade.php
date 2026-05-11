@@ -13,12 +13,20 @@
                         selectedCampaign: '{{ old('campaign_id') }}', 
                         availableForms: [],
                         allForms: {{ json_encode($qualityForms) }},
-                        selectedForm: '{{ old('quality_form_id') }}'
+                        selectedForm: '{{ old('quality_form_id') }}',
+                        availableAgents: [],
+                        allAgents: {{ json_encode($agentsByCampaign) }},
+                        selectedAgent: '{{ old('agent_id') }}'
                     }" x-init="
-                        if(selectedCampaign) { availableForms = allForms[selectedCampaign] || []; }
+                        if(selectedCampaign) { 
+                            availableForms = allForms[selectedCampaign] || []; 
+                            availableAgents = allAgents[selectedCampaign] || [];
+                        }
                         $watch('selectedCampaign', (val) => {
                             availableForms = allForms[val] || [];
                             selectedForm = '';
+                            availableAgents = allAgents[val] || [];
+                            selectedAgent = '';
                         })
                     ">
                         <div class="form-group">
@@ -52,14 +60,14 @@
 
                         <div class="form-group">
                             <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
-                            <select name="agent_id" id="agent_id" class="form-select" required>
+                            <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent">
                                 <option value="">Seleccione un asesor</option>
-                                @foreach($agents as $agent)
-                                    <option value="{{ $agent->id }}" {{ old('agent_id') == $agent->id ? 'selected' : '' }}>
-                                        {{ $agent->name }}
-                                    </option>
-                                @endforeach
+                                <template x-for="agent in availableAgents" :key="agent.id">
+                                    <option :value="agent.id" x-text="agent.name"></option>
+                                </template>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1" x-show="!selectedCampaign">Selecciona una campaña
+                                primero para ver a sus asesores asignados.</p>
                             <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
                         </div>
                     </div>

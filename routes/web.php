@@ -74,7 +74,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('disputes.resolve');
 
     // Fichas de Calidad
-    Route::group(['middleware' => ['role:admin|qa_manager']], function () {
+    Route::group(['middleware' => ['permission:view_quality_forms|create_quality_forms|edit_quality_forms']], function () {
         Route::resource('quality-forms', \App\Http\Controllers\QualityFormController::class);
         Route::post('quality-forms/{qualityForm}/publish', [\App\Http\Controllers\QualityFormController::class, 'publish'])
             ->name('quality-forms.publish');
@@ -82,8 +82,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('quality-forms.update-attributes');
         Route::post('quality-forms/{qualityForm}/import', [\App\Http\Controllers\QualityFormController::class, 'importAttributes'])
             ->name('quality-forms.import');
+    });
 
-        // Insights Module (rate limited - expensive AI operations)
+    // Insights Module (rate limited - expensive AI operations)
+    Route::group(['middleware' => ['permission:view_insights']], function () {
         Route::get('insights', [\App\Http\Controllers\InsightsController::class, 'index'])->name('insights.index');
         Route::get('insights/{insight}', [\App\Http\Controllers\InsightsController::class, 'show'])->name('insights.show');
         Route::delete('insights/{insight}', [\App\Http\Controllers\InsightsController::class, 'destroy'])->name('insights.destroy');

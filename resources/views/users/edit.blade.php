@@ -9,7 +9,7 @@
     </x-slot>
 
     <div class="py-12" x-data="userForm()">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="w-full mx-auto sm:px-6 lg:px-8">
             
             <form method="POST" action="{{ route('users.update', $user) }}" enctype="multipart/form-data">
                 @csrf
@@ -53,10 +53,10 @@
                             <div class="space-y-4">
                                 <div>
                                     <label class="form-label">Rol de Usuario <span class="text-red-500">*</span></label>
-                                    <select name="role" required class="form-select w-full bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800 focus:ring-indigo-500">
+                                    <select name="role" x-model="role" required class="form-select w-full bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800 focus:ring-indigo-500">
                                         <option value="">Seleccione un rol...</option>
                                         @foreach($roles as $role)
-                                        <option value="{{ $role->name }}" {{ (old('role') ?? $user->roles->first()?->name) == $role->name ? 'selected' : '' }}>
+                                        <option value="{{ $role->name }}">
                                             {{ ucfirst(str_replace('_', ' ', $role->name)) }}
                                         </option>
                                         @endforeach
@@ -72,6 +72,43 @@
                                     <input type="password" name="password_confirmation" class="form-input w-full" placeholder="Repetir contraseña">
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Campaign Assignment Card (Conditional) -->
+                        <div class="card p-6 border-indigo-100 dark:border-indigo-900 shadow-lg shadow-indigo-500/5" 
+                             x-show="['qa_monitor', 'qa_coordinator', 'manager'].includes(role)"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 transform -translate-y-2"
+                             x-transition:enter-end="opacity-100 transform translate-y-0">
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                Campañas Asignadas
+                            </h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                                Seleccione las campañas que este usuario podrá auditar y gestionar.
+                            </p>
+                            
+                            <div class="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                @foreach($campaigns as $campaign)
+                                    <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent hover:border-gray-100 dark:hover:border-gray-600 transition-all cursor-pointer group">
+                                        <input type="checkbox" name="campaign_ids[]" value="{{ $campaign->id }}" 
+                                            {{ $user->managedCampaigns->contains($campaign->id) ? 'checked' : '' }}
+                                            class="form-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {{ $campaign->name }}
+                                            </span>
+                                            <span class="text-[10px] text-gray-400 uppercase tracking-wider">{{ $campaign->type }}</span>
+                                        </div>
+                                    </label>
+                                @endforeach
+                            </div>
+                            
+                            @if($campaigns->isEmpty())
+                                <p class="text-sm text-gray-500 italic py-4 text-center">No hay campañas activas disponibles.</p>
+                            @endif
                         </div>
                     </div>
 
@@ -235,6 +272,7 @@
                 photoPreview: '{{ $user->avatar_url }}',
                 
                 // Geo Data State
+                role: '{{ old('role', $user->roles->first()?->name) }}',
                 selectedDept: '{{ old('department', $user->department) }}',
                 selectedProv: '{{ old('province', $user->province) }}',
                 selectedDist: '{{ old('district', $user->district) }}',

@@ -49,7 +49,7 @@ class WidgetDataController extends Controller
         }
 
         // Helper to get value for a specific period
-        $getValue = function($periodQuery) use ($metric) {
+        $getValue = function ($periodQuery) use ($metric) {
             return match ($metric) {
                 'total_evaluations' => $periodQuery->count(),
                 'avg_score' => round($periodQuery->avg('percentage_score') ?? 0, 2),
@@ -57,13 +57,15 @@ class WidgetDataController extends Controller
                 'active_campaigns' => Campaign::active()->count(),
                 'total_agents' => \App\Models\User::role('agent')->count(),
                 'evaluations_this_month' => (clone $periodQuery)->count(), // Query already filtered by month
-                'compliance_rate' => (function() use ($periodQuery) {
-                    $total = (clone $periodQuery)->count();
-                    if ($total === 0) return 0;
-                    $compliant = (clone $periodQuery)->where('percentage_score', '>=', 80)->count();
-                    return round(($compliant / $total) * 100, 2);
-                })(),
-                'response_rate' => (function() { return 0; })(), // Complex to calculate historically
+                'compliance_rate' => (function () use ($periodQuery) {
+                        $total = (clone $periodQuery)->count();
+                        if ($total === 0)
+                            return 0;
+                        $compliant = (clone $periodQuery)->where('percentage_score', '>=', 80)->count();
+                        return round(($compliant / $total) * 100, 2);
+                    })(),
+                'response_rate' => (function () {
+                        return 0; })(), // Complex to calculate historically
                 'avg_resolution_time' => 0, // Complex
                 default => 0,
             };
@@ -72,7 +74,7 @@ class WidgetDataController extends Controller
         // Current Value
         $currentQuery = clone $query;
         if ($metric === 'evaluations_this_month') {
-             $currentQuery->whereYear('created_at', now()->year)->whereMonth('created_at', now()->month);
+            $currentQuery->whereYear('created_at', now()->year)->whereMonth('created_at', now()->month);
         }
         $value = $getValue($currentQuery);
 
@@ -83,17 +85,17 @@ class WidgetDataController extends Controller
             if ($metric === 'evaluations_this_month') {
                 $previousQuery->whereYear('created_at', now()->subMonth()->year)->whereMonth('created_at', now()->subMonth()->month);
             } else {
-                 // For general metrics, assume "current" is all time, so comparison is hard.
-                 // Let's assume for standard metrics we compare "Last 30 days" vs "30-60 days ago" implicitly if they are time-bound
-                 // For now, only implement comparison for explicitly time-bound metrics or assume monthly change
-                 $previousQuery->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
-                 $currentForComp = (clone $query)->where('created_at', '>=', now()->subDays(30)); 
-                 // Re-calculate value for "This Month" if generic metric
-                 $value = $getValue($currentForComp); 
+                // For general metrics, assume "current" is all time, so comparison is hard.
+                // Let's assume for standard metrics we compare "Last 30 days" vs "30-60 days ago" implicitly if they are time-bound
+                // For now, only implement comparison for explicitly time-bound metrics or assume monthly change
+                $previousQuery->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)]);
+                $currentForComp = (clone $query)->where('created_at', '>=', now()->subDays(30));
+                // Re-calculate value for "This Month" if generic metric
+                $value = $getValue($currentForComp);
             }
-            
+
             $prevValue = $getValue($previousQuery);
-            
+
             if ($prevValue > 0) {
                 $change = (($value - $prevValue) / $prevValue) * 100;
                 $comparison = [
@@ -102,7 +104,7 @@ class WidgetDataController extends Controller
                     'direction' => $change >= 0 ? 'up' : 'down'
                 ];
             } else {
-                 $comparison = ['value' => 0, 'change' => 100, 'direction' => 'up'];
+                $comparison = ['value' => 0, 'change' => 100, 'direction' => 'up'];
             }
         }
 
@@ -129,7 +131,7 @@ class WidgetDataController extends Controller
         }
 
         // Postgres Date Truncation
-        $dateFormat = match($groupBy) {
+        $dateFormat = match ($groupBy) {
             'hour' => "TO_CHAR(created_at, 'YYYY-MM-DD HH24:00')",
             'month' => "TO_CHAR(created_at, 'YYYY-MM')",
             'year' => "TO_CHAR(created_at, 'YYYY')",
@@ -139,7 +141,7 @@ class WidgetDataController extends Controller
 
         // SQLite Fallback (for local dev if needed, though we prioritize PgSQL)
         if (DB::getDriverName() === 'sqlite') {
-             $dateFormat = match($groupBy) {
+            $dateFormat = match ($groupBy) {
                 'hour' => "strftime('%Y-%m-%d %H:00', created_at)",
                 'month' => "strftime('%Y-%m', created_at)",
                 'year' => "strftime('%Y', created_at)",
@@ -176,13 +178,17 @@ class WidgetDataController extends Controller
         $metric = $config['metric'] ?? 'campaign_performance';
 
         if ($metric === 'campaign_performance') {
-            $campaigns = Campaign::withCount(['evaluations' => function ($query) {
-                $query->forUser(auth()->user());
-            }])
-            ->with(['evaluations' => function ($query) {
-                $query->forUser(auth()->user());
-            }])
-            ->get();
+            $campaigns = Campaign::withCount([
+                'evaluations' => function ($query) {
+                    $query->forUser(auth()->user());
+                }
+            ])
+                ->with([
+                    'evaluations' => function ($query) {
+                        $query->forUser(auth()->user());
+                    }
+                ])
+                ->get();
 
             return [
                 'labels' => $campaigns->pluck('name')->toArray(),
@@ -198,10 +204,12 @@ class WidgetDataController extends Controller
 
         if ($metric === 'agent_performance') {
             $agents = \App\Models\User::role('agent')
-                ->with(['evaluations' => function ($query) {
-                    $query->forUser(auth()->user())
-                          ->where('created_at', '>=', now()->subDays(30));
-                }])
+                ->with([
+                    'evaluations' => function ($query) {
+                        $query->forUser(auth()->user())
+                            ->where('created_at', '>=', now()->subDays(30));
+                    }
+                ])
                 ->get()
                 ->map(function ($agent) {
                     return [
@@ -266,7 +274,7 @@ class WidgetDataController extends Controller
         $visibleColumns = $config['visible_columns'] ?? [];
 
         // Helper to filter columns and rows
-        $filterData = function($columns, $rows) use ($visibleColumns) {
+        $filterData = function ($columns, $rows) use ($visibleColumns) {
             if (empty($visibleColumns)) {
                 return ['columns' => $columns, 'rows' => $rows];
             }
@@ -287,7 +295,7 @@ class WidgetDataController extends Controller
             }
 
             // Filter rows based on indices
-            $finalRows = array_map(function($row) use ($visibleIndices) {
+            $finalRows = array_map(function ($row) use ($visibleIndices) {
                 $filteredRow = [];
                 foreach ($visibleIndices as $index) {
                     $filteredRow[] = $row[$index] ?? '';
@@ -320,46 +328,51 @@ class WidgetDataController extends Controller
             return $filterData($allColumns, $allRows);
         }
 
-        if ($type === 'top_agents') {
-            $topAgents = Evaluation::forUser(auth()->user())
-                ->select('agent_id', 
+        if ($type === 'top_agents' || $type === 'bottom_agents') {
+            $user = auth()->user();
+
+            // Determine whose evaluations to query for the ranking
+            $agentIds = null;
+
+            if ($user->hasRole('agent')) {
+                // If the user is an agent, get all agents under their active supervisors
+                $supervisorIds = \App\Models\CampaignUserAssignment::where('agent_id', $user->id)
+                    ->where('is_active', true)
+                    ->pluck('supervisor_id');
+
+                $agentIds = \App\Models\CampaignUserAssignment::whereIn('supervisor_id', $supervisorIds)
+                    ->where('is_active', true)
+                    ->pluck('agent_id')
+                    ->push($user->id) // Always include themselves just in case
+                    ->unique();
+            }
+
+            $query = Evaluation::query()
+                ->select(
+                    'agent_id',
                     \DB::raw('AVG(percentage_score) as avg_score'),
-                    \DB::raw('COUNT(*) as eval_count'))
-                ->where('created_at', '>=', now()->subDays(30))
-                ->groupBy('agent_id')
+                    \DB::raw('COUNT(*) as eval_count')
+                )
+                ->where('created_at', '>=', now()->subDays(30));
+
+            // Apply visibility logic
+            if ($agentIds) {
+                // Agent viewing their team
+                $query->whereIn('agent_id', $agentIds);
+            } else {
+                // Others viewing based on standard visibility
+                $query->forUser($user);
+            }
+
+            $agentsData = $query->groupBy('agent_id')
                 ->havingRaw('COUNT(*) >= 3')
-                ->orderByDesc('avg_score')
+                ->orderBy($type === 'top_agents' ? 'avg_score' : 'avg_score', $type === 'top_agents' ? 'desc' : 'asc')
                 ->limit($limit)
                 ->with('agent:id,name')
                 ->get();
 
             $allColumns = ['Agente', 'Promedio', 'Evaluaciones'];
-            $allRows = $topAgents->map(function ($agent) {
-                return [
-                    $agent->agent->name,
-                    number_format($agent->avg_score, 1) . '%',
-                    $agent->eval_count
-                ];
-            })->toArray();
-
-            return $filterData($allColumns, $allRows);
-        }
-
-        if ($type === 'bottom_agents') {
-            $bottomAgents = Evaluation::forUser(auth()->user())
-                ->select('agent_id', 
-                    \DB::raw('AVG(percentage_score) as avg_score'),
-                    \DB::raw('COUNT(*) as eval_count'))
-                ->where('created_at', '>=', now()->subDays(30))
-                ->groupBy('agent_id')
-                ->havingRaw('COUNT(*) >= 3')
-                ->orderBy('avg_score')
-                ->limit($limit)
-                ->with('agent:id,name')
-                ->get();
-
-             $allColumns = ['Agente', 'Promedio', 'Evaluaciones'];
-             $allRows = $bottomAgents->map(function ($agent) {
+            $allRows = $agentsData->map(function ($agent) {
                 return [
                     $agent->agent->name,
                     number_format($agent->avg_score, 1) . '%',
@@ -371,10 +384,13 @@ class WidgetDataController extends Controller
         }
 
         if ($type === 'disputed_items') {
-             $disputes = \App\Models\DisputeResolution::with(['evaluation' => function($query) {
+            $disputes = \App\Models\DisputeResolution::with([
+                'evaluation' => function ($query) {
                     $query->forUser(auth()->user());
-                }, 'evaluation.agent'])
-                ->whereHas('evaluation', function($query) {
+                },
+                'evaluation.agent'
+            ])
+                ->whereHas('evaluation', function ($query) {
                     $query->forUser(auth()->user());
                 })
                 ->whereNull('resolved_at')
@@ -382,8 +398,8 @@ class WidgetDataController extends Controller
                 ->limit($limit)
                 ->get();
 
-             $allColumns = ['Fecha', 'Agente', 'Motivo', 'Estado'];
-             $allRows = $disputes->map(function ($dispute) {
+            $allColumns = ['Fecha', 'Agente', 'Motivo', 'Estado'];
+            $allRows = $disputes->map(function ($dispute) {
                 return [
                     $dispute->created_at->format('d/m/Y'),
                     $dispute->evaluation->agent->name ?? 'N/A',

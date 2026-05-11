@@ -12,20 +12,36 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // All users now get the customizable dashboard
-        return view('dashboard.custom');
-        
-        /* Legacy role-based dashboards (kept for reference)
         $user = auth()->user();
 
-        if ($user->hasRole('admin') || $user->hasRole('qa_manager')) {
-            return $this->adminDashboard();
-        } elseif ($user->hasRole('supervisor')) {
-            return $this->supervisorDashboard($user);
-        } else {
-            return $this->agentDashboard($user);
+        if ($user->hasRole('agent')) {
+            $analytics = app(\App\Services\QualityAnalyticsService::class);
+            $filters = [
+                'start_date' => request('start_date', now()->startOfMonth()->format('Y-m-d')),
+                'end_date' => request('end_date', now()->endOfMonth()->format('Y-m-d')),
+                'campaign_id' => request('campaign_id'),
+            ];
+
+            $stats = $analytics->getOverviewStats($filters);
+            $league = $analytics->getAgentLeague($stats['average_score']);
+            $matchHistory = $analytics->getAgentMatchHistory($filters, 10);
+            $agentRanking = $analytics->getAgentRanking($filters);
+            $topDefects = $analytics->getTopDefects($filters);
+            $campaigns = Campaign::forUser($user)->orderBy('name')->get();
+
+            return view('dashboard.agent', compact(
+                'stats',
+                'league',
+                'matchHistory',
+                'agentRanking',
+                'topDefects',
+                'campaigns',
+                'filters'
+            ));
         }
-        */
+
+        // All other users get the customizable dashboard
+        return view('dashboard.custom');
     }
 
     private function adminDashboard()
