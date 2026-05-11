@@ -31,7 +31,7 @@ Nuestro motor de evaluación (`AIEvaluationService`) utiliza arquitecturas de va
 - **Base de Datos:** PostgreSQL (Optimizado para análisis)
 - **Caché & Colas:** Redis 7 (Gestión de carga asíncrona)
 - **Frontend:** Blade, Alpine.js, Tailwind CSS 4.0 (Glassmorphism & UX Premium)
-- **Infraestructura:** Dockerized with CI/CD support.
+- **Infraestructura:** DigitalOcean Droplet, Nginx, PHP-FPM, Supervisor, PostgreSQL, Redis y Spaces.
 
 ---
 
@@ -44,10 +44,13 @@ Nuestro motor de evaluación (`AIEvaluationService`) utiliza arquitecturas de va
 4.  **Ejecución:** `php artisan serve`
 
 ### Despliegue en Producción
-El sistema incluye un `Dockerfile` optimizado y scripts para Railway/Render.
+El sistema esta orientado a DigitalOcean Droplets con workers persistentes y almacenamiento S3 compatible.
 ```bash
-# Ejemplo de Build
-docker build -t qa365-production .
+# Preparacion inicial de la droplet
+sudo bash deployment/digitalocean/setup-droplet.sh
+
+# Despliegue desde /var/www/qa365
+sudo APP_DIR=/var/www/qa365 BRANCH=main bash deployment/digitalocean/deploy.sh
 ```
 
 ---

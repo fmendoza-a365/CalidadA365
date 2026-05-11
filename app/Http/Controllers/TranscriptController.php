@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\Interaction;
 use App\Models\CampaignUserAssignment;
 use App\Jobs\TranscribeAudioJob;
+use App\Jobs\ScoreTranscriptJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -84,6 +85,7 @@ class TranscriptController extends Controller
 
     public function store(Request $request)
     {
+        $user = auth()->user();
         $lock = \Illuminate\Support\Facades\Cache::lock('upload_transcript_' . auth()->id(), 30);
 
         if (!$lock->get()) {
@@ -104,6 +106,25 @@ class TranscriptController extends Controller
                 'transcript_files.*' => "required|file|extensions:{$allExtensions}|max:25600",
             ]);
 
+            if (!Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+                abort(403, 'No tiene permiso para cargar audios en esta campaña.');
+            }
+
+            if (!empty($validated['quality_form_id'])) {
+                $formIsValid = \App\Models\QualityForm::whereKey($validated['quality_form_id'])
+                    ->where('campaign_id', $validated['campaign_id'])
+                    ->whereHas('versions', function ($q) {
+                        $q->where('status', 'published');
+                    })
+                    ->exists();
+
+                if (!$formIsValid) {
+                    return back()->withErrors([
+                        'quality_form_id' => 'La ficha seleccionada no pertenece a esta campaña o no está publicada.',
+                    ])->withInput();
+                }
+            }
+
             // Obtener supervisor de asignación activa
             $assignment = CampaignUserAssignment::where([
                 'campaign_id' => $validated['campaign_id'],
@@ -118,13 +139,14 @@ class TranscriptController extends Controller
             $batchId = count($validated['transcript_files']) > 1 ? Str::uuid() : null;
             $uploaded = 0;
             $audioCount = 0;
+            $scoringCount = 0;
 
             foreach ($validated['transcript_files'] as $file) {
                 $extension = strtolower($file->getClientOriginalExtension());
                 $isAudio = in_array($extension, $audioExtensions);
 
                 $storagePath = $isAudio ? 'audios' : 'transcripts';
-                $path = $file->store($storagePath, 'local');
+                $path = $file->store($storagePath, $this->privateDisk());
 
                 $interactionData = [
                     'campaign_id' => $validated['campaign_id'],
@@ -152,8 +174,12 @@ class TranscriptController extends Controller
 
                 // Dispatch transcription job for audio files
                 if ($isAudio) {
-                    TranscribeAudioJob::dispatch($interaction->id);
+                    TranscribeAudioJob::dispatch($interaction->id)->onQueue('transcription');
                     $audioCount++;
+                } elseif ($interaction->hasScorableQualityForm()) {
+                    $interaction->update(['status' => 'queued']);
+                    ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
+                    $scoringCount++;
                 }
 
                 $uploaded++;
@@ -161,7 +187,10 @@ class TranscriptController extends Controller
 
             $message = "{$uploaded} archivo(s) cargado(s) exitosamente.";
             if ($audioCount > 0) {
-                $message .= " {$audioCount} audio(s) en proceso de transcripción.";
+                $message .= " {$audioCount} audio(s) en proceso de transcripción y evaluación IA posterior.";
+            }
+            if ($scoringCount > 0) {
+                $message .= " {$scoringCount} transcripción(es) enviada(s) a evaluación IA.";
             }
 
             return redirect()->route('transcripts.index')
@@ -189,7 +218,7 @@ class TranscriptController extends Controller
             abort(403, 'No tiene permiso para descargar esta transcripción.');
         }
 
-        return Storage::disk('local')->download($interaction->file_path, $interaction->file_name);
+        return Storage::disk($this->privateDisk())->download($interaction->file_path, $interaction->file_name);
     }
 
     public function audio(Interaction $interaction)
@@ -203,9 +232,9 @@ class TranscriptController extends Controller
             abort(404, 'This interaction does not have an audio file.');
         }
 
-        $path = Storage::disk('local')->path($interaction->file_path);
+        $disk = Storage::disk($this->privateDisk());
 
-        if (!file_exists($path)) {
+        if (!$disk->exists($interaction->file_path)) {
             abort(404, 'Audio file not found.');
         }
 
@@ -220,8 +249,19 @@ class TranscriptController extends Controller
         $extension = strtolower(pathinfo($interaction->file_name, PATHINFO_EXTENSION));
         $mime = $mimeTypes[$extension] ?? 'audio/mpeg';
 
-        return response()->file($path, [
+        $stream = $disk->readStream($interaction->file_path);
+        if ($stream === false) {
+            abort(404, 'Audio file not found.');
+        }
+
+        return response()->stream(function () use ($stream) {
+            fpassthru($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, 200, [
             'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . addslashes($interaction->file_name) . '"',
         ]);
     }
 
@@ -232,6 +272,14 @@ class TranscriptController extends Controller
             abort(403, 'No tiene permiso para evaluar esta transcripción.');
         }
 
+        if (!$user->can('create_evaluations') && !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+            abort(403, 'No tiene permiso para iniciar evaluaciones IA.');
+        }
+
+        if ($interaction->isTranscribing()) {
+            return back()->with('info', 'La transcripción del audio aún está en proceso.');
+        }
+
         $lock = \Illuminate\Support\Facades\Cache::lock('evaluate_interaction_' . $interaction->id, 60);
 
         if (!$lock->get()) {
@@ -239,22 +287,19 @@ class TranscriptController extends Controller
         }
 
         try {
-            // Verificar que no tenga ya una evaluación
-            if ($interaction->evaluation()->exists()) {
-                return back()->with('error', 'Esta transcripción ya fue evaluada.');
+            if ($interaction->manualEvaluation()->exists()) {
+                return back()->with('error', 'Esta interacción ya tiene una evaluación final manual.');
             }
 
-            // Delegate form resolution to AIEvaluationService which has robust fallback logic
-            $aiService = app(\App\Services\AIEvaluationService::class);
-            $evaluation = $aiService->evaluateInteraction($interaction);
-
-            if ($evaluation) {
-                $interaction->update(['status' => 'scored']);
-                return redirect()->route('evaluations.show', $evaluation)
-                    ->with('success', 'Evaluación completada exitosamente.');
+            if ($interaction->aiEvaluation()->exists()) {
+                return back()->with('error', 'Esta interacción ya tiene una evaluación IA. Use reanalizar desde la evaluación.');
             }
 
-            return back()->with('error', 'No se pudo realizar la evaluación. Verifique los logs o la configuración de la ficha de calidad.');
+            $interaction->update(['status' => 'queued']);
+            ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
+
+            return redirect()->route('transcripts.show', $interaction)
+                ->with('success', 'Evaluación IA enviada a cola. El monitor la revisará antes de publicarla.');
         } finally {
             $lock->release();
         }
@@ -297,6 +342,10 @@ class TranscriptController extends Controller
             'transcript_text' => 'nullable|string',
         ]);
 
+        if (!Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para mover esta transcripción a la campaña seleccionada.');
+        }
+
         // Obtener supervisor de asignación activa
         $assignment = CampaignUserAssignment::where([
             'campaign_id' => $validated['campaign_id'],
@@ -334,8 +383,8 @@ class TranscriptController extends Controller
         }
 
         // Eliminar archivo físico si existe
-        if ($interaction->file_path && Storage::disk('local')->exists($interaction->file_path)) {
-            Storage::disk('local')->delete($interaction->file_path);
+        if ($interaction->file_path && Storage::disk($this->privateDisk())->exists($interaction->file_path)) {
+            Storage::disk($this->privateDisk())->delete($interaction->file_path);
         }
 
         // Eliminar evaluación asociada si existe
@@ -348,5 +397,10 @@ class TranscriptController extends Controller
 
         return redirect()->route('transcripts.index')
             ->with('success', 'Transcripción eliminada exitosamente.');
+    }
+
+    private function privateDisk(): string
+    {
+        return config('filesystems.default', 'local');
     }
 }

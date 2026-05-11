@@ -356,15 +356,7 @@
                             <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Puntaje</div>
                         </div>
                         <div class="text-center">
-                            @if($interaction->evaluation->status === 'visible_to_agent')
-                                <span class="badge badge-warning">Pendiente Firma</span>
-                            @elseif($interaction->evaluation->status === 'agent_responded')
-                                <span class="badge badge-success">Firmada</span>
-                            @elseif($interaction->evaluation->status === 'disputed')
-                                <span class="badge badge-danger">En Disputa</span>
-                            @else
-                                <span class="badge badge-neutral">{{ ucfirst($interaction->evaluation->status) }}</span>
-                            @endif
+                            <span class="badge badge-neutral">{{ \App\Models\Evaluation::statusLabel($interaction->evaluation->status) }}</span>
                             <div class="text-sm text-gray-500 dark:text-gray-400 mt-2">Estado</div>
                         </div>
                         <div class="text-center">

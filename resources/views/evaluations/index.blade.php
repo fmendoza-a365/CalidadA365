@@ -28,9 +28,11 @@
                     <label for="status" class="form-label">Estado</label>
                     <select name="status" id="status" class="form-select" onchange="this.form.submit()">
                         <option value="">Todos</option>
-                        <option value="visible_to_agent" {{ request('status') == 'visible_to_agent' ? 'selected' : '' }}>Pendiente Firma</option>
-                        <option value="agent_responded" {{ request('status') == 'agent_responded' ? 'selected' : '' }}>Firmada</option>
-                        <option value="disputed" {{ request('status') == 'disputed' ? 'selected' : '' }}>En Disputa</option>
+                        @foreach($statusOptions as $status)
+                            <option value="{{ $status }}" {{ request('status') == $status ? 'selected' : '' }}>
+                                {{ \App\Models\Evaluation::statusLabel($status) }}
+                            </option>
+                        @endforeach
                     </select>
                 </div>
                 <a href="{{ route('evaluations.index') }}" class="btn-secondary btn-md whitespace-nowrap">Limpiar</a>
@@ -75,21 +77,25 @@
                                 <span class="font-bold {{ $scoreClass }}">{{ number_format($score, 0) }}%</span>
                             </td>
                             <td class="px-4 py-3 text-center">
-                                @if($evaluation->status === 'visible_to_agent')
+                                @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                        Revision monitor
+                                    </span>
+                                @elseif($evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                        Pendiente Firma
+                                        Publicada
                                     </span>
-                                @elseif($evaluation->status === 'agent_responded')
+                                @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_ACCEPTED)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                        Firmada
+                                        Aceptada
                                     </span>
-                                @elseif($evaluation->status === 'disputed')
+                                @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_DISPUTED)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
                                         En Disputa
                                     </span>
                                 @else
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
-                                        {{ ucfirst(str_replace('_', ' ', $evaluation->status)) }}
+                                        {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                                     </span>
                                 @endif
                             </td>
@@ -151,21 +157,25 @@
                             {{ $evaluation->created_at->format('d/m/Y H:i') }}
                         </span>
                         <span class="text-gray-300 dark:text-gray-600">•</span>
-                        @if($evaluation->status === 'visible_to_agent')
+                        @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                Revision monitor
+                            </span>
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                Pendiente Firma
+                                Publicada
                             </span>
-                        @elseif($evaluation->status === 'agent_responded')
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_ACCEPTED)
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                Firmada
+                                Aceptada
                             </span>
-                        @elseif($evaluation->status === 'disputed')
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_DISPUTED)
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
                                 En Disputa
                             </span>
                         @else
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
-                                {{ ucfirst(str_replace('_', ' ', $evaluation->status)) }}
+                                {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                             </span>
                         @endif
                     </div>

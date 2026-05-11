@@ -40,14 +40,16 @@
                     </div>
                     <div>
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Estado</div>
-                        @if($evaluation->status === 'visible_to_agent')
-                            <span class="badge badge-warning">Pendiente Firma</span>
-                        @elseif($evaluation->status === 'agent_responded')
-                            <span class="badge badge-success">Firmada</span>
-                        @elseif($evaluation->status === 'disputed')
+                        @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
+                            <span class="badge badge-warning">Pendiente Revision</span>
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
+                            <span class="badge badge-warning">Publicada</span>
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_ACCEPTED)
+                            <span class="badge badge-success">Aceptada</span>
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_DISPUTED)
                             <span class="badge badge-danger">En Disputa</span>
                         @else
-                            <span class="badge badge-neutral">{{ ucfirst($evaluation->status) }}</span>
+                            <span class="badge badge-neutral">{{ \App\Models\Evaluation::statusLabel($evaluation->status) }}</span>
                         @endif
                     </div>
                     <div>
@@ -62,12 +64,12 @@
                                     class="btn-ghost btn-sm mt-2 w-full justify-center text-indigo-600 dark:text-gray-400">
                                     Ver Evaluación Manual
                                 </a>
-                            @elseif(auth()->user()->hasAnyRole(['admin', 'qa_manager']))
+                            @can('publish', $evaluation)
                                 <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
                                     class="btn-primary btn-sm mt-2 w-full justify-center">
-                                    Evaluar Manualmente
+                                    Corregir Manualmente
                                 </a>
-                            @endif
+                            @endcan
                         @elseif ($evaluation->type === 'manual')
                             @if ($aiEval = $evaluation->interaction->aiEvaluation)
                                 <a href="{{ route('evaluations.show', $aiEval) }}"
@@ -79,6 +81,22 @@
                                 Evaluado por: {{ $evaluation->evaluator->name ?? 'N/A' }}
                             </div>
                         @endif
+                        @can('publish', $evaluation)
+                            <form method="POST" action="{{ route('evaluations.publish', $evaluation) }}" class="mt-2">
+                                @csrf
+                                <button type="submit" class="btn-primary btn-sm w-full justify-center">
+                                    Aprobar y Publicar
+                                </button>
+                            </form>
+                        @endcan
+                        @can('reanalyze', $evaluation)
+                            <form method="POST" action="{{ route('evaluations.reanalyze', $evaluation) }}" class="mt-2">
+                                @csrf
+                                <button type="submit" class="btn-secondary btn-sm w-full justify-center">
+                                    Reanalizar IA
+                                </button>
+                            </form>
+                        @endcan
                         @if(auth()->user()->hasAnyRole(['admin', 'qa_manager']))
                             <form method="POST" action="{{ route('evaluations.toggle-gold', $evaluation) }}" class="mt-2">
                                 @csrf
@@ -97,6 +115,44 @@
                 </div>
             </div>
         </div>
+
+        @if($evaluation->isPendingMonitorReview() && auth()->user()->cannot('respond', $evaluation))
+            <div class="card border-indigo-100 dark:border-indigo-500/30">
+                <div class="card-body">
+                    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">Revision del monitor pendiente</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Esta evaluacion fue generada por IA y aun no es visible para el asesor.
+                            </p>
+                            @if($evaluation->reanalysis_requested_at)
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    Reanalisis solicitado el {{ $evaluation->reanalysis_requested_at->format('d/m/Y H:i') }}.
+                                </p>
+                            @endif
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2 md:min-w-[320px]">
+                            @can('publish', $evaluation)
+                                <form method="POST" action="{{ route('evaluations.publish', $evaluation) }}" class="flex-1">
+                                    @csrf
+                                    <button type="submit" class="btn-primary btn-md w-full justify-center">
+                                        Aprobar y Publicar
+                                    </button>
+                                </form>
+                            @endcan
+                            @can('reanalyze', $evaluation)
+                                <form method="POST" action="{{ route('evaluations.reanalyze', $evaluation) }}" class="flex-1">
+                                    @csrf
+                                    <button type="submit" class="btn-secondary btn-md w-full justify-center">
+                                        Reanalizar
+                                    </button>
+                                </form>
+                            @endcan
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <!-- AI Feedback Card -->
         @if($evaluation->ai_summary)
@@ -274,7 +330,7 @@
                     </p>
                 </div>
             </div>
-        @elseif(auth()->user()->id === $evaluation->agent_id && $evaluation->status === 'visible_to_agent')
+        @elseif(auth()->user()->id === $evaluation->agent_id && $evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
             <!-- Formulario de Respuesta -->
             <div class="card">
                 <div class="card-header">

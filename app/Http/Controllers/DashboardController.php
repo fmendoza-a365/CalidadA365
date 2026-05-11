@@ -83,7 +83,7 @@ class DashboardController extends Controller
                 ->whereBetween('created_at', [now()->startOfWeek(), now()])
                 ->count(),
             'pending_responses' => Evaluation::whereIn('agent_id', $teamAgents)
-                ->where('status', 'visible_to_agent')
+                ->where('status', Evaluation::STATUS_PUBLISHED_TO_AGENT)
                 ->count(),
         ];
 
@@ -102,7 +102,7 @@ class DashboardController extends Controller
             'my_avg_score' => round(Evaluation::where('agent_id', $user->id)->avg('percentage_score') ?? 0, 2),
             'evaluations_count' => Evaluation::where('agent_id', $user->id)->count(),
             'pending_responses' => Evaluation::where('agent_id', $user->id)
-                ->where('status', 'visible_to_agent')
+                ->where('status', Evaluation::STATUS_PUBLISHED_TO_AGENT)
                 ->count(),
             'this_month_avg' => round(Evaluation::where('agent_id', $user->id)
                 ->whereMonth('created_at', now()->month)

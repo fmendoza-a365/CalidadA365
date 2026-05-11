@@ -6,6 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class Evaluation extends Model
 {
+    public const STATUS_PENDING_AI = 'pending_ai';
+    public const STATUS_AI_PROCESSING = 'ai_processing';
+    public const STATUS_PENDING_MONITOR_REVIEW = 'pending_monitor_review';
+    public const STATUS_AI_REANALYSIS_REQUESTED = 'ai_reanalysis_requested';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_PUBLISHED_TO_AGENT = 'published_to_agent';
+    public const STATUS_AGENT_ACCEPTED = 'agent_accepted';
+    public const STATUS_AGENT_DISPUTED = 'agent_disputed';
+    public const STATUS_DISPUTE_RESOLVED = 'dispute_resolved';
+    public const STATUS_CLOSED = 'closed';
+
     protected $fillable = [
         'interaction_id',
         'form_version_id',
@@ -19,9 +30,16 @@ class Evaluation extends Model
         'status',
         'is_gold',
         'ai_processed_at',
+        'ai_model',
+        'reviewed_by',
+        'reviewed_at',
+        'review_notes',
+        'published_by',
         'visible_to_agent_at',
         'agent_viewed_at',
         'finalized_at',
+        'reanalysis_requested_at',
+        'reanalysis_requested_by',
         'ai_prompt',
         'ai_raw_response',
         'ai_summary',
@@ -33,9 +51,11 @@ class Evaluation extends Model
         'percentage_score' => 'decimal:2',
         'is_gold' => 'boolean',
         'ai_processed_at' => 'datetime',
+        'reviewed_at' => 'datetime',
         'visible_to_agent_at' => 'datetime',
         'agent_viewed_at' => 'datetime',
         'finalized_at' => 'datetime',
+        'reanalysis_requested_at' => 'datetime',
     ];
 
     public function scopeGold($query)
@@ -68,6 +88,16 @@ class Evaluation extends Model
         return $this->belongsTo(User::class, 'evaluator_id');
     }
 
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function publisher()
+    {
+        return $this->belongsTo(User::class, 'published_by');
+    }
+
     public function items()
     {
         return $this->hasMany(EvaluationItem::class);
@@ -85,7 +115,18 @@ class Evaluation extends Model
 
     public function scopeVisibleToAgent($query)
     {
-        return $query->whereIn('status', ['visible_to_agent', 'agent_responded', 'disputed', 'resolved', 'final']);
+        return $query->whereIn('status', [
+            self::STATUS_PUBLISHED_TO_AGENT,
+            self::STATUS_AGENT_ACCEPTED,
+            self::STATUS_AGENT_DISPUTED,
+            self::STATUS_DISPUTE_RESOLVED,
+            self::STATUS_CLOSED,
+            'visible_to_agent',
+            'agent_responded',
+            'disputed',
+            'resolved',
+            'final',
+        ]);
     }
 
     public function scopeAi($query)
@@ -99,8 +140,8 @@ class Evaluation extends Model
     }
     public function scopeForUser($query, $user)
     {
-        // 1. View All (Admin)
-        if ($user->hasRole('admin')) {
+        // 1. View All
+        if ($user->hasAnyRole(['admin', 'qa_manager'])) {
             return $query;
         }
 
@@ -147,9 +188,11 @@ class Evaluation extends Model
         }
 
         // 5. Monitor: View Own Evaluations Only
-        // "monitor solo vea la info de sus evaluaciones"
         if ($user->hasRole('qa_monitor')) {
-            return $query->where('evaluator_id', $user->id);
+            return $query->where(function ($q) use ($user) {
+                $q->where('evaluator_id', $user->id)
+                    ->orWhereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+            });
         }
 
         // 6. Agent: View Own Evaluations Only
@@ -159,5 +202,60 @@ class Evaluation extends Model
 
         // Default: No access
         return $query->whereRaw('1 = 0');
+    }
+
+    public function isVisibleToAgent(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_PUBLISHED_TO_AGENT,
+            self::STATUS_AGENT_ACCEPTED,
+            self::STATUS_AGENT_DISPUTED,
+            self::STATUS_DISPUTE_RESOLVED,
+            self::STATUS_CLOSED,
+            'visible_to_agent',
+            'agent_responded',
+            'disputed',
+            'resolved',
+            'final',
+        ], true);
+    }
+
+    public function isPendingMonitorReview(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_PENDING_MONITOR_REVIEW,
+            self::STATUS_AI_REANALYSIS_REQUESTED,
+            'ai_done',
+        ], true);
+    }
+
+    public function canBePublished(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_PENDING_MONITOR_REVIEW,
+            self::STATUS_APPROVED,
+            'ai_done',
+        ], true);
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return [
+            self::STATUS_PENDING_AI => 'Pendiente IA',
+            self::STATUS_AI_PROCESSING => 'Procesando IA',
+            self::STATUS_PENDING_MONITOR_REVIEW => 'Pendiente revision monitor',
+            self::STATUS_AI_REANALYSIS_REQUESTED => 'Reanalisis solicitado',
+            self::STATUS_APPROVED => 'Aprobada',
+            self::STATUS_PUBLISHED_TO_AGENT => 'Publicada al asesor',
+            self::STATUS_AGENT_ACCEPTED => 'Aceptada por asesor',
+            self::STATUS_AGENT_DISPUTED => 'Disputada por asesor',
+            self::STATUS_DISPUTE_RESOLVED => 'Disputa resuelta',
+            self::STATUS_CLOSED => 'Cerrada',
+            'visible_to_agent' => 'Pendiente firma',
+            'agent_responded' => 'Firmada',
+            'disputed' => 'En disputa',
+            'resolved' => 'Resuelta',
+            'final' => 'Final',
+        ][$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
 }

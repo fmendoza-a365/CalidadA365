@@ -97,10 +97,33 @@ class Interaction extends Model
         return $this->isAudio() && $this->transcription_status === 'failed';
     }
 
+    public function hasScorableQualityForm(): bool
+    {
+        if ($this->quality_form_id) {
+            return $this->qualityForm()
+                ->whereHas('versions', function ($query) {
+                    $query->where('status', 'published');
+                })
+                ->exists();
+        }
+
+        $campaign = $this->campaign;
+        if (!$campaign) {
+            return false;
+        }
+
+        return (bool) $campaign->active_form_version_id
+            || $campaign->forms()
+                ->whereHas('versions', function ($query) {
+                    $query->where('status', 'published');
+                })
+                ->exists();
+    }
+
     public function scopeForUser($query, $user)
     {
-        // 1. View All (Admin)
-        if ($user->hasRole('admin')) {
+        // 1. View All
+        if ($user->hasAnyRole(['admin', 'qa_manager'])) {
             return $query;
         }
 

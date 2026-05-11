@@ -14,6 +14,8 @@ class CampaignUserAssignmentController extends Controller
      */
     public function index(Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         $assignments = $campaign->assignments()
             ->with(['agent', 'supervisor'])
             ->orderBy('created_at', 'desc')
@@ -27,6 +29,8 @@ class CampaignUserAssignmentController extends Controller
      */
     public function create(Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         $agents = User::role('agent')->orderBy('name')->get();
         $supervisors = User::role('supervisor')->orderBy('name')->get();
 
@@ -38,6 +42,8 @@ class CampaignUserAssignmentController extends Controller
      */
     public function store(Request $request, Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         $validated = $request->validate([
             'agent_id' => 'required|exists:users,id',
             'supervisor_id' => 'required|exists:users,id',
@@ -74,6 +80,8 @@ class CampaignUserAssignmentController extends Controller
     public function edit(CampaignUserAssignment $assignment)
     {
         $campaign = $assignment->campaign;
+        $this->ensureCampaignAccess($campaign);
+
         $agents = User::role('agent')->orderBy('name')->get();
         $supervisors = User::role('supervisor')->orderBy('name')->get();
 
@@ -85,6 +93,8 @@ class CampaignUserAssignmentController extends Controller
      */
     public function update(Request $request, CampaignUserAssignment $assignment)
     {
+        $this->ensureCampaignAccess($assignment->campaign);
+
         $validated = $request->validate([
             'supervisor_id' => 'required|exists:users,id',
             'start_date' => 'nullable|date',
@@ -109,9 +119,18 @@ class CampaignUserAssignmentController extends Controller
     public function destroy(CampaignUserAssignment $assignment)
     {
         $campaign = $assignment->campaign;
+        $this->ensureCampaignAccess($campaign);
+
         $assignment->delete();
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Asignación eliminada exitosamente.');
+    }
+
+    private function ensureCampaignAccess(Campaign $campaign): void
+    {
+        if (!Campaign::forUser(auth()->user())->whereKey($campaign->id)->exists()) {
+            abort(403, 'No tiene permiso para gestionar asignaciones de esta campaña.');
+        }
     }
 }

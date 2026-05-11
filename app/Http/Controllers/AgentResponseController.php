@@ -13,6 +13,10 @@ class AgentResponseController extends Controller
     {
         $this->authorize('respond', $evaluation);
 
+        if ($evaluation->agentResponse()->exists()) {
+            return back()->with('error', 'Ya registraste una respuesta para esta evaluación.');
+        }
+
         $validated = $request->validate([
             'response_type' => 'required|in:accept,dispute',
             'commitment_comment' => 'required_if:response_type,accept|nullable|string',
@@ -36,7 +40,7 @@ class AgentResponseController extends Controller
             ]);
 
 
-            $evaluation->update(['status' => 'disputed']);
+            $evaluation->update(['status' => Evaluation::STATUS_AGENT_DISPUTED]);
             
             // Notificar a QA Managers y al Supervisor asignado (si existiera lógica directa, por ahora a QA Managers)
             $qaManagers = \App\Models\User::role('qa_manager')->get();
@@ -45,7 +49,7 @@ class AgentResponseController extends Controller
             }
 
         } else {
-            $evaluation->update(['status' => 'agent_responded']);
+            $evaluation->update(['status' => Evaluation::STATUS_AGENT_ACCEPTED]);
         }
 
         return redirect()->route('evaluations.show', $evaluation)
@@ -70,9 +74,9 @@ class AgentResponseController extends Controller
             'resolved_at' => now(),
         ]);
 
-        $dispute->evaluation->update(['status' => 'resolved']);
+        $dispute->evaluation->update(['status' => Evaluation::STATUS_DISPUTE_RESOLVED]);
 
-        if ($validated['adjusted_score']) {
+        if (array_key_exists('adjusted_score', $validated) && $validated['adjusted_score'] !== null) {
             $dispute->evaluation->update(['percentage_score' => $validated['adjusted_score']]);
         }
         

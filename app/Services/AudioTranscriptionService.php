@@ -33,16 +33,16 @@ class AudioTranscriptionService
             return $this->simulateTranscription($filePath);
         }
 
-        $absolutePath = Storage::disk('local')->path($filePath);
+        $disk = Storage::disk(config('filesystems.default', 'local'));
 
-        if (!file_exists($absolutePath)) {
-            throw new \Exception("Audio file not found: {$absolutePath}");
+        if (!$disk->exists($filePath)) {
+            throw new \Exception("Audio file not found: {$filePath}");
         }
 
         Log::info("AudioTranscriptionService: Transcribing file {$filePath} with Gemini");
 
         try {
-            $audioData = file_get_contents($absolutePath);
+            $audioData = $disk->get($filePath);
             $base64Audio = base64_encode($audioData);
             $mimeType = $this->getMimeType($filePath);
 

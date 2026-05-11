@@ -22,4 +22,11 @@ class QualityForm extends Model
     {
         return $this->hasOne(QualityFormVersion::class)->latestOfMany();
     }
+
+    public function scopeForUser($query, $user)
+    {
+        return $query->whereHas('campaign', function ($campaignQuery) use ($user) {
+            $campaignQuery->forUser($user);
+        });
+    }
 }

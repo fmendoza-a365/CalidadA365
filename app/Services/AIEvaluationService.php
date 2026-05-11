@@ -56,7 +56,7 @@ class AIEvaluationService
     /**
      * Evalúa una interacción usando IA
      */
-    public function evaluateInteraction(Interaction $interaction): ?Evaluation
+    public function evaluateInteraction(Interaction $interaction, ?Evaluation $existingEvaluation = null): ?Evaluation
     {
         $campaign = $interaction->campaign;
         if ($interaction->quality_form_id) {
@@ -112,7 +112,7 @@ class AIEvaluationService
             }
 
             // Procesar la respuesta
-            $evaluation = $this->processAIResponse($interaction, $formVersion, $parsedResponse, $prompt, $rawResponseContent ?? 'No raw content available');
+            $evaluation = $this->processAIResponse($interaction, $formVersion, $parsedResponse, $prompt, $rawResponseContent ?? 'No raw content available', $existingEvaluation);
 
             return $evaluation;
         } catch (\Exception $e) {
@@ -454,21 +454,36 @@ PROMPT;
     /**
      * Procesa la respuesta de la IA y crea la evaluación
      */
-    protected function processAIResponse(Interaction $interaction, QualityFormVersion $formVersion, array $response, string $prompt, string $rawResponse): Evaluation
+    protected function processAIResponse(Interaction $interaction, QualityFormVersion $formVersion, array $response, string $prompt, string $rawResponse, ?Evaluation $existingEvaluation = null): Evaluation
     {
-        // Crear la evaluación
-        $evaluation = Evaluation::create([
+        $evaluationData = [
             'interaction_id' => $interaction->id,
             'campaign_id' => $interaction->campaign_id,
             'agent_id' => $interaction->agent_id,
             'form_version_id' => $formVersion->id,
+            'type' => 'ai',
+            'evaluator_id' => null,
             'ai_processed_at' => now(),
             'ai_model' => $this->getModelName(),
             'ai_summary' => $response['general_feedback'] ?? null,
             'ai_prompt' => $prompt,
             'ai_raw_response' => $rawResponse,
-            'status' => 'visible_to_agent',
-        ]);
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+            'review_notes' => null,
+            'published_by' => null,
+            'visible_to_agent_at' => null,
+            'finalized_at' => null,
+        ];
+
+        if ($existingEvaluation) {
+            $evaluation = $existingEvaluation;
+            $evaluation->items()->delete();
+            $evaluation->update($evaluationData);
+        } else {
+            $evaluation = Evaluation::create($evaluationData);
+        }
 
         // Crear items de evaluación
         $totalScore = 0;
@@ -533,13 +548,9 @@ PROMPT;
 
         $evaluation->update([
             'total_score' => $totalScore,
+            'max_possible_score' => $totalWeight,
             'percentage_score' => round($percentageScore, 2),
         ]);
-
-        // Notificar al agente
-        if ($evaluation->agent) {
-            $evaluation->agent->notify(new \App\Notifications\EvaluationCompleted($evaluation));
-        }
 
         return $evaluation;
     }
@@ -570,7 +581,7 @@ PROMPT;
         ];
 
         /** @var \Illuminate\Database\Eloquent\Collection<\App\Models\Interaction> $interactions */
-        $interactions = Interaction::whereDoesntHave('evaluation')
+        $interactions = Interaction::whereDoesntHave('aiEvaluation')
             ->whereHas('campaign', function ($query) {
                 $query->whereNotNull('active_form_version_id');
             })

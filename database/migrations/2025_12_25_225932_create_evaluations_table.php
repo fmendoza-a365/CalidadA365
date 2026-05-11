@@ -17,20 +17,18 @@ return new class extends Migration
             $table->decimal('total_score', 5, 2)->nullable();
             $table->decimal('max_possible_score', 5, 2)->default(100.00);
             $table->decimal('percentage_score', 5, 2)->nullable();
-            $table->enum('status', [
-                'pending_ai',
-                'ai_processing',
-                'ai_done',
-                'visible_to_agent',
-                'agent_responded',
-                'disputed',
-                'resolved',
-                'final'
-            ])->default('pending_ai');
+            $table->string('status', 50)->default('pending_ai');
             $table->timestamp('ai_processed_at')->nullable();
+            $table->string('ai_model', 100)->nullable();
+            $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('reviewed_at')->nullable();
+            $table->text('review_notes')->nullable();
+            $table->foreignId('published_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('visible_to_agent_at')->nullable();
             $table->timestamp('agent_viewed_at')->nullable();
             $table->timestamp('finalized_at')->nullable();
+            $table->timestamp('reanalysis_requested_at')->nullable();
+            $table->foreignId('reanalysis_requested_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             
             $table->index(['campaign_id', 'created_at']);

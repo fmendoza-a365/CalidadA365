@@ -14,13 +14,17 @@ class QualityFormController extends Controller
 {
     public function index()
     {
-        $forms = QualityForm::with(['campaign', 'latestVersion'])->latest()->paginate(15);
+        $forms = QualityForm::forUser(auth()->user())
+            ->with(['campaign', 'latestVersion'])
+            ->latest()
+            ->paginate(15);
+
         return view('quality-forms.index', compact('forms'));
     }
 
     public function create()
     {
-        $campaigns = Campaign::active()->get();
+        $campaigns = Campaign::forUser(auth()->user())->active()->get();
         return view('quality-forms.create', compact('campaigns'));
     }
 
@@ -31,6 +35,10 @@ class QualityFormController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
+
+        if (!Campaign::forUser(auth()->user())->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para crear fichas en esta campaña.');
+        }
 
         $validated['created_by'] = auth()->id();
         $form = QualityForm::create($validated);
@@ -48,19 +56,25 @@ class QualityFormController extends Controller
 
     public function show(QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $qualityForm->load(['campaign', 'versions.formAttributes.subAttributes']);
         return view('quality-forms.show', compact('qualityForm'));
     }
 
     public function edit(QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $qualityForm->load(['latestVersion.formAttributes.subAttributes']);
-        $campaigns = Campaign::active()->get();
+        $campaigns = Campaign::forUser(auth()->user())->active()->get();
         return view('quality-forms.edit', compact('qualityForm', 'campaigns'));
     }
 
     public function update(Request $request, QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -74,6 +88,8 @@ class QualityFormController extends Controller
 
     public function updateAttributes(Request $request, QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $validated = $request->validate([
             'attributes' => 'required|array|min:1',
             'attributes.*.name' => 'required|string',
@@ -146,6 +162,8 @@ class QualityFormController extends Controller
 
     public function destroy(QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         // 1. Verificar si alguna versión de ESTA ficha ha sido usada en evaluaciones
         $hasEvaluations = \App\Models\Evaluation::whereIn(
             'form_version_id',
@@ -193,6 +211,8 @@ class QualityFormController extends Controller
 
     public function publish(QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $version = $qualityForm->latestVersion;
 
         if (!$version || $version->status !== 'draft') {
@@ -224,6 +244,8 @@ class QualityFormController extends Controller
     }
     public function importAttributes(Request $request, QualityForm $qualityForm)
     {
+        $this->ensureFormAccess($qualityForm);
+
         $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:2048',
         ]);
@@ -371,5 +393,12 @@ class QualityFormController extends Controller
         $bom = pack('H*', 'EFBBBF');
         $value = preg_replace("/^$bom/", '', $value);
         return trim($value, " \t\n\r\0\x0B\"'");
+    }
+
+    private function ensureFormAccess(QualityForm $qualityForm): void
+    {
+        if (!QualityForm::forUser(auth()->user())->whereKey($qualityForm->id)->exists()) {
+            abort(403, 'No tiene permiso para gestionar esta ficha de calidad.');
+        }
     }
 }

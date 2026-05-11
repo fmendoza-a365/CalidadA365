@@ -246,15 +246,8 @@ class WidgetDataController extends Controller
                 ->groupBy('status')
                 ->get();
 
-            $statusLabels = [
-                'visible_to_agent' => 'Pendiente Firma',
-                'agent_responded' => 'Firmada',
-                'disputed' => 'En Disputa',
-                'resolved' => 'Resuelta',
-            ];
-
             return [
-                'labels' => $statuses->map(fn($s) => $statusLabels[$s->status] ?? $s->status)->toArray(),
+                'labels' => $statuses->map(fn($s) => \App\Models\Evaluation::statusLabel($s->status))->toArray(),
                 'datasets' => [
                     [
                         'data' => $statuses->pluck('count')->toArray(),

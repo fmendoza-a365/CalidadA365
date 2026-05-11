@@ -11,7 +11,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Trust all proxies for Railway/Vercel/etc.
+        // Trust reverse proxies used by Nginx/load balancers in production.
         $middleware->trustProxies(at: '*');
 
         // Security headers for all responses

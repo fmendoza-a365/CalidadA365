@@ -61,6 +61,11 @@ class TranscribeAudioJob implements ShouldQueue
 
             $interaction->update($updateData);
 
+            if (!$interaction->aiEvaluation()->exists() && $interaction->hasScorableQualityForm()) {
+                $interaction->update(['status' => 'queued']);
+                ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
+            }
+
             Log::info("TranscribeAudioJob: Transcription completed for interaction {$this->interactionId}");
 
         } catch (\Exception $e) {

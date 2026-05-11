@@ -55,10 +55,7 @@ class CampaignController extends Controller
 
     public function show(Campaign $campaign)
     {
-        $user = auth()->user();
-        if (!Campaign::forUser($user)->where('id', $campaign->id)->exists()) {
-            abort(403, 'No tiene permiso para ver esta campaña.');
-        }
+        $this->ensureCampaignAccess($campaign);
 
         $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor', 'managers']);
 
@@ -74,6 +71,8 @@ class CampaignController extends Controller
 
     public function edit(Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
         $campaign->load('managers');
         return view('campaigns.edit', compact('campaign', 'monitors'));
@@ -81,6 +80,8 @@ class CampaignController extends Controller
 
     public function update(Request $request, Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -120,6 +121,8 @@ class CampaignController extends Controller
 
     public function destroy(Campaign $campaign)
     {
+        $this->ensureCampaignAccess($campaign);
+
         try {
             \Illuminate\Support\Facades\DB::transaction(function () use ($campaign) {
                 // 1. Eliminar evaluaciones (y sus items por cascada de BD si está configurado, o manual)
@@ -131,8 +134,9 @@ class CampaignController extends Controller
                 // 2. Eliminar interacciones (transcripciones)
                 $campaign->interactions()->each(function ($interaction) {
                     // Eliminar archivo físico si existe
-                    if ($interaction->file_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($interaction->file_path)) {
-                        \Illuminate\Support\Facades\Storage::disk('local')->delete($interaction->file_path);
+                    $privateDisk = config('filesystems.default', 'local');
+                    if ($interaction->file_path && \Illuminate\Support\Facades\Storage::disk($privateDisk)->exists($interaction->file_path)) {
+                        \Illuminate\Support\Facades\Storage::disk($privateDisk)->delete($interaction->file_path);
                     }
                     $interaction->delete();
                 });
@@ -169,6 +173,13 @@ class CampaignController extends Controller
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error eliminando campaña: ' . $e->getMessage());
             return back()->with('error', 'No se pudo eliminar la campaña: ' . $e->getMessage());
+        }
+    }
+
+    private function ensureCampaignAccess(Campaign $campaign): void
+    {
+        if (!Campaign::forUser(auth()->user())->whereKey($campaign->id)->exists()) {
+            abort(403, 'No tiene permiso para gestionar esta campaña.');
         }
     }
 }

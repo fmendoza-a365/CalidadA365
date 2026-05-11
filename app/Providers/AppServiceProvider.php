@@ -19,7 +19,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS in production (Railway, Vercel, etc.)
+        // Force HTTPS URLs in production behind Nginx or a load balancer.
         if ($this->app->environment('production')) {
             \Illuminate\Support\Facades\URL::forceScheme('https');
         }

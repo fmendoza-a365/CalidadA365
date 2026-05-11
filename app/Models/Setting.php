@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 
 class Setting extends Model
 {
@@ -22,11 +23,20 @@ class Setting extends Model
             return $default;
         }
 
+        $value = $setting->value;
+        if (static::isSensitiveKey($setting->key)) {
+            try {
+                $value = Crypt::decryptString($value);
+            } catch (\Throwable) {
+                $value = $setting->value;
+            }
+        }
+
         return match($setting->type) {
-            'boolean' => filter_var($setting->value, FILTER_VALIDATE_BOOLEAN),
-            'integer' => (int) $setting->value,
-            'json' => json_decode($setting->value, true),
-            default => $setting->value,
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'integer' => (int) $value,
+            'json' => json_decode($value, true),
+            default => $value,
         };
     }
 
@@ -41,6 +51,10 @@ class Setting extends Model
             default => (string) $value,
         };
 
+        if (static::isSensitiveKey($key) && $storedValue !== '') {
+            $storedValue = Crypt::encryptString($storedValue);
+        }
+
         static::updateOrCreate(
             ['key' => $key],
             [
@@ -52,6 +66,14 @@ class Setting extends Model
         );
 
         Cache::forget("setting.{$key}");
+    }
+
+    private static function isSensitiveKey(string $key): bool
+    {
+        return str_contains($key, 'api_key')
+            || str_contains($key, 'token')
+            || str_contains($key, 'secret')
+            || str_contains($key, 'password');
     }
 
     /**

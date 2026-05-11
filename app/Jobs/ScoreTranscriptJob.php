@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Interaction;
+use App\Models\Evaluation;
 use App\Services\AIEvaluationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,7 +17,7 @@ class ScoreTranscriptJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
-    public $timeout = 300;
+    public $timeout = 720;
 
     public function __construct(public int $interactionId)
     {
@@ -31,16 +32,21 @@ class ScoreTranscriptJob implements ShouldQueue
             return;
         }
 
-        // Si ya tiene evaluación, omitir
-        if ($interaction->evaluation) {
-            Log::info("Interaction {$this->interactionId} already has evaluation");
+        $existingAiEvaluation = $interaction->aiEvaluation()->first();
+
+        if ($existingAiEvaluation && $existingAiEvaluation->status !== Evaluation::STATUS_AI_REANALYSIS_REQUESTED) {
+            Log::info("Interaction {$this->interactionId} already has an AI evaluation");
             return;
         }
 
         $interaction->update(['status' => 'scoring']);
 
+        if ($existingAiEvaluation) {
+            $existingAiEvaluation->update(['status' => Evaluation::STATUS_AI_PROCESSING]);
+        }
+
         try {
-            $evaluation = $aiService->evaluateInteraction($interaction);
+            $evaluation = $aiService->evaluateInteraction($interaction, $existingAiEvaluation);
             
             if ($evaluation) {
                 $interaction->update(['status' => 'scored']);

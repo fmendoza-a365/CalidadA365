@@ -79,7 +79,26 @@ class PermissionSeeder extends Seeder
         // Assign Insights to QA Manager
         $qaManager = \Spatie\Permission\Models\Role::where('name', 'qa_manager')->first();
         if ($qaManager) {
-            $qaManager->givePermissionTo(['view_insights', 'generate_insights']);
+            $qaManager->givePermissionTo([
+                'view_insights',
+                'generate_insights',
+                'view_all_evaluations',
+                'create_evaluations',
+                'edit_evaluations',
+                'view_campaigns',
+                'create_campaigns',
+                'edit_campaigns',
+                'assign_agents',
+                'view_quality_forms',
+                'create_quality_forms',
+                'edit_quality_forms',
+                'publish_quality_forms',
+                'view_transcripts',
+                'create_transcripts',
+                'edit_transcripts',
+                'view_monitor_dashboard',
+                'view_coordinator_dashboard',
+            ]);
         }
 
         // Assign Insights View to Supervisor
@@ -101,6 +120,9 @@ class PermissionSeeder extends Seeder
                 'view_all_evaluations', // We use this but filter by campaign in scope
                 'view_campaigns',
                 'view_quality_forms',
+                'create_quality_forms',
+                'edit_quality_forms',
+                'publish_quality_forms',
                 'view_transcripts',
                 'view_manager_dashboard',
                 'view_insights',
@@ -143,10 +165,12 @@ class PermissionSeeder extends Seeder
                 'create_evaluations',
                 'view_campaigns',
                 'view_quality_forms',
+                'edit_quality_forms',
                 'view_transcripts',
                 'create_transcripts',
                 'edit_transcripts',
                 'delete_transcripts',
+                'assign_agents',
                 'view_coordinator_dashboard',
                 'view_insights',
             ]);

@@ -9,6 +9,8 @@ class ManualEvaluationController extends Controller
 {
     public function create(Interaction $interaction)
     {
+        $this->authorizeManualEvaluation($interaction);
+
         // Ensure there isn't already a manual evaluation
         if ($interaction->manualEvaluation()->exists()) {
             return redirect()->route('evaluations.show', $interaction->manualEvaluation)->with('warning', 'Esta interacción ya tiene una evaluación manual.');
@@ -38,11 +40,6 @@ class ManualEvaluationController extends Controller
                         ->first();
                 }
             }
-
-            // Último recurso: buscar global (si aplica)
-            if (!$formVersion) {
-                $formVersion = \App\Models\QualityFormVersion::where('is_active', true)->latest()->first();
-            }
         }
 
         if (!$formVersion) {
@@ -58,6 +55,8 @@ class ManualEvaluationController extends Controller
 
     public function store(Request $request, Interaction $interaction)
     {
+        $this->authorizeManualEvaluation($interaction);
+
         $validated = $request->validate([
             'form_version_id' => 'required|exists:quality_form_versions,id',
             'items' => 'required|array',
@@ -68,6 +67,10 @@ class ManualEvaluationController extends Controller
 
         $evaluation = \DB::transaction(function () use ($request, $interaction, $validated) {
             $formVersion = \App\Models\QualityFormVersion::findOrFail($validated['form_version_id']);
+
+            if ($formVersion->form->campaign_id !== $interaction->campaign_id) {
+                abort(422, 'La ficha seleccionada no pertenece a la campaña de la interacción.');
+            }
 
             // Calculate scores
             $totalPossible = 0;
@@ -125,10 +128,14 @@ class ManualEvaluationController extends Controller
                 'agent_id' => $interaction->agent_id,
                 'type' => 'manual',
                 'evaluator_id' => auth()->id(),
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
+                'published_by' => auth()->id(),
                 'total_score' => $totalScore,
                 'max_possible_score' => $totalPossible,
                 'percentage_score' => round($percentage, 2),
-                'status' => 'visible_to_agent',
+                'status' => \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT,
+                'visible_to_agent_at' => now(),
                 'finalized_at' => now(),
             ]);
 
@@ -137,6 +144,23 @@ class ManualEvaluationController extends Controller
             return $evaluation;
         });
 
+        if ($evaluation->agent) {
+            $evaluation->agent->notify(new \App\Notifications\EvaluationCompleted($evaluation));
+        }
+
         return redirect()->route('evaluations.show', $evaluation)->with('success', 'Evaluación manual creada exitosamente.');
+    }
+
+    private function authorizeManualEvaluation(Interaction $interaction): void
+    {
+        $user = auth()->user();
+
+        if (!$user->can('create_evaluations') && !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+            abort(403, 'No tiene permiso para crear evaluaciones manuales.');
+        }
+
+        if (!Interaction::forUser($user)->whereKey($interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para evaluar esta interacción.');
+        }
     }
 }
