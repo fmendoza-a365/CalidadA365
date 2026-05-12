@@ -21,7 +21,7 @@ class Interaction extends Model
         'status',
         'batch_id',
         'metadata',
-        'quality_form_id'
+        'quality_form_id',
     ];
 
     protected $casts = [
@@ -62,7 +62,7 @@ class Interaction extends Model
 
     public function evaluation()
     {
-        // Keep this for backward compatibility, maybe prioritizing Manual or AI? 
+        // Keep this for backward compatibility, maybe prioritizing Manual or AI?
         // For now, let's just default to AI or the latest one.
         return $this->hasOne(Evaluation::class)->latest();
     }
@@ -108,7 +108,7 @@ class Interaction extends Model
         }
 
         $campaign = $this->campaign;
-        if (!$campaign) {
+        if (! $campaign) {
             return false;
         }
 
@@ -118,6 +118,37 @@ class Interaction extends Model
                     $query->where('status', 'published');
                 })
                 ->exists();
+    }
+
+    public function scorableFormVersion(): ?QualityFormVersion
+    {
+        if ($this->quality_form_id) {
+            return $this->qualityForm?->versions()
+                ->where('status', 'published')
+                ->latest('version_number')
+                ->first();
+        }
+
+        $campaign = $this->campaign;
+        if (! $campaign) {
+            return null;
+        }
+
+        if ($campaign->activeFormVersion) {
+            return $campaign->activeFormVersion;
+        }
+
+        $latestForm = $campaign->forms()
+            ->whereHas('versions', function ($query) {
+                $query->where('status', 'published');
+            })
+            ->latest()
+            ->first();
+
+        return $latestForm?->versions()
+            ->where('status', 'published')
+            ->latest('version_number')
+            ->first();
     }
 
     public function scopeForUser($query, $user)
@@ -130,6 +161,7 @@ class Interaction extends Model
         // 2. Manager: View interactions from Managed Campaigns
         if ($user->hasRole('manager')) {
             $campaignIds = $user->managedCampaigns->pluck('id');
+
             return $query->whereIn('campaign_id', $campaignIds);
         }
 

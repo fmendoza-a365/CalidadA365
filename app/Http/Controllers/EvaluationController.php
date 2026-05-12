@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Evaluation;
-use App\Models\Campaign;
 use App\Jobs\ScoreTranscriptJob;
+use App\Models\Campaign;
+use App\Models\Evaluation;
 use Illuminate\Http\Request;
 
 class EvaluationController extends Controller
@@ -26,6 +26,9 @@ class EvaluationController extends Controller
         $evaluations = $query->latest()->paginate(20);
         $campaigns = Campaign::active()->forUser($user)->orderBy('name')->get();
         $statusOptions = [
+            Evaluation::STATUS_PENDING_AI,
+            Evaluation::STATUS_AI_PROCESSING,
+            Evaluation::STATUS_AI_FAILED,
             Evaluation::STATUS_PENDING_MONITOR_REVIEW,
             Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
             Evaluation::STATUS_PUBLISHED_TO_AGENT,
@@ -56,7 +59,7 @@ class EvaluationController extends Controller
         ]);
 
         // Marcar como vista por el asesor
-        if (auth()->user()->hasRole('agent') && $evaluation->isVisibleToAgent() && !$evaluation->agent_viewed_at) {
+        if (auth()->user()->hasRole('agent') && $evaluation->isVisibleToAgent() && ! $evaluation->agent_viewed_at) {
             $evaluation->update(['agent_viewed_at' => now()]);
         }
 
@@ -71,7 +74,7 @@ class EvaluationController extends Controller
             'review_notes' => 'nullable|string|max:5000',
         ]);
 
-        if (!$evaluation->canBePublished()) {
+        if (! $evaluation->canBePublished()) {
             return back()->with('error', 'Esta evaluación no está en un estado publicable.');
         }
 
@@ -121,11 +124,11 @@ class EvaluationController extends Controller
 
     public function toggleGold(Evaluation $evaluation)
     {
-        if (!auth()->user()->hasAnyRole(['admin', 'qa_manager'])) {
+        if (! auth()->user()->hasAnyRole(['admin', 'qa_manager'])) {
             abort(403);
         }
 
-        $evaluation->is_gold = !$evaluation->is_gold;
+        $evaluation->is_gold = ! $evaluation->is_gold;
         $evaluation->save();
 
         $message = $evaluation->is_gold

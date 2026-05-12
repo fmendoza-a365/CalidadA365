@@ -67,14 +67,17 @@
                             <td class="px-4 py-3 text-center">
                                 @php
                                     $score = $evaluation->percentage_score;
-                                    $scoreClass = match(true) {
+                                    $hasScore = $score !== null;
+                                    $scoreClass = ! $hasScore ? 'text-gray-400 dark:text-gray-500' : match(true) {
                                         $score >= 90 => 'text-emerald-600 dark:text-emerald-400',
                                         $score >= 80 => 'text-indigo-600 dark:text-indigo-400',
                                         $score >= 70 => 'text-amber-600 dark:text-amber-400',
                                         default => 'text-rose-600 dark:text-rose-400',
                                     };
                                 @endphp
-                                <span class="font-bold {{ $scoreClass }}">{{ number_format($score, 0) }}%</span>
+                                <span class="font-bold {{ $scoreClass }}">
+                                    {{ $hasScore ? number_format((float) $score, 0).'%' : '--' }}
+                                </span>
                             </td>
                             <td class="px-4 py-3 text-center">
                                 @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
@@ -139,7 +142,8 @@
                         <div class="ml-3">
                             @php
                                 $score = $evaluation->percentage_score;
-                                $scoreClass = match(true) {
+                                $hasScore = $score !== null;
+                                $scoreClass = ! $hasScore ? 'text-gray-400 dark:text-gray-500' : match(true) {
                                     $score >= 90 => 'text-emerald-600 dark:text-emerald-400',
                                     $score >= 80 => 'text-indigo-600 dark:text-indigo-400',
                                     $score >= 70 => 'text-amber-600 dark:text-amber-400',
@@ -147,7 +151,7 @@
                                 };
                             @endphp
                             <div class="text-2xl font-bold {{ $scoreClass }}">
-                                {{ number_format($score, 0) }}%
+                                {{ $hasScore ? number_format((float) $score, 0).'%' : '--' }}
                             </div>
                         </div>
                     </div>

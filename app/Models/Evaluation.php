@@ -7,14 +7,25 @@ use Illuminate\Database\Eloquent\Model;
 class Evaluation extends Model
 {
     public const STATUS_PENDING_AI = 'pending_ai';
+
     public const STATUS_AI_PROCESSING = 'ai_processing';
+
+    public const STATUS_AI_FAILED = 'ai_failed';
+
     public const STATUS_PENDING_MONITOR_REVIEW = 'pending_monitor_review';
+
     public const STATUS_AI_REANALYSIS_REQUESTED = 'ai_reanalysis_requested';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_PUBLISHED_TO_AGENT = 'published_to_agent';
+
     public const STATUS_AGENT_ACCEPTED = 'agent_accepted';
+
     public const STATUS_AGENT_DISPUTED = 'agent_disputed';
+
     public const STATUS_DISPUTE_RESOLVED = 'dispute_resolved';
+
     public const STATUS_CLOSED = 'closed';
 
     protected $fillable = [
@@ -61,6 +72,22 @@ class Evaluation extends Model
     public function scopeGold($query)
     {
         return $query->where('is_gold', true);
+    }
+
+    public static function createPendingAiForInteraction(Interaction $interaction, QualityFormVersion $formVersion): self
+    {
+        return self::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $formVersion->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $interaction->agent_id,
+            'type' => 'ai',
+            'evaluator_id' => null,
+            'total_score' => null,
+            'max_possible_score' => 0,
+            'percentage_score' => null,
+            'status' => self::STATUS_PENDING_AI,
+        ]);
     }
 
     public function interaction()
@@ -138,6 +165,7 @@ class Evaluation extends Model
     {
         return $query->where('type', 'manual');
     }
+
     public function scopeForUser($query, $user)
     {
         // 1. View All
@@ -148,6 +176,7 @@ class Evaluation extends Model
         // 2. Manager: View Managed Campaigns
         if ($user->hasRole('manager')) {
             $campaignIds = $user->managedCampaigns->pluck('id');
+
             return $query->whereIn('campaign_id', $campaignIds);
         }
 
@@ -243,6 +272,7 @@ class Evaluation extends Model
         return [
             self::STATUS_PENDING_AI => 'Pendiente IA',
             self::STATUS_AI_PROCESSING => 'Procesando IA',
+            self::STATUS_AI_FAILED => 'IA fallida',
             self::STATUS_PENDING_MONITOR_REVIEW => 'Pendiente revision monitor',
             self::STATUS_AI_REANALYSIS_REQUESTED => 'Reanalisis solicitado',
             self::STATUS_APPROVED => 'Aprobada',

@@ -36,35 +36,10 @@ class AIEvaluationService
     public function evaluateInteraction(Interaction $interaction, ?Evaluation $existingEvaluation = null): ?Evaluation
     {
         $campaign = $interaction->campaign;
-        if ($interaction->quality_form_id) {
-            Log::info("Evaluando interacción {$interaction->id} con ficha específica ID: {$interaction->quality_form_id}");
-            $formVersion = $interaction->qualityForm->versions()
-                ->where('status', 'published')
-                ->latest('version_number')
-                ->first();
-        } else {
-            Log::info("Evaluando interacción {$interaction->id} con ficha por defecto de campaña {$campaign->id}");
-            $formVersion = $campaign->activeFormVersion;
-
-            // Fallback: Si la campaña no tiene ficha activa configurada, usar la última publicada de cualquier ficha de la campaña
-            if (! $formVersion) {
-                Log::info("Campaña {$campaign->id} sin ficha activa explícita. Buscando fallback...");
-                $latestForm = $campaign->forms()->whereHas('versions', function ($q) {
-                    $q->where('status', 'published');
-                })->first();
-
-                if ($latestForm) {
-                    $formVersion = $latestForm->versions()
-                        ->where('status', 'published')
-                        ->latest('version_number')
-                        ->first();
-                    Log::info("Fallback encontrado: Ficha ID {$latestForm->id}, Versión {$formVersion->version_number}");
-                }
-            }
-        }
+        $formVersion = $interaction->scorableFormVersion();
 
         if (! $formVersion) {
-            Log::warning("No hay ficha de calidad activa para la campaña {$campaign->id}. Imposible evaluar.");
+            Log::warning("No hay ficha de calidad activa para la campaña {$campaign?->id}. Imposible evaluar.");
 
             return null;
         }

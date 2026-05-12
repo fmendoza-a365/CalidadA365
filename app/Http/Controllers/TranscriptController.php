@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Campaign;
-use App\Models\Interaction;
-use App\Models\CampaignUserAssignment;
-use App\Jobs\TranscribeAudioJob;
 use App\Jobs\ScoreTranscriptJob;
+use App\Jobs\TranscribeAudioJob;
+use App\Models\Campaign;
+use App\Models\CampaignUserAssignment;
+use App\Models\Evaluation;
+use App\Models\Interaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -17,8 +18,11 @@ use Illuminate\Support\Str;
 class TranscriptController extends Controller
 {
     private const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'];
+
     private const TEXT_EXTENSIONS = ['txt'];
+
     private const UPLOAD_MAX_KB = 102400;
+
     private const ALLOWED_MIME_TYPES = [
         'text/plain',
         'audio/aac',
@@ -116,15 +120,15 @@ class TranscriptController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        $lock = \Illuminate\Support\Facades\Cache::lock('upload_transcript_' . auth()->id(), 30);
+        $lock = \Illuminate\Support\Facades\Cache::lock('upload_transcript_'.auth()->id(), 30);
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             return back()->with('info', 'Ya hay una carga en proceso. Por favor espere.');
         }
 
         try {
             foreach (Arr::wrap($request->file('transcript_files', [])) as $index => $file) {
-                if ($file instanceof UploadedFile && !$file->isValid()) {
+                if ($file instanceof UploadedFile && ! $file->isValid()) {
                     $message = $this->uploadErrorMessage($file);
 
                     Log::warning('Transcript upload failed before validation', [
@@ -151,19 +155,19 @@ class TranscriptController extends Controller
                 'agent_id' => 'required|exists:users,id',
                 'occurred_at' => 'required|date',
                 'transcript_files' => 'required|array|min:1|max:50',
-                'transcript_files.*' => "required|file|extensions:{$allExtensions}|mimetypes:{$allowedMimeTypes}|max:" . self::UPLOAD_MAX_KB,
+                'transcript_files.*' => "required|file|extensions:{$allExtensions}|mimetypes:{$allowedMimeTypes}|max:".self::UPLOAD_MAX_KB,
             ], [
                 'transcript_files.*.uploaded' => 'El archivo no pudo subirse. Verifique que pese menos de 100 MB y que PHP permita cargas de al menos 100 MB.',
-                'transcript_files.*.extensions' => 'Formato no permitido. Use TXT o audio: ' . implode(', ', self::AUDIO_EXTENSIONS) . '.',
+                'transcript_files.*.extensions' => 'Formato no permitido. Use TXT o audio: '.implode(', ', self::AUDIO_EXTENSIONS).'.',
                 'transcript_files.*.mimetypes' => 'El archivo no parece ser un TXT o audio válido. Si el audio viene de WhatsApp, súbalo como .opus, .ogg o .m4a.',
                 'transcript_files.*.max' => 'Cada archivo puede pesar hasta 100 MB.',
             ]);
 
-            if (!Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+            if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
                 abort(403, 'No tiene permiso para cargar audios en esta campaña.');
             }
 
-            if (!empty($validated['quality_form_id'])) {
+            if (! empty($validated['quality_form_id'])) {
                 $formIsValid = \App\Models\QualityForm::whereKey($validated['quality_form_id'])
                     ->where('campaign_id', $validated['campaign_id'])
                     ->whereHas('versions', function ($q) {
@@ -171,7 +175,7 @@ class TranscriptController extends Controller
                     })
                     ->exists();
 
-                if (!$formIsValid) {
+                if (! $formIsValid) {
                     return back()->withErrors([
                         'quality_form_id' => 'La ficha seleccionada no pertenece a esta campaña o no está publicada.',
                     ])->withInput();
@@ -181,7 +185,7 @@ class TranscriptController extends Controller
             // Obtener supervisor de asignación activa
             $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
-            if (!$assignment) {
+            if (! $assignment) {
                 return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
             }
 
@@ -252,18 +256,19 @@ class TranscriptController extends Controller
     public function show(Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para ver esta transcripción.');
         }
 
         $interaction->load(['campaign', 'agent', 'supervisor', 'evaluation.items.subAttribute']);
+
         return view('transcripts.show', compact('interaction'));
     }
 
     public function download(Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para descargar esta transcripción.');
         }
 
@@ -273,17 +278,17 @@ class TranscriptController extends Controller
     public function audio(Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para escuchar esta transcripción.');
         }
 
-        if (!$interaction->isAudio()) {
+        if (! $interaction->isAudio()) {
             abort(404, 'This interaction does not have an audio file.');
         }
 
         $disk = Storage::disk($this->privateDisk());
 
-        if (!$disk->exists($interaction->file_path)) {
+        if (! $disk->exists($interaction->file_path)) {
             abort(404, 'Audio file not found.');
         }
 
@@ -310,18 +315,18 @@ class TranscriptController extends Controller
             }
         }, 200, [
             'Content-Type' => $mime,
-            'Content-Disposition' => 'inline; filename="' . addslashes($interaction->file_name) . '"',
+            'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
         ]);
     }
 
     public function evaluate(Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para evaluar esta transcripción.');
         }
 
-        if (!$user->can('create_evaluations') && !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+        if (! $user->can('create_evaluations') && ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
             abort(403, 'No tiene permiso para iniciar evaluaciones IA.');
         }
 
@@ -329,9 +334,9 @@ class TranscriptController extends Controller
             return back()->with('info', 'La transcripción del audio aún está en proceso.');
         }
 
-        $lock = \Illuminate\Support\Facades\Cache::lock('evaluate_interaction_' . $interaction->id, 60);
+        $lock = \Illuminate\Support\Facades\Cache::lock('evaluate_interaction_'.$interaction->id, 60);
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             return back()->with('info', 'La evaluación ya está en proceso.');
         }
 
@@ -344,11 +349,18 @@ class TranscriptController extends Controller
                 return back()->with('error', 'Esta interacción ya tiene una evaluación IA. Use reanalizar desde la evaluación.');
             }
 
+            $formVersion = $interaction->scorableFormVersion();
+            if (! $formVersion) {
+                return back()->with('error', 'Esta interacción no tiene una ficha de calidad publicada para evaluar.');
+            }
+
+            Evaluation::createPendingAiForInteraction($interaction, $formVersion);
+
             $interaction->update(['status' => 'queued']);
             ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
 
             return redirect()->route('transcripts.show', $interaction)
-                ->with('success', 'Evaluación IA enviada a cola. El monitor la revisará antes de publicarla.');
+                ->with('success', 'Evaluación IA creada y enviada a cola. Puedes verla en Evaluaciones como Pendiente IA mientras se procesa.');
         } finally {
             $lock->release();
         }
@@ -357,7 +369,7 @@ class TranscriptController extends Controller
     public function edit(Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para editar esta transcripción.');
         }
 
@@ -380,7 +392,7 @@ class TranscriptController extends Controller
     public function update(Request $request, Interaction $interaction)
     {
         $user = auth()->user();
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para actualizar esta transcripción.');
         }
 
@@ -391,14 +403,14 @@ class TranscriptController extends Controller
             'transcript_text' => 'nullable|string',
         ]);
 
-        if (!Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+        if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
             abort(403, 'No tiene permiso para mover esta transcripción a la campaña seleccionada.');
         }
 
         // Obtener supervisor de asignación activa
         $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
-        if (!$assignment) {
+        if (! $assignment) {
             return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
         }
 
@@ -418,7 +430,7 @@ class TranscriptController extends Controller
     {
         $user = auth()->user();
         // Typically only admin/managers can delete, but let's at least enforce they can see it
-        if (!Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para eliminar esta transcripción.');
         }
 
@@ -472,15 +484,15 @@ class TranscriptController extends Controller
     {
         return match ($file->getError()) {
             UPLOAD_ERR_INI_SIZE => 'PHP rechazó el archivo por upload_max_filesize. Valor actual detectado: '
-                . ini_get('upload_max_filesize') . '. Reinicie el servidor con: php -c php.ini artisan serve --host=127.0.0.1 --port=8000',
+                .ini_get('upload_max_filesize').'. Reinicie el servidor con: php -c php.ini artisan serve --host=127.0.0.1 --port=8000',
             UPLOAD_ERR_FORM_SIZE => 'El formulario rechazó el archivo por tamaño máximo declarado en HTML.',
             UPLOAD_ERR_PARTIAL => 'El archivo se subió parcialmente. Intente nuevamente y evite cerrar o refrescar la página durante la carga.',
             UPLOAD_ERR_NO_TMP_DIR => 'PHP no tiene carpeta temporal para recibir el archivo. Configure upload_tmp_dir o permisos de /tmp.',
             UPLOAD_ERR_CANT_WRITE => 'PHP no pudo escribir el archivo temporal. Revise permisos y espacio disponible en disco.',
             UPLOAD_ERR_EXTENSION => 'Una extensión de PHP bloqueó la carga del archivo.',
-            default => 'PHP no pudo recibir el archivo. Código de error: ' . $file->getError()
-                . '. Límite actual: upload_max_filesize=' . ini_get('upload_max_filesize')
-                . ', post_max_size=' . ini_get('post_max_size') . '.',
+            default => 'PHP no pudo recibir el archivo. Código de error: '.$file->getError()
+                .'. Límite actual: upload_max_filesize='.ini_get('upload_max_filesize')
+                .', post_max_size='.ini_get('post_max_size').'.',
         };
     }
 }
