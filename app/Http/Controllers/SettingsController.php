@@ -105,24 +105,42 @@ class SettingsController extends Controller
         if ($request->filled('openai_api_key')) {
             Setting::set('ai.openai_api_key', $validated['openai_api_key'], 'string', 'ai', 'API Key de OpenAI');
         }
-        Setting::set('ai.openai_model', $validated['openai_model'] ?? $defaults['openai_model'], 'string', 'ai', 'Modelo de OpenAI');
-        Setting::set('ai.openai_temperature', $validated['openai_temperature'] ?? $defaults['openai_temperature'], 'float', 'ai', 'Temperatura de OpenAI');
-        Setting::set('ai.openai_max_tokens', $validated['openai_max_tokens'] ?? $defaults['openai_max_tokens'], 'integer', 'ai', 'Max Tokens OpenAI');
+        if ($request->has('openai_model')) {
+            Setting::set('ai.openai_model', $validated['openai_model'] ?? $defaults['openai_model'], 'string', 'ai', 'Modelo de OpenAI');
+        }
+        if ($request->has('openai_temperature')) {
+            Setting::set('ai.openai_temperature', $validated['openai_temperature'] ?? $defaults['openai_temperature'], 'float', 'ai', 'Temperatura de OpenAI');
+        }
+        if ($request->has('openai_max_tokens')) {
+            Setting::set('ai.openai_max_tokens', $validated['openai_max_tokens'] ?? $defaults['openai_max_tokens'], 'integer', 'ai', 'Max Tokens OpenAI');
+        }
 
         if ($request->filled('gemini_api_key')) {
             Setting::set('ai.gemini_api_key', $validated['gemini_api_key'], 'string', 'ai', 'API Key de Gemini');
         }
-        Setting::set('ai.gemini_model', $validated['gemini_model'] ?? $defaults['gemini_model'], 'string', 'ai', 'Modelo de Gemini');
-        Setting::set('ai.gemini_temperature', $validated['gemini_temperature'] ?? $defaults['gemini_temperature'], 'float', 'ai', 'Temperatura de Gemini');
+        if ($request->has('gemini_model')) {
+            Setting::set('ai.gemini_model', $validated['gemini_model'] ?? $defaults['gemini_model'], 'string', 'ai', 'Modelo de Gemini');
+        }
+        if ($request->has('gemini_temperature')) {
+            Setting::set('ai.gemini_temperature', $validated['gemini_temperature'] ?? $defaults['gemini_temperature'], 'float', 'ai', 'Temperatura de Gemini');
+        }
 
         if ($request->filled('claude_api_key')) {
             Setting::set('ai.claude_api_key', $validated['claude_api_key'], 'string', 'ai', 'API Key de Claude');
         }
-        Setting::set('ai.claude_model', $validated['claude_model'] ?? $defaults['claude_model'], 'string', 'ai', 'Modelo de Claude');
-        Setting::set('ai.claude_temperature', $validated['claude_temperature'] ?? $defaults['claude_temperature'], 'float', 'ai', 'Temperatura de Claude');
-        Setting::set('ai.claude_max_tokens', $validated['claude_max_tokens'] ?? $defaults['claude_max_tokens'], 'integer', 'ai', 'Max Tokens Claude');
+        if ($request->has('claude_model')) {
+            Setting::set('ai.claude_model', $validated['claude_model'] ?? $defaults['claude_model'], 'string', 'ai', 'Modelo de Claude');
+        }
+        if ($request->has('claude_temperature')) {
+            Setting::set('ai.claude_temperature', $validated['claude_temperature'] ?? $defaults['claude_temperature'], 'float', 'ai', 'Temperatura de Claude');
+        }
+        if ($request->has('claude_max_tokens')) {
+            Setting::set('ai.claude_max_tokens', $validated['claude_max_tokens'] ?? $defaults['claude_max_tokens'], 'integer', 'ai', 'Max Tokens Claude');
+        }
 
-        Setting::set('ai.simulated_compliance_rate', $validated['simulated_compliance_rate'] ?? $defaults['simulated_compliance_rate'], 'integer', 'ai', 'Tasa de cumplimiento simulado');
+        if ($request->has('simulated_compliance_rate')) {
+            Setting::set('ai.simulated_compliance_rate', $validated['simulated_compliance_rate'] ?? $defaults['simulated_compliance_rate'], 'integer', 'ai', 'Tasa de cumplimiento simulado');
+        }
 
         return redirect()->route('settings.ai')
             ->with('success', 'Configuración de IA actualizada correctamente.');

@@ -103,7 +103,7 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Configura tu API Key de OpenAI</p>
                     </div>
                 </div>
-                <div class="card-body space-y-4">
+                <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'openai'">
                     <div class="form-group">
                         <label for="openai_api_key" class="form-label">API Key</label>
                         <input type="password" name="openai_api_key" id="openai_api_key" 
@@ -156,7 +156,7 @@
                         </div>
                         <p class="text-xs text-gray-500 mt-1">0 = Preciso/Determinista, 1+ = Creativo/Variado</p>
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- Configuración Gemini -->
@@ -172,7 +172,7 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Configura tu API Key de Google AI</p>
                     </div>
                 </div>
-                <div class="card-body space-y-4">
+                <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'gemini'">
                     <div class="form-group">
                         <label for="gemini_api_key" class="form-label">API Key</label>
                         <input type="password" name="gemini_api_key" id="gemini_api_key" 
@@ -217,7 +217,7 @@
                             <input type="number" x-model="gemini_temp" class="form-input w-20 text-center" readonly>
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- Configuración Claude -->
@@ -233,7 +233,7 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Configura tu API Key de Anthropic</p>
                     </div>
                 </div>
-                <div class="card-body space-y-4">
+                <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'claude'">
                     <div class="form-group">
                         <label for="claude_api_key" class="form-label">API Key</label>
                         <input type="password" name="claude_api_key" id="claude_api_key" 
@@ -284,7 +284,7 @@
                             <input type="number" x-model="claude_temp" class="form-input w-20 text-center" readonly>
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- Configuración Simulado -->
@@ -300,7 +300,7 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Ideal para desarrollo y pruebas</p>
                     </div>
                 </div>
-                <div class="card-body">
+                <fieldset class="card-body" x-bind:disabled="provider !== 'simulated'">
                     <div class="alert alert-warning mb-4">
                         <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -314,7 +314,7 @@
                             class="form-input w-32" min="0" max="100">
                         <p class="text-xs text-gray-500 mt-1">Porcentaje de criterios que se marcarán como "cumple"</p>
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             <!-- Botones de Acción -->

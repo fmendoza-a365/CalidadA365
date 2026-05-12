@@ -62,6 +62,28 @@ class AiSettingsTest extends TestCase
         $this->assertSame('new-key', Setting::get('ai.gemini_api_key'));
     }
 
+    public function test_ai_settings_update_preserves_hidden_provider_fields(): void
+    {
+        $admin = $this->adminUser();
+
+        Setting::set('ai.openai_model', 'custom-openai-model', 'string', 'ai');
+        Setting::set('ai.openai_max_tokens', 1234, 'integer', 'ai');
+        Setting::set('ai.gemini_api_key', 'gemini-key', 'string', 'ai');
+
+        $this->actingAs($admin)
+            ->post(route('settings.ai.update'), [
+                'provider' => 'gemini',
+                'gemini_model' => 'gemini-2.5-flash',
+                'gemini_temperature' => 0.1,
+            ])
+            ->assertRedirect(route('settings.ai'));
+
+        $this->assertSame('custom-openai-model', Setting::get('ai.openai_model'));
+        $this->assertSame(1234, Setting::get('ai.openai_max_tokens'));
+        $this->assertSame('gemini-2.5-flash', Setting::get('ai.gemini_model'));
+        $this->assertSame(0.1, Setting::get('ai.gemini_temperature'));
+    }
+
     public function test_real_provider_cannot_be_enabled_without_api_key(): void
     {
         $admin = $this->adminUser();
