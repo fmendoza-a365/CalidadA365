@@ -368,11 +368,25 @@ PROMPT;
             return $result;
         }
 
-        // Common fix: Remove trailing commas
+        // Common fix 1: Remove trailing commas
         $jsonString = preg_replace('/,\s*}/', '}', $jsonString);
         $jsonString = preg_replace('/,\s*]/', ']', $jsonString);
 
         $result = json_decode($jsonString, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $result;
+        }
+
+        // Common fix 2: Remove control characters that break JSON (except newlines)
+        $cleanJson = preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/', '', $jsonString);
+        $result = json_decode($cleanJson, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $result;
+        }
+
+        // Common fix 3: Strip ALL control characters including newlines (makes it 1 line but parses)
+        $cleanJson = preg_replace('/[\x00-\x1F\x7F]/', ' ', $jsonString);
+        $result = json_decode($cleanJson, true);
         if (json_last_error() === JSON_ERROR_NONE) {
             return $result;
         }
@@ -383,7 +397,8 @@ PROMPT;
 
         if ($start !== false && $end !== false && $end > $start) {
             $jsonString = substr($content, $start, $end - $start + 1);
-            $result = json_decode($jsonString, true);
+            $cleanJson = preg_replace('/[\x00-\x1F\x7F]/', ' ', $jsonString);
+            $result = json_decode($cleanJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 return $result;
             }
