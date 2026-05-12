@@ -384,8 +384,14 @@ PROMPT;
             return $result;
         }
 
-        // Common fix 3: Strip ALL control characters including newlines (makes it 1 line but parses)
-        $cleanJson = preg_replace('/[\x00-\x1F\x7F]/', ' ', $jsonString);
+        // Common fix 3: Escape unescaped control characters inside JSON strings (preserves formatting)
+        $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function($matches) {
+            return str_replace(
+                ["\n", "\r", "\t"], 
+                ["\\n", "\\r", "\\t"], 
+                preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $matches[0])
+            );
+        }, $jsonString);
         $result = json_decode($cleanJson, true);
         if (json_last_error() === JSON_ERROR_NONE) {
             return $result;
@@ -397,7 +403,9 @@ PROMPT;
 
         if ($start !== false && $end !== false && $end > $start) {
             $jsonString = substr($content, $start, $end - $start + 1);
-            $cleanJson = preg_replace('/[\x00-\x1F\x7F]/', ' ', $jsonString);
+            $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function($matches) {
+                return str_replace(["\n", "\r", "\t"], ["\\n", "\\r", "\\t"], preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $matches[0]));
+            }, $jsonString);
             $result = json_decode($cleanJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 return $result;
