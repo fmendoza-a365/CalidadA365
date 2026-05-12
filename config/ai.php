@@ -4,14 +4,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Defaults estáticos
+    |--------------------------------------------------------------------------
+    |
+    | La configuración activa de IA se administra desde el módulo "IA y Modelos"
+    | y se lee desde la tabla settings. Este archivo solo conserva defaults
+    | técnicos para arranque/fallback interno, sin credenciales.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
     | Proveedor de IA por defecto
     |--------------------------------------------------------------------------
     |
-    | Define qué proveedor de IA usar para las evaluaciones.
+    | Define qué proveedor usar si todavía no existe configuración guardada.
     | Opciones: 'openai', 'gemini', 'claude', 'simulated'
     |
     */
-    'provider' => env('AI_PROVIDER', 'gemini'),
+    'provider' => 'simulated',
 
     /*
     |--------------------------------------------------------------------------
@@ -19,10 +30,10 @@ return [
     |--------------------------------------------------------------------------
     */
     'openai' => [
-        'api_key' => env('OPENAI_API_KEY'),
-        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
-        'temperature' => env('OPENAI_TEMPERATURE', 0.0),
-        'max_tokens' => env('OPENAI_MAX_TOKENS', 2000),
+        'api_key' => null,
+        'model' => 'gpt-4o-mini',
+        'temperature' => 0.0,
+        'max_tokens' => 4000,
     ],
 
     /*
@@ -31,9 +42,9 @@ return [
     |--------------------------------------------------------------------------
     */
     'gemini' => [
-        'api_key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
-        'temperature' => env('GEMINI_TEMPERATURE', 0.0),
+        'api_key' => null,
+        'model' => 'gemini-2.5-flash',
+        'temperature' => 0.0,
     ],
 
     /*
@@ -42,9 +53,10 @@ return [
     |--------------------------------------------------------------------------
     */
     'claude' => [
-        'api_key' => env('ANTHROPIC_API_KEY'),
-        'model' => env('ANTHROPIC_MODEL', 'claude-3-haiku-20240307'),
-        'max_tokens' => env('ANTHROPIC_MAX_TOKENS', 2000),
+        'api_key' => null,
+        'model' => 'claude-3-haiku-20240307',
+        'temperature' => 0.0,
+        'max_tokens' => 4000,
     ],
 
     /*
@@ -57,7 +69,7 @@ return [
     |
     */
     'simulated' => [
-        'compliance_rate' => env('AI_SIMULATED_COMPLIANCE_RATE', 75), // % de cumplimiento
+        'compliance_rate' => 75, // % de cumplimiento
     ],
 
     /*
@@ -66,7 +78,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Configuración para transcripción de audio a texto.
-    | Usa el modelo y API key de Gemini configurados arriba.
+    | La API key y el modelo de Gemini se toman desde "IA y Modelos".
     |
     */
     'stt' => [

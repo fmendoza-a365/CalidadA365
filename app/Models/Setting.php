@@ -19,7 +19,7 @@ class Setting extends Model
             return static::where('key', $key)->first();
         });
 
-        if (!$setting) {
+        if (! $setting) {
             return $default;
         }
 
@@ -32,9 +32,10 @@ class Setting extends Model
             }
         }
 
-        return match($setting->type) {
+        return match ($setting->type) {
             'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
             'integer' => (int) $value,
+            'float' => (float) $value,
             'json' => json_decode($value, true),
             default => $value,
         };
@@ -45,9 +46,10 @@ class Setting extends Model
      */
     public static function set(string $key, mixed $value, string $type = 'string', ?string $group = null, ?string $description = null): void
     {
-        $storedValue = match($type) {
+        $storedValue = match ($type) {
             'json' => json_encode($value),
             'boolean' => $value ? '1' : '0',
+            'float' => (string) (float) $value,
             default => (string) $value,
         };
 
@@ -82,12 +84,12 @@ class Setting extends Model
     public static function getGroup(string $group): array
     {
         $settings = static::where('group', $group)->get();
-        
+
         $result = [];
         foreach ($settings as $setting) {
             $result[$setting->key] = static::get($setting->key);
         }
-        
+
         return $result;
     }
 }

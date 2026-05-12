@@ -2,47 +2,24 @@
 
 namespace App\Services;
 
-use App\Models\Interaction;
 use App\Models\Evaluation;
 use App\Models\EvaluationItem;
+use App\Models\Interaction;
 use App\Models\QualityFormVersion;
-use App\Models\Setting;
+use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AIEvaluationService
 {
     protected string $provider;
+
     protected array $config;
 
     public function __construct()
     {
-        // Primero intentar desde BD, luego config, luego default
-        $this->provider = Setting::get('ai.provider', config('ai.provider', 'simulated'));
-
-        // Cargar configuración según el proveedor
-        $this->config = match ($this->provider) {
-            'openai' => [
-                'api_key' => Setting::get('ai.openai_api_key', config('ai.openai.api_key')),
-                'model' => Setting::get('ai.openai_model', config('ai.openai.model', 'gpt-4o-mini')),
-                'temperature' => (float) Setting::get('ai.openai_temperature', config('ai.openai.temperature', 0.0)),
-                'max_tokens' => (int) Setting::get('ai.openai_max_tokens', config('ai.openai.max_tokens', 2000)),
-            ],
-            'gemini' => [
-                'api_key' => Setting::get('ai.gemini_api_key', config('ai.gemini.api_key')),
-                'model' => Setting::get('ai.gemini_model', config('ai.gemini.model', 'gemini-2.0-flash')),
-                'temperature' => (float) Setting::get('ai.gemini_temperature', config('ai.gemini.temperature', 0.0)),
-            ],
-            'claude' => [
-                'api_key' => Setting::get('ai.claude_api_key', config('ai.claude.api_key')),
-                'model' => Setting::get('ai.claude_model', config('ai.claude.model', 'claude-3-haiku-20240307')),
-                'temperature' => (float) Setting::get('ai.claude_temperature', config('ai.claude.temperature', 0.0)),
-                'max_tokens' => (int) Setting::get('ai.claude_max_tokens', config('ai.claude.max_tokens', 2000)),
-            ],
-            default => [
-                'compliance_rate' => Setting::get('ai.simulated_compliance_rate', 75),
-            ],
-        };
+        $this->provider = AiSettings::provider();
+        $this->config = AiSettings::providerConfig($this->provider);
     }
 
     /**
@@ -70,7 +47,7 @@ class AIEvaluationService
             $formVersion = $campaign->activeFormVersion;
 
             // Fallback: Si la campaña no tiene ficha activa configurada, usar la última publicada de cualquier ficha de la campaña
-            if (!$formVersion) {
+            if (! $formVersion) {
                 Log::info("Campaña {$campaign->id} sin ficha activa explícita. Buscando fallback...");
                 $latestForm = $campaign->forms()->whereHas('versions', function ($q) {
                     $q->where('status', 'published');
@@ -86,8 +63,9 @@ class AIEvaluationService
             }
         }
 
-        if (!$formVersion) {
+        if (! $formVersion) {
             Log::warning("No hay ficha de calidad activa para la campaña {$campaign->id}. Imposible evaluar.");
+
             return null;
         }
 
@@ -106,8 +84,9 @@ class AIEvaluationService
                 default => $parsedResponse = $this->simulateAIResponse($prompt, $rawResponseContent),
             };
 
-            if (!$parsedResponse) {
+            if (! $parsedResponse) {
                 Log::error("Error al llamar a {$this->provider} para interacción {$interaction->id}");
+
                 return null;
             }
 
@@ -116,7 +95,8 @@ class AIEvaluationService
 
             return $evaluation;
         } catch (\Exception $e) {
-            Log::error("Error en evaluación IA ({$this->provider}): " . $e->getMessage());
+            Log::error("Error en evaluación IA ({$this->provider}): ".$e->getMessage());
+
             return null;
         }
     }
@@ -133,8 +113,9 @@ class AIEvaluationService
             ->latest()
             ->first();
 
-        if (!$golden || !$golden->interaction)
+        if (! $golden || ! $golden->interaction) {
             return '';
+        }
 
         // Construir la estructura JSON esperada
         $items = [];
@@ -144,13 +125,13 @@ class AIEvaluationService
                 'status' => $item->status,
                 'evidence_quote' => $item->evidence_quote ?? '',
                 'confidence' => $item->confidence ?? 1.0,
-                'notes' => $item->ai_notes ?? ''
+                'notes' => $item->ai_notes ?? '',
             ];
         }
 
         $expectedJson = json_encode([
             'items' => $items,
-            'general_feedback' => $golden->ai_summary ?? 'Resumen del desempeño...'
+            'general_feedback' => $golden->ai_summary ?? 'Resumen del desempeño...',
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         return <<<EXAMPLE
@@ -266,28 +247,31 @@ PROMPT;
         $apiKey = $this->config['api_key'] ?? null;
 
         if (empty($apiKey)) {
-            Log::warning("API Key de OpenAI no configurada, usando evaluación simulada");
-            return $this->simulateAIResponse($prompt);
+            Log::error('API Key de OpenAI no configurada en IA y Modelos.');
+
+            return null;
         }
 
         $response = Http::withToken($apiKey)
             ->timeout(60)
             ->post('https://api.openai.com/v1/chat/completions', [
-                'model' => $this->config['model'] ?? 'gpt-4o-mini',
+                'model' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
                 'messages' => [
                     ['role' => 'system', 'content' => 'Eres un experto analista de calidad. Responde siempre en formato JSON válido.'],
                     ['role' => 'user', 'content' => $prompt],
                 ],
-                'temperature' => $this->config['temperature'] ?? 0.3,
-                'max_tokens' => $this->config['max_tokens'] ?? 2000,
+                'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['openai_temperature'],
+                'max_tokens' => $this->config['max_tokens'] ?? AiSettings::DEFAULTS['openai_max_tokens'],
             ]);
 
         if ($response->failed()) {
-            Log::error("Error en API OpenAI: " . $response->body());
+            Log::error('Error en API OpenAI: '.$response->body());
+
             return null;
         }
 
         $rawResponseContent = $response->json('choices.0.message.content');
+
         return $this->parseJsonResponse($rawResponseContent);
     }
 
@@ -299,48 +283,51 @@ PROMPT;
         $apiKey = $this->config['api_key'] ?? null;
 
         if (empty($apiKey)) {
-            Log::warning("API Key de Gemini no configurada, usando evaluación simulada");
-            return $this->simulateAIResponse($prompt);
+            Log::error('API Key de Gemini no configurada en IA y Modelos.');
+
+            return null;
         }
 
-        $model = $this->config['model'] ?? 'gemini-2.5-flash';
+        $model = $this->config['model'] ?? AiSettings::DEFAULTS['gemini_model'];
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         // Extract system instructions from the prompt for better determinism
-        // Let's pass a strong generic system string to systemInstruction, 
+        // Let's pass a strong generic system string to systemInstruction,
         // and keep the variable data (transcript, criteria) in the user part.
-        $systemInstruction = "Eres un experto analista de calidad de atención al cliente. Tu misión es evaluar las transcripciones con ESTRICTO APEGO a los criterios proporcionados. DEBES responder ÚNICAMENTE con JSON válido, sin bloques de código markdown, sin explicaciones adicionales.";
+        $systemInstruction = 'Eres un experto analista de calidad de atención al cliente. Tu misión es evaluar las transcripciones con ESTRICTO APEGO a los criterios proporcionados. DEBES responder ÚNICAMENTE con JSON válido, sin bloques de código markdown, sin explicaciones adicionales.';
 
         $response = Http::timeout(60)->post($url, [
             'systemInstruction' => [
                 'parts' => [
-                    ['text' => $systemInstruction]
-                ]
+                    ['text' => $systemInstruction],
+                ],
             ],
             'contents' => [
                 [
                     'role' => 'user',
                     'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
+                        ['text' => $prompt],
+                    ],
+                ],
             ],
             'generationConfig' => [
-                'temperature' => $this->config['temperature'] ?? 0.0,
+                'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['gemini_temperature'],
                 'topP' => 0.1,
                 'topK' => 1,
                 'maxOutputTokens' => 65536,
                 'responseMimeType' => 'application/json',
-            ]
+            ],
         ]);
 
         if ($response->failed()) {
-            Log::error("Error en API Gemini: " . $response->body());
+            Log::error('Error en API Gemini: '.$response->body());
+
             return null;
         }
 
         $rawResponseData = $response->json();
         $rawResponseContent = $rawResponseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
         return $this->parseJsonResponse($rawResponseContent);
     }
 
@@ -352,8 +339,9 @@ PROMPT;
         $apiKey = $this->config['api_key'] ?? null;
 
         if (empty($apiKey)) {
-            Log::warning("API Key de Claude no configurada, usando evaluación simulada");
-            return $this->simulateAIResponse($prompt);
+            Log::error('API Key de Claude no configurada en IA y Modelos.');
+
+            return null;
         }
 
         $response = Http::withHeaders([
@@ -363,9 +351,9 @@ PROMPT;
         ])
             ->timeout(60)
             ->post('https://api.anthropic.com/v1/messages', [
-                'model' => $this->config['model'] ?? 'claude-3-haiku-20240307',
-                'temperature' => $this->config['temperature'] ?? 0.0,
-                'max_tokens' => $this->config['max_tokens'] ?? 2000,
+                'model' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
+                'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['claude_temperature'],
+                'max_tokens' => $this->config['max_tokens'] ?? AiSettings::DEFAULTS['claude_max_tokens'],
                 'system' => 'Eres un experto analista de calidad. Responde siempre en formato JSON válido.',
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
@@ -373,11 +361,13 @@ PROMPT;
             ]);
 
         if ($response->failed()) {
-            Log::error("Error en API Claude: " . $response->body());
+            Log::error('Error en API Claude: '.$response->body());
+
             return null;
         }
 
         $rawResponseContent = $response->json('content.0.text');
+
         return $this->parseJsonResponse($rawResponseContent);
     }
 
@@ -386,8 +376,9 @@ PROMPT;
      */
     protected function parseJsonResponse(?string $content): ?array
     {
-        if (empty($content))
+        if (empty($content)) {
             return null;
+        }
 
         $jsonString = $content;
 
@@ -398,16 +389,18 @@ PROMPT;
 
         // Attempt normal decode
         $result = json_decode($jsonString, true);
-        if (json_last_error() === JSON_ERROR_NONE)
+        if (json_last_error() === JSON_ERROR_NONE) {
             return $result;
+        }
 
         // Common fix: Remove trailing commas
         $jsonString = preg_replace('/,\s*}/', '}', $jsonString);
         $jsonString = preg_replace('/,\s*]/', ']', $jsonString);
 
         $result = json_decode($jsonString, true);
-        if (json_last_error() === JSON_ERROR_NONE)
+        if (json_last_error() === JSON_ERROR_NONE) {
             return $result;
+        }
 
         // Last resort: find first { and last }
         $start = strpos($content, '{');
@@ -416,13 +409,15 @@ PROMPT;
         if ($start !== false && $end !== false && $end > $start) {
             $jsonString = substr($content, $start, $end - $start + 1);
             $result = json_decode($jsonString, true);
-            if (json_last_error() === JSON_ERROR_NONE)
+            if (json_last_error() === JSON_ERROR_NONE) {
                 return $result;
+            }
         }
 
-        Log::error("Error parseando respuesta JSON: " . json_last_error_msg());
+        Log::error('Error parseando respuesta JSON: '.json_last_error_msg());
         // Log truncated content to avoid flooding logs if it's huge
-        Log::error("Content snippet: " . substr($content, 0, 500) . " ... " . substr($content, -500));
+        Log::error('Content snippet: '.substr($content, 0, 500).' ... '.substr($content, -500));
+
         return null;
     }
 
@@ -436,21 +431,21 @@ PROMPT;
         preg_match_all('/"id":\s*(\d+)/', $prompt, $matches);
         $ids = $matches[1] ?? [];
 
-        $complianceRate = config('ai.simulated.compliance_rate', 75);
+        $complianceRate = $this->config['compliance_rate'] ?? AiSettings::DEFAULTS['simulated_compliance_rate'];
 
         // Extract sentences from transcript for "evidence"
         preg_match('/Transcr(?:ipción|ipt)\s*[:\n]+(.*)/is', $prompt, $transcriptMatches);
         $transcriptText = $transcriptMatches[1] ?? '';
         // Split by simple punctuation
         $sentences = preg_split('/(?<=[.?!])\s+/', strip_tags($transcriptText));
-        $sentences = array_values(array_filter($sentences, fn($s) => strlen($s) > 15));
+        $sentences = array_values(array_filter($sentences, fn ($s) => strlen($s) > 15));
 
         $items = [];
         foreach ($ids as $index => $id) {
             $isCompliant = rand(0, 100) < $complianceRate;
 
             // Pick a random sentence as evidence if available
-            $quote = !empty($sentences)
+            $quote = ! empty($sentences)
                 ? $sentences[array_rand($sentences)]
                 : ($isCompliant
                     ? 'El agente demostró cumplimiento de este criterio durante la llamada.'
@@ -467,7 +462,7 @@ PROMPT;
 
         return [
             'items' => $items,
-            'general_feedback' => '⚠️ Evaluación SIMULADA para desarrollo. Configure AI_PROVIDER y las credenciales correspondientes en .env para evaluaciones reales con IA.',
+            'general_feedback' => '⚠️ Evaluación SIMULADA para desarrollo. Configure el proveedor y sus credenciales en el módulo IA y Modelos para evaluaciones reales con IA.',
         ];
     }
 
@@ -519,8 +514,9 @@ PROMPT;
                 ->select('quality_subattributes.*')
                 ->first();
 
-            if (!$subAttribute) {
+            if (! $subAttribute) {
                 Log::warning("SubAttribute ID {$subAttributeId} not found in form version {$formVersion->id}");
+
                 continue;
             }
 
@@ -554,7 +550,7 @@ PROMPT;
             ]);
 
             // Solo sumar peso de items no-críticos
-            if (!$subAttribute->is_critical) {
+            if (! $subAttribute->is_critical) {
                 $totalScore += $score * $effectiveWeight;
                 $totalWeight += $effectiveWeight;
             }
@@ -581,9 +577,9 @@ PROMPT;
     protected function getModelName(): string
     {
         return match ($this->provider) {
-            'openai' => $this->config['model'] ?? 'gpt-4o-mini',
-            'gemini' => $this->config['model'] ?? 'gemini-2.0-flash',
-            'claude' => $this->config['model'] ?? 'claude-3-haiku',
+            'openai' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
+            'gemini' => $this->config['model'] ?? AiSettings::DEFAULTS['gemini_model'],
+            'claude' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
             default => 'simulated',
         };
     }
@@ -655,7 +651,7 @@ PROMPT;
                         'criteria' => $item->subAttribute->name ?? 'Unknown',
                         'evidence' => $item->evidence_quote,
                         'notes' => $item->ai_notes,
-                        'is_critical' => $item->subAttribute->is_critical ?? false
+                        'is_critical' => $item->subAttribute->is_critical ?? false,
                     ];
                 }
             }
@@ -672,15 +668,15 @@ PROMPT;
 
         // 2. Construir Prompt Diferenciado
         $roleInstruction = match ($type) {
-            'operational' => "Eres un Gerente de Operaciones de Call Center. Tu objetivo es mejorar el desempeño de los agentes.",
-            'strategic' => "Eres un Consultor de Negocios para el Cliente Corporativo (la marca). Tu objetivo es detectar fricciones en el producto/proceso.",
-            default => "Eres un experto analista de calidad de Call Center."
+            'operational' => 'Eres un Gerente de Operaciones de Call Center. Tu objetivo es mejorar el desempeño de los agentes.',
+            'strategic' => 'Eres un Consultor de Negocios para el Cliente Corporativo (la marca). Tu objetivo es detectar fricciones en el producto/proceso.',
+            default => 'Eres un experto analista de calidad de Call Center.'
         };
 
         $focusInstruction = match ($type) {
-            'operational' => "Céntrate en: Errores de script, falta de empatía, muletillas, no seguir procedimientos, tiempos muertos.",
-            'strategic' => "Céntrate en: Quejas recurrentes sobre el producto, procesos burocráticos que molestan al cliente, confusión con facturación/promociones.",
-            default => "Analiza tanto el desempeño del agente como los problemas del proceso."
+            'operational' => 'Céntrate en: Errores de script, falta de empatía, muletillas, no seguir procedimientos, tiempos muertos.',
+            'strategic' => 'Céntrate en: Quejas recurrentes sobre el producto, procesos burocráticos que molestan al cliente, confusión con facturación/promociones.',
+            default => 'Analiza tanto el desempeño del agente como los problemas del proceso.'
         };
 
         $prompt = <<<PROMPT
@@ -773,22 +769,22 @@ PROMPT;
                     'description' => 'Múltiples agentes omiten el saludo corporativo completo',
                     'affected_count' => 8,
                     'priority' => 'High',
-                    'coaching_actions' => 'Reforzar roleplay de apertura en sesiones 1:1'
+                    'coaching_actions' => 'Reforzar roleplay de apertura en sesiones 1:1',
                 ],
                 [
                     'category' => 'Empathy',
                     'description' => 'Falta de validación emocional en quejas de clientes',
                     'affected_count' => 5,
                     'priority' => 'Medium',
-                    'coaching_actions' => 'Capacitación en técnicas de escucha activa'
+                    'coaching_actions' => 'Capacitación en técnicas de escucha activa',
                 ],
                 [
                     'category' => 'Product Knowledge',
                     'description' => 'Confusión sobre términos de promociones vigentes',
                     'affected_count' => 3,
                     'priority' => 'Medium',
-                    'coaching_actions' => 'Quiz semanal de actualizaciones de producto'
-                ]
+                    'coaching_actions' => 'Quiz semanal de actualizaciones de producto',
+                ],
             ],
             'deficiencies' => [
                 [
@@ -796,49 +792,49 @@ PROMPT;
                     'description' => 'El script de apertura no refleja las promociones actuales',
                     'frequency' => 'Recurrente',
                     'root_cause' => 'Falta de comunicación entre Marketing y Operaciones',
-                    'recommendation' => 'Establecer proceso de actualización quincenal de scripts'
+                    'recommendation' => 'Establecer proceso de actualización quincenal de scripts',
                 ],
                 [
                     'title' => 'Tiempo de Espera Elevado',
                     'description' => 'Clientes reportan tiempos de espera prolongados al verificar información',
                     'frequency' => 'Frecuente',
                     'root_cause' => 'Sistema CRM lento o agentes no capacitados en atajos',
-                    'recommendation' => 'Optimización técnica + capacitación en uso eficiente de herramientas'
-                ]
+                    'recommendation' => 'Optimización técnica + capacitación en uso eficiente de herramientas',
+                ],
             ],
             'product_issues' => [
                 [
                     'issue' => 'Confusión en Facturación de Extras',
                     'customer_impact' => 'Clientes se sorprenden con cargos no explicados previamente',
                     'evidence' => 'Múltiples llamadas por consultas de facturación',
-                    'suggested_fix' => 'Mejorar transparencia en documentación de cargos adicionales'
-                ]
+                    'suggested_fix' => 'Mejorar transparencia en documentación de cargos adicionales',
+                ],
             ],
             'trends' => [
                 'overall_direction' => 'stable',
                 'key_observations' => 'El desempeño se mantiene estable sin cambios significativos',
-                'critical_changes' => 'Ninguno detectado en el periodo analizado'
+                'critical_changes' => 'Ninguno detectado en el periodo analizado',
             ],
             'recommendations' => [
                 [
                     'priority' => 1,
                     'action' => 'Actualizar script de apertura con promociones vigentes',
                     'expected_impact' => 'Reducción del 30% en consultas sobre promociones',
-                    'responsible' => 'Operaciones + Marketing'
+                    'responsible' => 'Operaciones + Marketing',
                 ],
                 [
                     'priority' => 2,
                     'action' => 'Implementar sesiones de coaching 1:1 para agentes de bajo desempeño',
                     'expected_impact' => 'Mejora de 10-15 puntos en puntaje promedio',
-                    'responsible' => 'Supervisores'
+                    'responsible' => 'Supervisores',
                 ],
                 [
                     'priority' => 3,
                     'action' => 'Revisión de UX en facturación digital',
                     'expected_impact' => 'Reducción de llamadas de consulta',
-                    'responsible' => 'Producto/Negocio'
-                ]
-            ]
+                    'responsible' => 'Producto/Negocio',
+                ],
+            ],
         ];
     }
 }

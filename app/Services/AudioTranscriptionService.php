@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Setting;
+use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -10,36 +10,41 @@ use Illuminate\Support\Facades\Storage;
 class AudioTranscriptionService
 {
     protected string $apiKey;
+
     protected string $model;
 
     public function __construct()
     {
-        $this->apiKey = Setting::get('ai.gemini_api_key', config('ai.gemini.api_key', '')) ?? '';
-        $this->model = 'gemini-2.5-flash'; // Correct model name from API list
+        $config = AiSettings::transcriptionConfig();
+
+        $this->apiKey = $config['api_key'] ?? '';
+        $this->model = $config['model'] ?: AiSettings::DEFAULTS['gemini_model'];
     }
 
     /**
      * Transcribe an audio file and analyze sentiment using Google Gemini API.
      *
-     * @param string $filePath Path relative to the storage disk
-     * @param string $language Language hint (default: Spanish)
+     * @param  string  $filePath  Path relative to the storage disk
+     * @param  string  $language  Language hint (default: Spanish)
      * @return array{transcript: string, sentiment: array} Transcript text and sentiment analysis
+     *
      * @throws \Exception If transcription fails
      */
     public function transcribe(string $filePath, string $language = 'es'): array
     {
         if (empty($this->apiKey)) {
-            Log::warning('AudioTranscriptionService: No Gemini API key configured, using simulated transcription.');
+            Log::warning('AudioTranscriptionService: No hay API Key de Gemini configurada en IA y Modelos; usando transcripción simulada.');
+
             return $this->simulateTranscription($filePath);
         }
 
         $disk = Storage::disk(config('filesystems.default', 'local'));
 
-        if (!$disk->exists($filePath)) {
+        if (! $disk->exists($filePath)) {
             throw new \Exception("Audio file not found: {$filePath}");
         }
 
-        Log::info("AudioTranscriptionService: Transcribing file {$filePath} with Gemini");
+        Log::info("AudioTranscriptionService: Transcribing file {$filePath} with Gemini model {$this->model}");
 
         try {
             $audioData = $disk->get($filePath);
@@ -85,7 +90,7 @@ IMPORTANTE: El campo "transcript" debe ser un solo string con saltos de línea (
 NOTAS sobre sentiment scores: Usa una escala de -1.0 (muy negativo) a 1.0 (muy positivo), donde 0.0 es neutro.
 PROMPT;
 
-            $systemInstruction = "Eres un transcriptor profesional de audio y analista de sentimiento para un centro de contacto (call center). Tu tarea requiere EXTREMA PRECISIÓN y ESTRICTO APEGO a las instrucciones de formato. DEBES devolver UNICAMENTE un objeto JSON válido.";
+            $systemInstruction = 'Eres un transcriptor profesional de audio y analista de sentimiento para un centro de contacto (call center). Tu tarea requiere EXTREMA PRECISIÓN y ESTRICTO APEGO a las instrucciones de formato. DEBES devolver UNICAMENTE un objeto JSON válido.';
 
             $response = Http::timeout(300)
                 ->withHeaders([
@@ -94,8 +99,8 @@ PROMPT;
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}", [
                     'systemInstruction' => [
                         'parts' => [
-                            ['text' => $systemInstruction]
-                        ]
+                            ['text' => $systemInstruction],
+                        ],
                     ],
                     'contents' => [
                         [
@@ -150,10 +155,11 @@ PROMPT;
                 }
             }
 
-            if (json_last_error() !== JSON_ERROR_NONE || !isset($parsed['transcript'])) {
+            if (json_last_error() !== JSON_ERROR_NONE || ! isset($parsed['transcript'])) {
                 // Fallback: treat the entire response as plain transcript text
-                Log::warning("AudioTranscriptionService: Could not parse JSON, using raw text as transcript");
+                Log::warning('AudioTranscriptionService: Could not parse JSON, using raw text as transcript');
                 $cleanTranscript = str_replace('\n', "\n", $rawText);
+
                 return [
                     'transcript' => $cleanTranscript,
                     'sentiment' => null,
@@ -163,7 +169,7 @@ PROMPT;
             // Clean literal \n if they survived in the transcript field
             $cleanTranscript = str_replace('\n', "\n", $parsed['transcript']);
 
-            Log::info("AudioTranscriptionService: Transcription + sentiment completed. Length: " . strlen($cleanTranscript) . " chars");
+            Log::info('AudioTranscriptionService: Transcription + sentiment completed. Length: '.strlen($cleanTranscript).' chars');
 
             return [
                 'transcript' => $cleanTranscript,
@@ -171,8 +177,8 @@ PROMPT;
             ];
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error("AudioTranscriptionService: Connection error - " . $e->getMessage());
-            throw new \Exception("Could not connect to Gemini API: " . $e->getMessage());
+            Log::error('AudioTranscriptionService: Connection error - '.$e->getMessage());
+            throw new \Exception('Could not connect to Gemini API: '.$e->getMessage());
         }
     }
 
@@ -203,16 +209,16 @@ PROMPT;
     {
         $fileName = basename($filePath);
         $transcript = implode("\n", [
-            "[00:00] Agente: Buenos días, gracias por comunicarse con nosotros. Mi nombre es María, ¿en qué puedo ayudarle?",
-            "[00:04] Cliente: Hola María, buenos días. Llamo porque tengo un problema con mi factura del mes pasado.",
-            "[00:10] Agente: Entiendo, lamento mucho el inconveniente. Permítame verificar su cuenta. ¿Me puede proporcionar su número de identificación o el número de cuenta?",
-            "[00:18] Cliente: Sí, claro. Mi número de cuenta es 4523-8891.",
-            "[00:22] Agente: Perfecto, ya tengo su cuenta en pantalla. Veo que efectivamente hay un cargo adicional de \$15.000 que parece ser un cobro duplicado. ¿Es ese el problema que menciona?",
-            "[00:32] Cliente: Exactamente, ese cargo no debería estar ahí.",
-            "[00:35] Agente: Tiene toda la razón, señor. Voy a proceder a generar una nota de crédito por ese monto. El ajuste se verá reflejado en su próxima factura. ¿Hay algo más en que pueda ayudarle?",
-            "[00:45] Cliente: No, eso era todo. Muchas gracias por la rápida solución.",
-            "[00:49] Agente: Con mucho gusto. Que tenga un excelente día.",
-            "[00:52] Cliente: Igualmente, hasta luego.",
+            '[00:00] Agente: Buenos días, gracias por comunicarse con nosotros. Mi nombre es María, ¿en qué puedo ayudarle?',
+            '[00:04] Cliente: Hola María, buenos días. Llamo porque tengo un problema con mi factura del mes pasado.',
+            '[00:10] Agente: Entiendo, lamento mucho el inconveniente. Permítame verificar su cuenta. ¿Me puede proporcionar su número de identificación o el número de cuenta?',
+            '[00:18] Cliente: Sí, claro. Mi número de cuenta es 4523-8891.',
+            '[00:22] Agente: Perfecto, ya tengo su cuenta en pantalla. Veo que efectivamente hay un cargo adicional de $15.000 que parece ser un cobro duplicado. ¿Es ese el problema que menciona?',
+            '[00:32] Cliente: Exactamente, ese cargo no debería estar ahí.',
+            '[00:35] Agente: Tiene toda la razón, señor. Voy a proceder a generar una nota de crédito por ese monto. El ajuste se verá reflejado en su próxima factura. ¿Hay algo más en que pueda ayudarle?',
+            '[00:45] Cliente: No, eso era todo. Muchas gracias por la rápida solución.',
+            '[00:49] Agente: Con mucho gusto. Que tenga un excelente día.',
+            '[00:52] Cliente: Igualmente, hasta luego.',
         ]);
 
         Log::info("AudioTranscriptionService: Simulated transcription for {$fileName}");

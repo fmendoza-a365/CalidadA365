@@ -19,8 +19,9 @@ php artisan down --retry=60 || true
 
 git config --global --add safe.directory "${APP_DIR}"
 git fetch origin "${BRANCH}"
-git checkout "${BRANCH}"
-git pull --ff-only origin "${BRANCH}"
+git checkout -B "${BRANCH}" "origin/${BRANCH}"
+git reset --hard "origin/${BRANCH}"
+git clean -fd public/build
 
 composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 npm ci

@@ -2,9 +2,32 @@
     <x-slot name="header">Configuración de IA</x-slot>
 
     <div class="space-y-6">
+        @if(session('success'))
+            <div class="alert alert-success">
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
 
+        @if($errors->any())
+            <div class="alert alert-danger">
+                <div>
+                    <p>No se pudo guardar la configuración.</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        @endif
 
-        <form method="POST" action="{{ route('settings.ai.update') }}" x-data="{ provider: '{{ $currentProvider }}' }">
+        <form method="POST" action="{{ route('settings.ai.update') }}"
+            x-data="{
+                provider: @js($currentProvider),
+                openai_temp: @js((float) $settings['openai_temperature']),
+                gemini_temp: @js((float) $settings['gemini_temperature']),
+                claude_temp: @js((float) $settings['claude_temperature'])
+            }">
             @csrf
 
             <!-- Selección de Proveedor -->
@@ -84,9 +107,16 @@
                     <div class="form-group">
                         <label for="openai_api_key" class="form-label">API Key</label>
                         <input type="password" name="openai_api_key" id="openai_api_key" 
-                            value="{{ $settings['openai_api_key'] }}"
-                            class="form-input" placeholder="sk-proj-xxxxxxxxxxxxxxxx">
+                            value=""
+                            class="form-input"
+                            autocomplete="off"
+                            placeholder="{{ $providers['openai']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'sk-proj-xxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
+                            @if($providers['openai']['configured'])
+                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                            @else
+                                Aún no hay API Key guardada.
+                            @endif
                             Obtén tu API Key en <a href="https://platform.openai.com/api-keys" target="_blank" class="text-indigo-600 hover:underline">platform.openai.com</a>
                         </p>
                     </div>
@@ -118,7 +148,7 @@
                             <span>Temperatura (Creatividad)</span>
                             <span x-text="openai_temp" class="text-gray-500"></span>
                         </label>
-                        <div class="flex items-center gap-4" x-data="{ openai_temp: {{ $settings['openai_temperature'] }} }">
+                        <div class="flex items-center gap-4">
                             <input type="range" name="openai_temperature" id="openai_temperature" 
                                 x-model="openai_temp"
                                 min="0" max="2" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
@@ -146,9 +176,16 @@
                     <div class="form-group">
                         <label for="gemini_api_key" class="form-label">API Key</label>
                         <input type="password" name="gemini_api_key" id="gemini_api_key" 
-                            value="{{ $settings['gemini_api_key'] }}"
-                            class="form-input" placeholder="AIzaSyBxxxxxxxxxxxxxxxx">
+                            value=""
+                            class="form-input"
+                            autocomplete="off"
+                            placeholder="{{ $providers['gemini']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'AIzaSyBxxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
+                            @if($providers['gemini']['configured'])
+                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                            @else
+                                Aún no hay API Key guardada.
+                            @endif
                             Obtén tu API Key en <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 hover:underline">Google AI Studio</a>
                         </p>
                     </div>
@@ -173,7 +210,7 @@
                             <span>Temperatura (Creatividad)</span>
                             <span x-text="gemini_temp" class="text-gray-500"></span>
                         </label>
-                        <div class="flex items-center gap-4" x-data="{ gemini_temp: {{ $settings['gemini_temperature'] }} }">
+                        <div class="flex items-center gap-4">
                             <input type="range" name="gemini_temperature" id="gemini_temperature" 
                                 x-model="gemini_temp"
                                 min="0" max="1" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
@@ -200,9 +237,16 @@
                     <div class="form-group">
                         <label for="claude_api_key" class="form-label">API Key</label>
                         <input type="password" name="claude_api_key" id="claude_api_key" 
-                            value="{{ $settings['claude_api_key'] }}"
-                            class="form-input" placeholder="sk-ant-xxxxxxxxxxxxxxxx">
+                            value=""
+                            class="form-input"
+                            autocomplete="off"
+                            placeholder="{{ $providers['claude']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'sk-ant-xxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
+                            @if($providers['claude']['configured'])
+                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                            @else
+                                Aún no hay API Key guardada.
+                            @endif
                             Obtén tu API Key en <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-indigo-600 hover:underline">console.anthropic.com</a>
                         </p>
                     </div>
@@ -233,7 +277,7 @@
                             <span>Temperatura (Creatividad)</span>
                             <span x-text="claude_temp" class="text-gray-500"></span>
                         </label>
-                        <div class="flex items-center gap-4" x-data="{ claude_temp: {{ $settings['claude_temperature'] }} }">
+                        <div class="flex items-center gap-4">
                             <input type="range" name="claude_temperature" id="claude_temperature" 
                                 x-model="claude_temp"
                                 min="0" max="1" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
