@@ -8,11 +8,41 @@ use App\Models\CampaignUserAssignment;
 use App\Jobs\TranscribeAudioJob;
 use App\Jobs\ScoreTranscriptJob;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TranscriptController extends Controller
 {
+    private const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'];
+    private const TEXT_EXTENSIONS = ['txt'];
+    private const UPLOAD_MAX_KB = 102400;
+    private const ALLOWED_MIME_TYPES = [
+        'text/plain',
+        'audio/aac',
+        'audio/flac',
+        'audio/mp4',
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/x-mpeg',
+        'audio/ogg',
+        'audio/opus',
+        'audio/x-opus+ogg',
+        'audio/vnd.wave',
+        'audio/wav',
+        'audio/webm',
+        'audio/x-aac',
+        'audio/x-flac',
+        'audio/x-m4a',
+        'audio/x-wav',
+        'application/mp4',
+        'application/ogg',
+        'video/mp4',
+        'video/webm',
+    ];
+
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -93,9 +123,27 @@ class TranscriptController extends Controller
         }
 
         try {
-            $audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'webm'];
-            $textExtensions = ['txt'];
-            $allExtensions = implode(',', array_merge($textExtensions, $audioExtensions));
+            foreach (Arr::wrap($request->file('transcript_files', [])) as $index => $file) {
+                if ($file instanceof UploadedFile && !$file->isValid()) {
+                    $message = $this->uploadErrorMessage($file);
+
+                    Log::warning('Transcript upload failed before validation', [
+                        'index' => $index,
+                        'original_name' => $file->getClientOriginalName(),
+                        'error_code' => $file->getError(),
+                        'upload_max_filesize' => ini_get('upload_max_filesize'),
+                        'post_max_size' => ini_get('post_max_size'),
+                        'upload_tmp_dir' => ini_get('upload_tmp_dir') ?: sys_get_temp_dir(),
+                    ]);
+
+                    return back()->withErrors([
+                        "transcript_files.{$index}" => $message,
+                    ])->withInput();
+                }
+            }
+
+            $allExtensions = implode(',', array_merge(self::TEXT_EXTENSIONS, self::AUDIO_EXTENSIONS));
+            $allowedMimeTypes = implode(',', self::ALLOWED_MIME_TYPES);
 
             $validated = $request->validate([
                 'campaign_id' => 'required|exists:campaigns,id',
@@ -103,7 +151,12 @@ class TranscriptController extends Controller
                 'agent_id' => 'required|exists:users,id',
                 'occurred_at' => 'required|date',
                 'transcript_files' => 'required|array|min:1|max:50',
-                'transcript_files.*' => "required|file|extensions:{$allExtensions}|max:25600",
+                'transcript_files.*' => "required|file|extensions:{$allExtensions}|mimetypes:{$allowedMimeTypes}|max:" . self::UPLOAD_MAX_KB,
+            ], [
+                'transcript_files.*.uploaded' => 'El archivo no pudo subirse. Verifique que pese menos de 100 MB y que PHP permita cargas de al menos 100 MB.',
+                'transcript_files.*.extensions' => 'Formato no permitido. Use TXT o audio: ' . implode(', ', self::AUDIO_EXTENSIONS) . '.',
+                'transcript_files.*.mimetypes' => 'El archivo no parece ser un TXT o audio válido. Si el audio viene de WhatsApp, súbalo como .opus, .ogg o .m4a.',
+                'transcript_files.*.max' => 'Cada archivo puede pesar hasta 100 MB.',
             ]);
 
             if (!Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
@@ -143,7 +196,7 @@ class TranscriptController extends Controller
 
             foreach ($validated['transcript_files'] as $file) {
                 $extension = strtolower($file->getClientOriginalExtension());
-                $isAudio = in_array($extension, $audioExtensions);
+                $isAudio = in_array($extension, self::AUDIO_EXTENSIONS, true);
 
                 $storagePath = $isAudio ? 'audios' : 'transcripts';
                 $path = $file->store($storagePath, $this->privateDisk());
@@ -402,5 +455,21 @@ class TranscriptController extends Controller
     private function privateDisk(): string
     {
         return config('filesystems.default', 'local');
+    }
+
+    private function uploadErrorMessage(UploadedFile $file): string
+    {
+        return match ($file->getError()) {
+            UPLOAD_ERR_INI_SIZE => 'PHP rechazó el archivo por upload_max_filesize. Valor actual detectado: '
+                . ini_get('upload_max_filesize') . '. Reinicie el servidor con: php -c php.ini artisan serve --host=127.0.0.1 --port=8000',
+            UPLOAD_ERR_FORM_SIZE => 'El formulario rechazó el archivo por tamaño máximo declarado en HTML.',
+            UPLOAD_ERR_PARTIAL => 'El archivo se subió parcialmente. Intente nuevamente y evite cerrar o refrescar la página durante la carga.',
+            UPLOAD_ERR_NO_TMP_DIR => 'PHP no tiene carpeta temporal para recibir el archivo. Configure upload_tmp_dir o permisos de /tmp.',
+            UPLOAD_ERR_CANT_WRITE => 'PHP no pudo escribir el archivo temporal. Revise permisos y espacio disponible en disco.',
+            UPLOAD_ERR_EXTENSION => 'Una extensión de PHP bloqueó la carga del archivo.',
+            default => 'PHP no pudo recibir el archivo. Código de error: ' . $file->getError()
+                . '. Límite actual: upload_max_filesize=' . ini_get('upload_max_filesize')
+                . ', post_max_size=' . ini_get('post_max_size') . '.',
+        };
     }
 }

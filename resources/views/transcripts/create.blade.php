@@ -98,12 +98,12 @@
                                 <span class="font-semibold text-indigo-600 dark:text-indigo-400">Clic para
                                     seleccionar</span> o arrastra archivos aquí
                             </p>
-                            <p class="mt-1 text-xs text-gray-500">Archivos .txt o audio (.mp3, .wav, .ogg, .m4a, .webm),
-                                máximo 25MB</p>
+                            <p class="mt-1 text-xs text-gray-500">Archivos .txt o audio (.mp3, .wav, .ogg, .opus,
+                                .m4a, .mp4, .aac, .webm, .flac), máximo 100MB</p>
 
                             <!-- Hidden Input -->
                             <input type="file" name="transcript_files[]" id="transcript_files" class="hidden"
-                                accept=".txt,.mp3,.wav,.ogg,.m4a,.webm" multiple required x-ref="fileInput"
+                                accept=".txt,.mp3,.wav,.ogg,.oga,.opus,.m4a,.mp4,.mpeg,.mpga,.aac,.webm,.flac" multiple required x-ref="fileInput"
                                 @change="handleFiles($event.target.files)">
                         </div>
 
@@ -200,7 +200,7 @@
 
                                 isAudioFile(name) {
                                     const ext = name.split('.').pop().toLowerCase();
-                                    return ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext);
+                                    return ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'].includes(ext);
                                 }
                             }
                         }

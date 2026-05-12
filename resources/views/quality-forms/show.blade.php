@@ -71,6 +71,62 @@
             </div>
         </div>
 
+        <!-- Contexto Operativo -->
+        <div class="card">
+            <div class="card-header flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Contexto Operativo para IA</h3>
+                <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-secondary btn-sm">Editar Contexto</a>
+            </div>
+            <div class="card-body">
+                @if($qualityForm->operational_context_markdown || $qualityForm->context_file_path)
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2">
+                            <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Markdown configurado</div>
+                            @if($qualityForm->operational_context_markdown)
+                                <div class="prose prose-sm dark:prose-invert max-w-none rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
+                                    {!! \Illuminate\Support\Str::markdown($qualityForm->operational_context_markdown) !!}
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Sin contexto escrito.</p>
+                            @endif
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Documento adjunto</div>
+                            @if($qualityForm->context_file_path)
+                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                                    <div>
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $qualityForm->context_file_original_name }}</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                                            {{ $qualityForm->context_file_mime ?: 'archivo' }}
+                                        </div>
+                                    </div>
+                                    @if($qualityForm->context_file_uploaded_at)
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                                            Cargado el {{ $qualityForm->context_file_uploaded_at->format('d/m/Y H:i') }}
+                                        </div>
+                                    @endif
+                                    <a href="{{ route('quality-forms.context.download', $qualityForm) }}" class="btn-secondary btn-sm w-full justify-center">
+                                        Descargar
+                                    </a>
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Sin documento adjunto.</p>
+                            @endif
+                        </div>
+                    </div>
+                @else
+                    <div class="empty-state py-8">
+                        <p class="text-gray-500 dark:text-gray-400 mb-3">
+                            Esta ficha aún no tiene contexto operativo. La IA evaluará solo con la transcripción y los criterios.
+                        </p>
+                        <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-primary btn-md">
+                            Agregar Contexto
+                        </a>
+                    </div>
+                @endif
+            </div>
+        </div>
+
         <!-- Atributos y Subatributos -->
         @if($qualityForm->latestVersion && $qualityForm->latestVersion->formAttributes->count() > 0)
             <div class="space-y-6">

@@ -59,14 +59,15 @@
                         </a>
 
                         @if ($evaluation->type === 'ai')
-                            @if ($manualEval = $evaluation->interaction->manualEvaluation)
-                                <a href="{{ route('evaluations.show', $manualEval) }}"
-                                    class="btn-ghost btn-sm mt-2 w-full justify-center text-indigo-600 dark:text-gray-400">
-                                    Ver Evaluación Manual
-                                </a>
-                            @can('publish', $evaluation)
-                                <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
-                                    class="btn-primary btn-sm mt-2 w-full justify-center">
+	                            @if ($manualEval = $evaluation->interaction->manualEvaluation)
+	                                <a href="{{ route('evaluations.show', $manualEval) }}"
+	                                    class="btn-ghost btn-sm mt-2 w-full justify-center text-indigo-600 dark:text-gray-400">
+	                                    Ver Evaluación Manual
+	                                </a>
+	                            @endif
+	                            @can('publish', $evaluation)
+	                                <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
+	                                    class="btn-primary btn-sm mt-2 w-full justify-center">
                                     Corregir Manualmente
                                 </a>
                             @endcan

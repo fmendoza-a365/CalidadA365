@@ -171,6 +171,8 @@ EXAMPLE;
      */
     protected function buildEvaluationPrompt(Interaction $interaction, QualityFormVersion $formVersion): string
     {
+        $formVersion->loadMissing('form');
+
         $criteria = [];
         foreach ($formVersion->formAttributes as $attribute) {
             foreach ($attribute->subAttributes as $subAttribute) {
@@ -188,6 +190,22 @@ EXAMPLE;
         $criteriaJson = json_encode($criteria, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         $goldenExamples = $this->getGoldenExamples($formVersion);
+        $operationalContext = $formVersion->form?->operationalContextForPrompt() ?: '';
+        $operationalContextBlock = $operationalContext
+            ? <<<CONTEXT
+## CONTEXTO OPERATIVO DE LA CAMPAÑA / SUBCAMPAÑA
+Usa esta información como fuente de verdad operativa para evaluar la llamada. Puede incluir precios de productos, características comerciales, speechs obligatorios, cláusulas contractuales, políticas, objeciones esperadas o guías de campaña.
+
+{$operationalContext}
+
+### Reglas para usar el contexto operativo
+- Si un criterio exige un speech, cláusula o texto contractual exacto, evalúa si el asesor lo dijo exactamente o con una variación muy semejante que conserve el sentido legal/comercial.
+- Si el contexto define precios, productos, condiciones o restricciones, úsalo para validar precisión del asesor.
+- No inventes información fuera del contexto operativo. Si el contexto no cubre un punto, evalúa solo con la transcripción y los criterios configurados.
+- Si hay conflicto entre lo dicho por el asesor y el contexto operativo, considera el contexto operativo como referencia para detectar la desviación.
+
+CONTEXT
+            : '';
 
         return <<<PROMPT
 Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar la siguiente transcripción de una llamada telefónica.
@@ -197,6 +215,8 @@ Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar
 
 ## CRITERIOS DE EVALUACIÓN
 {$criteriaJson}
+
+{$operationalContextBlock}
 
 {$goldenExamples}
 

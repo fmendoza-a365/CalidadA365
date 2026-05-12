@@ -49,6 +49,80 @@
             </div>
         </div>
 
+        <!-- Contexto Operativo -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Contexto Operativo para IA</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ route('quality-forms.update-context', $qualityForm) }}" enctype="multipart/form-data"
+                    class="form-section">
+                    @csrf
+                    @method('PUT')
+
+                    <div class="alert alert-info">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Este contexto se añade al prompt de IA para validar precios, productos, speechs obligatorios, cláusulas y reglas operativas de esta ficha.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="operational_context_markdown" class="form-label">Contexto en Markdown</label>
+                        <textarea name="operational_context_markdown" id="operational_context_markdown" rows="10"
+                            class="form-textarea"
+                            placeholder="Ejemplo:
+## Productos
+- Plan Premium: S/ 49.90
+
+## Speech obligatorio
+El asesor debe mencionar: &quot;Esta llamada puede ser grabada por motivos de calidad&quot;.
+
+## Reglas
+- Si el cliente pregunta por penalidad, explicar que aplica según contrato.">{{ old('operational_context_markdown', $qualityForm->operational_context_markdown) }}</textarea>
+                        <x-input-error :messages="$errors->get('operational_context_markdown')" class="mt-1" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="context_file" class="form-label">Documento de contexto opcional</label>
+                        <input type="file" name="context_file" id="context_file" accept=".pdf,.txt,.md,.markdown"
+                            class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Formatos permitidos: PDF, Markdown o TXT. Tamaño máximo: 10 MB. El texto extraído también será usado por la IA.
+                        </p>
+                        <x-input-error :messages="$errors->get('context_file')" class="mt-1" />
+                    </div>
+
+                    @if($qualityForm->context_file_path)
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                        Archivo actual: {{ $qualityForm->context_file_original_name }}
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        Cargado por {{ $qualityForm->contextUploadedBy->name ?? 'N/A' }}
+                                        @if($qualityForm->context_file_uploaded_at)
+                                            el {{ $qualityForm->context_file_uploaded_at->format('d/m/Y H:i') }}
+                                        @endif
+                                    </div>
+                                </div>
+                                <label class="flex items-center gap-2 text-sm text-rose-600 dark:text-rose-400">
+                                    <input type="checkbox" name="remove_context_file" value="1" class="form-checkbox">
+                                    Quitar archivo
+                                </label>
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary btn-md">Guardar Contexto Operativo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Gestión de Atributos -->
         <div class="card"
             x-data="attributeManager(@if($qualityForm->latestVersion) {{ $qualityForm->latestVersion->formAttributes->load('subAttributes') }} @else [] @endif)">

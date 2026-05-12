@@ -7,8 +7,10 @@ use App\Models\QualityForm;
 use App\Models\QualityFormVersion;
 use App\Models\QualityAttribute;
 use App\Models\QualitySubAttribute;
+use App\Services\OperationalContextExtractor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class QualityFormController extends Controller
 {
@@ -58,7 +60,7 @@ class QualityFormController extends Controller
     {
         $this->ensureFormAccess($qualityForm);
 
-        $qualityForm->load(['campaign', 'versions.formAttributes.subAttributes']);
+        $qualityForm->load(['campaign', 'versions.formAttributes.subAttributes', 'contextUploadedBy']);
         return view('quality-forms.show', compact('qualityForm'));
     }
 
@@ -66,7 +68,7 @@ class QualityFormController extends Controller
     {
         $this->ensureFormAccess($qualityForm);
 
-        $qualityForm->load(['latestVersion.formAttributes.subAttributes']);
+        $qualityForm->load(['latestVersion.formAttributes.subAttributes', 'contextUploadedBy']);
         $campaigns = Campaign::forUser(auth()->user())->active()->get();
         return view('quality-forms.edit', compact('qualityForm', 'campaigns'));
     }
@@ -84,6 +86,74 @@ class QualityFormController extends Controller
 
         return redirect()->route('quality-forms.show', $qualityForm)
             ->with('success', 'Información de la ficha actualizada.');
+    }
+
+    public function updateContext(Request $request, QualityForm $qualityForm, OperationalContextExtractor $extractor)
+    {
+        $this->ensureFormAccess($qualityForm);
+
+        $validated = $request->validate([
+            'operational_context_markdown' => 'nullable|string|max:120000',
+            'context_file' => 'nullable|file|mimes:pdf,txt,md,markdown|max:10240',
+            'remove_context_file' => 'nullable|boolean',
+        ]);
+
+        $update = [
+            'operational_context_markdown' => $validated['operational_context_markdown'] ?? null,
+        ];
+
+        $diskName = config('filesystems.default', 'local');
+        $disk = Storage::disk($diskName);
+
+        if ($request->boolean('remove_context_file') && $qualityForm->context_file_path) {
+            if ($disk->exists($qualityForm->context_file_path)) {
+                $disk->delete($qualityForm->context_file_path);
+            }
+
+            $update = array_merge($update, [
+                'context_file_path' => null,
+                'context_file_original_name' => null,
+                'context_file_mime' => null,
+                'context_file_text' => null,
+                'context_file_uploaded_at' => null,
+                'context_file_uploaded_by' => null,
+            ]);
+        }
+
+        if ($request->hasFile('context_file')) {
+            if ($qualityForm->context_file_path && $disk->exists($qualityForm->context_file_path)) {
+                $disk->delete($qualityForm->context_file_path);
+            }
+
+            $file = $request->file('context_file');
+            $path = $file->store("quality-forms/{$qualityForm->id}/context", $diskName);
+
+            $update = array_merge($update, [
+                'context_file_path' => $path,
+                'context_file_original_name' => $file->getClientOriginalName(),
+                'context_file_mime' => $file->getMimeType(),
+                'context_file_text' => $extractor->extract($file),
+                'context_file_uploaded_at' => now(),
+                'context_file_uploaded_by' => auth()->id(),
+            ]);
+        }
+
+        $qualityForm->update($update);
+
+        return redirect()->route('quality-forms.show', $qualityForm)
+            ->with('success', 'Contexto operativo actualizado.');
+    }
+
+    public function downloadContext(QualityForm $qualityForm)
+    {
+        $this->ensureFormAccess($qualityForm);
+
+        if (!$qualityForm->context_file_path) {
+            abort(404, 'Esta ficha no tiene documento de contexto.');
+        }
+
+        return Storage::disk(config('filesystems.default', 'local'))
+            ->download($qualityForm->context_file_path, $qualityForm->context_file_original_name);
     }
 
     public function updateAttributes(Request $request, QualityForm $qualityForm)

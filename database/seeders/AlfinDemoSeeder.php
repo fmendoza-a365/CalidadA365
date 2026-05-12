@@ -114,6 +114,27 @@ class AlfinDemoSeeder extends Seeder
             ]
         );
 
+        $formAlfin->update([
+            'operational_context_markdown' => <<<'MARKDOWN'
+## Productos y condiciones
+- Tarjeta de crédito Alfin: deuda vencida puede generar cargos por morosidad e impacto en centrales de riesgo.
+- Préstamo personal Alfin: si el cliente no puede pagar el total, se debe ofrecer refinanciamiento o derivación a soluciones de pago.
+- Compromiso de pago: debe quedar claro monto, fecha y canal de pago.
+
+## Speech obligatorio de cobranza
+El asesor debe mencionar de forma exacta o muy semejante:
+"Me comunico de Alfin Banco, mi nombre es [nombre del asesor]".
+
+También debe explicar el motivo de llamada indicando deuda, atraso o monto vencido. Si corresponde, debe validar que habla con el titular.
+
+## Reglas de evaluación operativa
+- Si el asesor menciona Infocorp, centrales de riesgo, cargos por mora o intereses, debe hacerlo sin tono amenazante.
+- Si el cliente indica dificultad económica, el asesor debe mostrar empatía antes de negociar.
+- Si se acuerda un pago parcial, debe informar que puede quedar saldo pendiente.
+- No debe inventar beneficios, descuentos o condonaciones no autorizadas.
+MARKDOWN,
+        ]);
+
         $versionAlfin = QualityFormVersion::firstOrCreate(
             ['quality_form_id' => $formAlfin->id, 'version_number' => 1],
             [

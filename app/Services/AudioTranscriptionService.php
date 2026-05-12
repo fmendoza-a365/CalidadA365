@@ -185,10 +185,13 @@ PROMPT;
 
         return match ($extension) {
             'mp3' => 'audio/mpeg',
+            'mpeg', 'mpga' => 'audio/mpeg',
             'wav' => 'audio/wav',
-            'ogg' => 'audio/ogg',
-            'm4a' => 'audio/mp4',
+            'ogg', 'oga', 'opus' => 'audio/ogg',
+            'm4a', 'mp4' => 'audio/mp4',
+            'aac' => 'audio/aac',
             'webm' => 'audio/webm',
+            'flac' => 'audio/flac',
             default => 'audio/mpeg',
         };
     }

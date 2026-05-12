@@ -132,12 +132,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('quality-forms/{qualityForm}', [\App\Http\Controllers\QualityFormController::class, 'show'])
         ->middleware('permission:view_quality_forms')
         ->name('quality-forms.show');
+    Route::get('quality-forms/{qualityForm}/context/download', [\App\Http\Controllers\QualityFormController::class, 'downloadContext'])
+        ->middleware('permission:view_quality_forms')
+        ->name('quality-forms.context.download');
     Route::middleware('permission:edit_quality_forms')->group(function () {
         Route::get('quality-forms/{qualityForm}/edit', [\App\Http\Controllers\QualityFormController::class, 'edit'])->name('quality-forms.edit');
         Route::put('quality-forms/{qualityForm}', [\App\Http\Controllers\QualityFormController::class, 'update'])->name('quality-forms.update');
         Route::patch('quality-forms/{qualityForm}', [\App\Http\Controllers\QualityFormController::class, 'update']);
         Route::put('quality-forms/{qualityForm}/attributes', [\App\Http\Controllers\QualityFormController::class, 'updateAttributes'])
             ->name('quality-forms.update-attributes');
+        Route::put('quality-forms/{qualityForm}/context', [\App\Http\Controllers\QualityFormController::class, 'updateContext'])
+            ->name('quality-forms.update-context');
         Route::post('quality-forms/{qualityForm}/import', [\App\Http\Controllers\QualityFormController::class, 'importAttributes'])
             ->name('quality-forms.import');
     });
