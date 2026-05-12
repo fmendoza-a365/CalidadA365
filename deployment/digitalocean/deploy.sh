@@ -43,7 +43,10 @@ php artisan route:list --name=quality-forms.context.download --json | grep -q '"
 chown -R www-data:www-data storage bootstrap/cache public/build
 chmod -R ug+rwX storage bootstrap/cache
 
-cp deployment/digitalocean/nginx.conf /etc/nginx/sites-available/qa365
+if [[ "${FORCE_NGINX:-0}" == "1" || ! -f /etc/nginx/sites-available/qa365 ]]; then
+    cp deployment/digitalocean/nginx.conf /etc/nginx/sites-available/qa365
+fi
+
 ln -sfn /etc/nginx/sites-available/qa365 /etc/nginx/sites-enabled/qa365
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
