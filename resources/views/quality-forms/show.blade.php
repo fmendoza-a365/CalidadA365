@@ -89,21 +89,42 @@
                         <div class="lg:col-span-2">
                             <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">Markdown configurado</div>
                             @if($qualityForm->operational_context_markdown)
-                                <div x-data="{ expanded: false }" class="operational-context-shell">
+                                <div x-data="{ contextOpen: false }" class="operational-context-shell">
                                     <div class="operational-context-toolbar">
                                         <div>
-                                            <div class="font-medium text-gray-900 dark:text-white">Vista previa del contexto</div>
+                                            <div class="font-medium text-gray-900 dark:text-white">Contexto configurado</div>
                                             <div class="text-xs text-gray-500 dark:text-gray-400">
                                                 {{ number_format(\Illuminate\Support\Str::length($qualityForm->operational_context_markdown)) }} caracteres configurados
                                             </div>
                                         </div>
-                                        <button type="button" class="btn-secondary btn-sm" @click="expanded = !expanded">
-                                            <span x-text="expanded ? 'Contraer' : 'Expandir'"></span>
+                                        <button type="button" class="btn-primary btn-sm" @click="contextOpen = true">
+                                            Abrir visor
                                         </button>
                                     </div>
-                                    <div class="operational-context-preview prose prose-sm dark:prose-invert max-w-none"
-                                        :class="{ 'is-expanded': expanded }">
-                                        {!! \Illuminate\Support\Str::markdown($qualityForm->operational_context_markdown) !!}
+                                    <div class="operational-context-snippet">
+                                        {{ \Illuminate\Support\Str::limit($qualityForm->operational_context_markdown, 1200, "\n\n...") }}
+                                    </div>
+
+                                    <div x-cloak x-show="contextOpen" x-transition.opacity
+                                        @keydown.escape.window="contextOpen = false"
+                                        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                                        <div class="absolute inset-0" @click="contextOpen = false"></div>
+                                        <div class="relative flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                                            <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+                                                <div>
+                                                    <h4 class="font-semibold text-gray-900 dark:text-white">Contexto operativo completo</h4>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                        Información usada por la IA para evaluar esta ficha.
+                                                    </p>
+                                                </div>
+                                                <button type="button" class="btn-secondary btn-sm" @click="contextOpen = false">
+                                                    Cerrar
+                                                </button>
+                                            </div>
+                                            <div class="operational-context-preview prose prose-sm dark:prose-invert max-w-none">
+                                                {!! \Illuminate\Support\Str::markdown($qualityForm->operational_context_markdown) !!}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             @else

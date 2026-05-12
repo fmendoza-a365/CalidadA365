@@ -90,6 +90,10 @@
 ======================================== */
 @layer components {
 
+    [x-cloak] {
+        display: none !important;
+    }
+
     /* --- Layout --- */
     .app-container {
         @apply flex h-screen bg-gray-50 overflow-hidden;
@@ -210,8 +214,39 @@
         border-color: #2a2a2a;
     }
 
+    .operational-context-snippet {
+        max-height: 9rem;
+        overflow: hidden;
+        padding: 1rem;
+        white-space: pre-wrap;
+        color: #525252;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        position: relative;
+    }
+
+    .operational-context-snippet::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 3rem;
+        background: linear-gradient(to bottom, rgba(249, 250, 251, 0), #f9fafb);
+        pointer-events: none;
+    }
+
+    html.dark .operational-context-snippet {
+        color: #d4d4d4;
+    }
+
+    html.dark .operational-context-snippet::after {
+        background: linear-gradient(to bottom, rgba(15, 15, 15, 0), #0f0f0f);
+    }
+
     .operational-context-preview {
-        max-height: 520px;
+        flex: 1;
+        min-height: 0;
         overflow: auto;
         padding: 1.25rem;
         color: #262626;
@@ -220,10 +255,6 @@
 
     html.dark .operational-context-preview {
         color: #e5e5e5;
-    }
-
-    .operational-context-preview.is-expanded {
-        max-height: none;
     }
 
     .operational-context-preview :where(p, li, td, th) {
