@@ -31,18 +31,21 @@ class SettingsController extends Controller
                 'description' => 'Usa modelos GPT-4 o GPT-4o-mini para evaluaciones precisas.',
                 'icon' => 'sparkles',
                 'configured' => AiSettings::isConfigured('openai'),
+                'masked_key' => AiSettings::maskedApiKey('openai'),
             ],
             'gemini' => [
                 'name' => 'Google Gemini',
                 'description' => 'Usa Gemini Pro o Flash para evaluaciones rápidas y económicas.',
                 'icon' => 'bolt',
                 'configured' => AiSettings::isConfigured('gemini'),
+                'masked_key' => AiSettings::maskedApiKey('gemini'),
             ],
             'claude' => [
                 'name' => 'Anthropic Claude',
                 'description' => 'Usa Claude para análisis detallados y contextuales.',
                 'icon' => 'chat-bubble-left-right',
                 'configured' => AiSettings::isConfigured('claude'),
+                'masked_key' => AiSettings::maskedApiKey('claude'),
             ],
         ];
 

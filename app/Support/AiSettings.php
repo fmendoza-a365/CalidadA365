@@ -49,6 +49,19 @@ class AiSettings
         return $provider === 'simulated' || self::apiKey($provider) !== '';
     }
 
+    public static function maskedApiKey(string $provider): ?string
+    {
+        $apiKey = self::apiKey($provider);
+
+        if ($apiKey === '') {
+            return null;
+        }
+
+        $suffix = strlen($apiKey) > 4 ? substr($apiKey, -4) : '****';
+
+        return "•••• •••• •••• {$suffix}";
+    }
+
     public static function providerConfig(?string $provider = null): array
     {
         return match ($provider ?? self::provider()) {

@@ -39,6 +39,14 @@ class AiSettingsTest extends TestCase
         $admin = $this->adminUser();
 
         Setting::set('ai.gemini_api_key', 'old-key', 'string', 'ai');
+        Setting::set('ai.provider', 'gemini', 'string', 'ai');
+
+        $this->actingAs($admin)
+            ->get(route('settings.ai'))
+            ->assertOk()
+            ->assertSee('API Key guardada')
+            ->assertSee('•••• •••• •••• -key')
+            ->assertDontSee('old-key');
 
         $this->actingAs($admin)
             ->post(route('settings.ai.update'), $this->payload([

@@ -106,14 +106,20 @@
                 <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'openai'">
                     <div class="form-group">
                         <label for="openai_api_key" class="form-label">API Key</label>
+                        @if($providers['openai']['configured'])
+                            <div class="mb-2 flex flex-col gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                                <span class="font-medium text-emerald-700 dark:text-emerald-300">API Key guardada</span>
+                                <span class="font-mono text-xs text-emerald-700 dark:text-emerald-200">{{ $providers['openai']['masked_key'] }}</span>
+                            </div>
+                        @endif
                         <input type="password" name="openai_api_key" id="openai_api_key" 
                             value=""
                             class="form-input"
                             autocomplete="off"
-                            placeholder="{{ $providers['openai']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'sk-proj-xxxxxxxxxxxxxxxx' }}">
+                            placeholder="{{ $providers['openai']['configured'] ? 'Pega una nueva API Key solo si quieres reemplazar la actual.' : 'sk-proj-xxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
                             @if($providers['openai']['configured'])
-                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                                El campo queda vacío por seguridad. La clave guardada se conserva si no escribes una nueva.
                             @else
                                 Aún no hay API Key guardada.
                             @endif
@@ -175,14 +181,20 @@
                 <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'gemini'">
                     <div class="form-group">
                         <label for="gemini_api_key" class="form-label">API Key</label>
+                        @if($providers['gemini']['configured'])
+                            <div class="mb-2 flex flex-col gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                                <span class="font-medium text-emerald-700 dark:text-emerald-300">API Key guardada</span>
+                                <span class="font-mono text-xs text-emerald-700 dark:text-emerald-200">{{ $providers['gemini']['masked_key'] }}</span>
+                            </div>
+                        @endif
                         <input type="password" name="gemini_api_key" id="gemini_api_key" 
                             value=""
                             class="form-input"
                             autocomplete="off"
-                            placeholder="{{ $providers['gemini']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'AIzaSyBxxxxxxxxxxxxxxxx' }}">
+                            placeholder="{{ $providers['gemini']['configured'] ? 'Pega una nueva API Key solo si quieres reemplazar la actual.' : 'AIzaSyBxxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
                             @if($providers['gemini']['configured'])
-                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                                El campo queda vacío por seguridad. La clave guardada se conserva si no escribes una nueva.
                             @else
                                 Aún no hay API Key guardada.
                             @endif
@@ -236,14 +248,20 @@
                 <fieldset class="card-body space-y-4" x-bind:disabled="provider !== 'claude'">
                     <div class="form-group">
                         <label for="claude_api_key" class="form-label">API Key</label>
+                        @if($providers['claude']['configured'])
+                            <div class="mb-2 flex flex-col gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                                <span class="font-medium text-emerald-700 dark:text-emerald-300">API Key guardada</span>
+                                <span class="font-mono text-xs text-emerald-700 dark:text-emerald-200">{{ $providers['claude']['masked_key'] }}</span>
+                            </div>
+                        @endif
                         <input type="password" name="claude_api_key" id="claude_api_key" 
                             value=""
                             class="form-input"
                             autocomplete="off"
-                            placeholder="{{ $providers['claude']['configured'] ? 'API Key configurada. Escribe una nueva para reemplazarla.' : 'sk-ant-xxxxxxxxxxxxxxxx' }}">
+                            placeholder="{{ $providers['claude']['configured'] ? 'Pega una nueva API Key solo si quieres reemplazar la actual.' : 'sk-ant-xxxxxxxxxxxxxxxx' }}">
                         <p class="text-xs text-gray-500 mt-1">
                             @if($providers['claude']['configured'])
-                                Hay una API Key guardada. Por seguridad no se muestra en pantalla.
+                                El campo queda vacío por seguridad. La clave guardada se conserva si no escribes una nueva.
                             @else
                                 Aún no hay API Key guardada.
                             @endif
