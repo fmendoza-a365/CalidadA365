@@ -145,17 +145,15 @@ class Interaction extends Model
         // 4. Supervisor: View Agents' Interactions & Campaigns
         if ($user->hasRole('supervisor')) {
             return $query->where(function ($q) use ($user) {
-                // 1. Interactions by their Agents
                 $teamAgents = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
                     ->where('is_active', true)
                     ->pluck('agent_id');
-                $q->whereIn('agent_id', $teamAgents);
 
-                // 2. Interactions in their Campaigns (where they are supervisor)
-                $campaignIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
-                    ->where('is_active', true)
-                    ->pluck('campaign_id');
-                $q->orWhereIn('campaign_id', $campaignIds);
+                $q->where('supervisor_id', $user->id);
+
+                if ($teamAgents->isNotEmpty()) {
+                    $q->orWhereIn('agent_id', $teamAgents);
+                }
             });
         }
 

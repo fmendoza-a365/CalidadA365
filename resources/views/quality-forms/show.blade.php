@@ -29,13 +29,17 @@
             <div class="card-header flex items-center justify-between">
                 <h3 class="font-semibold text-gray-900 dark:text-white">Información General</h3>
                 <div class="flex items-center gap-2">
+                    @can('publish_quality_forms')
                     @if($qualityForm->latestVersion && $qualityForm->latestVersion->status === 'draft')
                         <form method="POST" action="{{ route('quality-forms.publish', $qualityForm) }}">
                             @csrf
                             <button type="submit" class="btn-primary btn-sm">Publicar</button>
                         </form>
                     @endif
-                    <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-secondary btn-sm">Editar</a>
+                    @endcan
+                    @can('edit_quality_forms')
+                        <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-secondary btn-sm">Editar</a>
+                    @endcan
                 </div>
             </div>
             <div class="card-body">
@@ -75,7 +79,9 @@
         <div class="card">
             <div class="card-header flex items-center justify-between">
                 <h3 class="font-semibold text-gray-900 dark:text-white">Contexto Operativo para IA</h3>
-                <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-secondary btn-sm">Editar Contexto</a>
+                @can('edit_quality_forms')
+                    <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-secondary btn-sm">Editar Contexto</a>
+                @endcan
             </div>
             <div class="card-body">
                 @if($qualityForm->operational_context_markdown || $qualityForm->context_file_path)
@@ -119,9 +125,11 @@
                         <p class="text-gray-500 dark:text-gray-400 mb-3">
                             Esta ficha aún no tiene contexto operativo. La IA evaluará solo con la transcripción y los criterios.
                         </p>
-                        <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-primary btn-md">
-                            Agregar Contexto
-                        </a>
+                        @can('edit_quality_forms')
+                            <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-primary btn-md">
+                                Agregar Contexto
+                            </a>
+                        @endcan
                     </div>
                 @endif
             </div>
@@ -238,12 +246,14 @@
                         </svg>
                     </div>
                     <p class="text-gray-500 dark:text-gray-400 mb-3">Esta ficha aún no tiene criterios de evaluación</p>
-                    <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-primary btn-md">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Agregar Criterios
-                    </a>
+                    @can('edit_quality_forms')
+                        <a href="{{ route('quality-forms.edit', $qualityForm) }}" class="btn-primary btn-md">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Agregar Criterios
+                        </a>
+                    @endcan
                 </div>
             </div>
         @endif

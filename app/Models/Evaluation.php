@@ -173,17 +173,17 @@ class Evaluation extends Model
         // "supervisor el de sus agente y campañas"
         if ($user->hasRole('supervisor')) {
             return $query->where(function ($q) use ($user) {
-                // 1. Evaluations by their Agents
                 $teamAgents = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
                     ->where('is_active', true)
                     ->pluck('agent_id');
-                $q->whereIn('agent_id', $teamAgents);
 
-                // 2. Evaluations in their Campaigns (where they are supervisor)
-                $campaignIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
-                    ->where('is_active', true)
-                    ->pluck('campaign_id');
-                $q->orWhereIn('campaign_id', $campaignIds);
+                $q->whereHas('interaction', function ($interactionQuery) use ($user) {
+                    $interactionQuery->where('supervisor_id', $user->id);
+                });
+
+                if ($teamAgents->isNotEmpty()) {
+                    $q->orWhereIn('agent_id', $teamAgents);
+                }
             });
         }
 

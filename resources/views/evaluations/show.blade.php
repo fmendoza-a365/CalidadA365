@@ -380,13 +380,131 @@
             </div>
         @endif
 
-        <!-- Resolución de Disputa -->
-        @if($evaluation->dispute && !$evaluation->dispute->resolved_at && auth()->user()->hasAnyRole(['admin', 'qa_manager']))
+        <!-- Flujo de Disputa -->
+        @if($evaluation->dispute)
             <div class="card">
                 <div class="card-header">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Resolver Disputa</h3>
+                    <div class="flex items-center justify-between gap-4">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Flujo de Disputa</h3>
+                        <span class="badge {{ $evaluation->dispute->isResolved() ? 'badge-success' : 'badge-warning' }}">
+                            {{ \App\Models\DisputeResolution::statusLabel($evaluation->dispute->status) }}
+                        </span>
+                    </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body space-y-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">1. Supervisor</div>
+                            @if($evaluation->dispute->supervisor_notes)
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $evaluation->dispute->supervisorReviewer->name ?? 'Supervisor' }}</div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">{{ $evaluation->dispute->supervisor_notes }}</p>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $evaluation->dispute->supervisor_reviewed_at?->format('d/m/Y H:i') }}</div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Pendiente o no requerido.</p>
+                            @endif
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">2. QA Monitor</div>
+                            @if($evaluation->dispute->qa_notes)
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $evaluation->dispute->qaReviewer->name ?? 'QA' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Recomendación: {{ ucfirst(str_replace('_', ' ', $evaluation->dispute->qa_recommendation)) }}</div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">{{ $evaluation->dispute->qa_notes }}</p>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $evaluation->dispute->qa_reviewed_at?->format('d/m/Y H:i') }}</div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Pendiente.</p>
+                            @endif
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">3. Coordinador QA</div>
+                            @if($evaluation->dispute->coordinator_notes)
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $evaluation->dispute->coordinatorReviewer->name ?? 'Coordinador' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Decisión: {{ ucfirst(str_replace('_', ' ', $evaluation->dispute->coordinator_decision)) }}</div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">{{ $evaluation->dispute->coordinator_notes }}</p>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $evaluation->dispute->coordinator_reviewed_at?->format('d/m/Y H:i') }}</div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Pendiente.</p>
+                            @endif
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">4. QA Manager</div>
+                            @if($evaluation->dispute->resolved_at)
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $evaluation->dispute->resolvedBy->name ?? 'QA Manager' }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Resolución: {{ ucfirst(str_replace('_', ' ', $evaluation->dispute->resolution_decision)) }}</div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">{{ $evaluation->dispute->resolution_notes }}</p>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">{{ $evaluation->dispute->resolved_at?->format('d/m/Y H:i') }}</div>
+                            @else
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Pendiente resolución final.</p>
+                            @endif
+                        </div>
+                    </div>
+
+                    @can('supervisorReview', $evaluation->dispute)
+                        @if(!$evaluation->dispute->supervisor_notes)
+                            <form method="POST" action="{{ route('disputes.supervisor-review', $evaluation->dispute) }}" class="form-section border-t border-gray-100 dark:border-gray-800 pt-4">
+                                @csrf
+                                <div class="form-group">
+                                    <label for="supervisor_notes" class="form-label">Comentario operativo del supervisor <span class="text-rose-500">*</span></label>
+                                    <textarea name="supervisor_notes" id="supervisor_notes" rows="3" class="form-textarea" required></textarea>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn-primary btn-md">Enviar a QA</button>
+                                </div>
+                            </form>
+                        @endif
+                    @endcan
+
+                    @can('qaReview', $evaluation->dispute)
+                        @if(!$evaluation->dispute->qa_notes && !$evaluation->dispute->isResolved())
+                            <form method="POST" action="{{ route('disputes.qa-review', $evaluation->dispute) }}" class="form-section border-t border-gray-100 dark:border-gray-800 pt-4">
+                                @csrf
+                                <div class="form-group">
+                                    <label for="qa_recommendation" class="form-label">Recomendación QA <span class="text-rose-500">*</span></label>
+                                    <select name="qa_recommendation" id="qa_recommendation" class="form-select" required>
+                                        <option value="upheld">Mantener evaluación original</option>
+                                        <option value="overturned">Corregir a favor del asesor</option>
+                                        <option value="partial">Ajuste parcial</option>
+                                        <option value="needs_manager">Escalar a QA Manager</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="qa_notes" class="form-label">Análisis del monitor QA <span class="text-rose-500">*</span></label>
+                                    <textarea name="qa_notes" id="qa_notes" rows="3" class="form-textarea" required></textarea>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn-primary btn-md">Enviar a Coordinador</button>
+                                </div>
+                            </form>
+                        @endif
+                    @endcan
+
+                    @can('coordinatorReview', $evaluation->dispute)
+                        @if($evaluation->dispute->qa_notes && !$evaluation->dispute->coordinator_notes && !$evaluation->dispute->isResolved())
+                            <form method="POST" action="{{ route('disputes.coordinator-review', $evaluation->dispute) }}" class="form-section border-t border-gray-100 dark:border-gray-800 pt-4">
+                                @csrf
+                                <div class="form-group">
+                                    <label for="coordinator_decision" class="form-label">Validación del coordinador <span class="text-rose-500">*</span></label>
+                                    <select name="coordinator_decision" id="coordinator_decision" class="form-select" required>
+                                        <option value="validated">Validar recomendación QA</option>
+                                        <option value="needs_adjustment">Requiere ajuste</option>
+                                        <option value="escalate_manager">Escalar a QA Manager</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="coordinator_notes" class="form-label">Notas del coordinador <span class="text-rose-500">*</span></label>
+                                    <textarea name="coordinator_notes" id="coordinator_notes" rows="3" class="form-textarea" required></textarea>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn-primary btn-md">Dejar lista para resolución</button>
+                                </div>
+                            </form>
+                        @endif
+                    @endcan
+
+                    @can('resolve', $evaluation->dispute)
+                    @if(!$evaluation->dispute->isResolved())
                     <form method="POST" action="{{ route('disputes.resolve', $evaluation->dispute) }}" class="form-section">
                         @csrf
 
@@ -417,6 +535,8 @@
                             <button type="submit" class="btn-primary btn-md">Resolver Disputa</button>
                         </div>
                     </form>
+                    @endif
+                    @endcan
                 </div>
             </div>
         @endif

@@ -84,6 +84,45 @@ The Redis retry window must be greater than the longest worker timeout. Keep `RE
 4. AI scoring creates a draft result with `pending_monitor_review`.
 5. QA monitor approves and publishes, reanalyzes with AI, or creates a final manual correction.
 6. The advisor sees only published evaluations and can accept or dispute them.
+7. Supervisors see their team's published evaluations for coaching, but they are not a required approval step.
+8. Disputes escalate by exception: supervisor comment, QA monitor analysis, QA coordinator validation, QA manager final resolution.
+
+## Operational context in quality forms
+
+Each quality form can store operational context for AI scoring:
+
+- Markdown text for products, prices, campaign rules and exact or near-exact scripts.
+- Optional PDF, Markdown or TXT file up to 10 MB.
+- The extracted text is added to the AI prompt when evaluating calls with that quality form.
+
+The context edit action is available only to users with `edit_quality_forms`. In the default roles, that includes `admin`, `qa_manager`, `manager` and `qa_coordinator`. QA monitors can view the quality form and run evaluations, but they do not edit the source criteria/context unless you explicitly grant that permission from Roles y Permisos.
+
+## Deploy updates
+
+Always deploy with the repository script, not by copying files manually:
+
+```bash
+cd /var/www/qa365
+sudo APP_DIR=/var/www/qa365 BRANCH=main bash deployment/digitalocean/deploy.sh
+```
+
+The deploy script now clears Laravel caches, resets the permission cache, runs migrations, rebuilds Vite assets, validates the operational-context routes and restarts PHP-FPM so OPcache cannot serve old code.
+
+If the "Agregar Contexto" or "Editar Contexto" actions do not appear after deploying, run these checks on the Droplet:
+
+```bash
+cd /var/www/qa365
+git log -1 --oneline
+php artisan migrate:status | grep operational_context
+php artisan route:list --name=quality-forms.update-context
+php artisan route:list --name=quality-forms.context.download
+php artisan optimize:clear
+php artisan permission:cache-reset
+sudo systemctl restart php8.3-fpm
+sudo supervisorctl restart qa365-default-worker:* qa365-ai-worker:*
+```
+
+Then confirm you are logged in with a role that has `edit_quality_forms`.
 
 ## Production checklist
 

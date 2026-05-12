@@ -46,7 +46,10 @@ class EvaluationController extends Controller
             'formVersion.attributes.subAttributes',
             'items.subAttribute.attribute', // Ensure relationships are correct in models
             'agentResponse',
-            'dispute',
+            'dispute.supervisorReviewer',
+            'dispute.qaReviewer',
+            'dispute.coordinatorReviewer',
+            'dispute.resolvedBy',
             'reviewer',
             'publisher',
             'evaluator',

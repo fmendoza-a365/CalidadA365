@@ -10,12 +10,14 @@
                 <h3 class="font-semibold text-gray-900 dark:text-white">Listado de Fichas</h3>
                 <span class="badge badge-neutral">{{ $forms->total() }}</span>
             </div>
-            <a href="{{ route('quality-forms.create') }}" class="btn-primary btn-md">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                </svg>
-                Nueva Ficha
-            </a>
+            @can('create_quality_forms')
+                <a href="{{ route('quality-forms.create') }}" class="btn-primary btn-md">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Nueva Ficha
+                </a>
+            @endcan
         </div>
 
         <!-- Table -->
@@ -23,8 +25,9 @@
             <table class="table">
                 <thead class="sticky top-0 z-10">
                     <tr>
-                        <th class="w-1/3">Nombre</th>
-                        <th class="w-1/3">Campaña</th>
+                        <th>Nombre</th>
+                        <th>Campaña</th>
+                        <th class="text-center w-40">Contexto IA</th>
                         <th class="text-center w-32">Versión</th>
                         <th class="text-center w-32">Estado</th>
                         <th class="text-center w-32">Acciones</th>
@@ -38,6 +41,13 @@
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $form->campaign->name }}
+                            </td>
+                            <td class="text-center">
+                                @if($form->operational_context_markdown || $form->context_file_path)
+                                    <span class="badge badge-success">Configurado</span>
+                                @else
+                                    <span class="badge badge-neutral">Sin contexto</span>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($form->latestVersion)
@@ -65,42 +75,46 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                         </svg>
                                     </a>
-                                    <a href="{{ route('quality-forms.edit', $form) }}" class="btn-ghost btn-sm text-indigo-600" title="Editar">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                    </a>
-                                    <button type="button" 
-                                        @click="$dispatch('open-modal', 'delete-form-{{ $form->id }}')" 
-                                        class="btn-ghost btn-sm text-rose-600" title="Eliminar">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                    @can('edit_quality_forms')
+                                        <a href="{{ route('quality-forms.edit', $form) }}" class="btn-ghost btn-sm text-indigo-600" title="Editar">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </a>
+                                    @endcan
+                                    @can('delete_quality_forms')
+                                        <button type="button"
+                                            @click="$dispatch('open-modal', 'delete-form-{{ $form->id }}')"
+                                            class="btn-ghost btn-sm text-rose-600" title="Eliminar">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
 
-                                    <form id="delete-quality-form-{{ $form->id }}" 
-                                        method="POST" 
-                                        action="{{ route('quality-forms.destroy', $form) }}" 
-                                        class="hidden">
-                                        @csrf
-                                        @method('DELETE')
-                                    </form>
+                                        <form id="delete-quality-form-{{ $form->id }}"
+                                            method="POST"
+                                            action="{{ route('quality-forms.destroy', $form) }}"
+                                            class="hidden">
+                                            @csrf
+                                            @method('DELETE')
+                                        </form>
 
-                                    <div x-data="{}" x-on:confirm-action.window="if ($event.detail.name === 'delete-form-{{ $form->id }}') document.getElementById('delete-quality-form-{{ $form->id }}').submit()">
-                                        <x-confirm-modal 
-                                            name="delete-form-{{ $form->id }}" 
-                                            title="¿Eliminar ficha de calidad?" 
-                                            message="Solo se puede eliminar si no tiene evaluaciones asociadas. ¿Deseas continuar?"
-                                            confirmText="Sí, eliminar"
-                                            type="danger"
-                                        />
-                                    </div>
+                                        <div x-data="{}" x-on:confirm-action.window="if ($event.detail.name === 'delete-form-{{ $form->id }}') document.getElementById('delete-quality-form-{{ $form->id }}').submit()">
+                                            <x-confirm-modal
+                                                name="delete-form-{{ $form->id }}"
+                                                title="¿Eliminar ficha de calidad?"
+                                                message="Solo se puede eliminar si no tiene evaluaciones asociadas. ¿Deseas continuar?"
+                                                confirmText="Sí, eliminar"
+                                                type="danger"
+                                            />
+                                        </div>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">
+                            <td colspan="6">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -108,12 +122,14 @@
                                         </svg>
                                     </div>
                                     <p class="text-gray-500 dark:text-gray-400 mb-3">No hay fichas de calidad</p>
-                                    <a href="{{ route('quality-forms.create') }}" class="btn-primary btn-md">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Crear primera ficha
-                                    </a>
+                                    @can('create_quality_forms')
+                                        <a href="{{ route('quality-forms.create') }}" class="btn-primary btn-md">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                            Crear primera ficha
+                                        </a>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

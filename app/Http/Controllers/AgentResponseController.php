@@ -37,12 +37,16 @@ class AgentResponseController extends Controller
             DisputeResolution::create([
                 'agent_response_id' => $response->id,
                 'evaluation_id' => $evaluation->id,
+                'status' => DisputeResolution::STATUS_PENDING_SUPERVISOR_REVIEW,
             ]);
 
 
             $evaluation->update(['status' => Evaluation::STATUS_AGENT_DISPUTED]);
             
-            // Notificar a QA Managers y al Supervisor asignado (si existiera lógica directa, por ahora a QA Managers)
+            if ($evaluation->interaction?->supervisor) {
+                $evaluation->interaction->supervisor->notify(new \App\Notifications\DisputeOpened($evaluation, auth()->user()));
+            }
+
             $qaManagers = \App\Models\User::role('qa_manager')->get();
             foreach ($qaManagers as $manager) {
                 $manager->notify(new \App\Notifications\DisputeOpened($evaluation, auth()->user()));
@@ -54,6 +58,67 @@ class AgentResponseController extends Controller
 
         return redirect()->route('evaluations.show', $evaluation)
             ->with('success', 'Respuesta registrada exitosamente.');
+    }
+
+    public function supervisorReview(Request $request, DisputeResolution $dispute)
+    {
+        $this->authorize('supervisorReview', $dispute);
+
+        $validated = $request->validate([
+            'supervisor_notes' => 'required|string|max:5000',
+        ]);
+
+        $dispute->update([
+            'supervisor_reviewed_by' => auth()->id(),
+            'supervisor_reviewed_at' => now(),
+            'supervisor_notes' => $validated['supervisor_notes'],
+            'status' => DisputeResolution::STATUS_PENDING_QA_REVIEW,
+        ]);
+
+        return redirect()->route('evaluations.show', $dispute->evaluation)
+            ->with('success', 'Comentario operativo registrado. La disputa queda pendiente de revisión QA.');
+    }
+
+    public function qaReview(Request $request, DisputeResolution $dispute)
+    {
+        $this->authorize('qaReview', $dispute);
+
+        $validated = $request->validate([
+            'qa_recommendation' => 'required|in:upheld,overturned,partial,needs_manager',
+            'qa_notes' => 'required|string|max:5000',
+        ]);
+
+        $dispute->update([
+            'qa_reviewed_by' => auth()->id(),
+            'qa_reviewed_at' => now(),
+            'qa_recommendation' => $validated['qa_recommendation'],
+            'qa_notes' => $validated['qa_notes'],
+            'status' => DisputeResolution::STATUS_PENDING_COORDINATOR_REVIEW,
+        ]);
+
+        return redirect()->route('evaluations.show', $dispute->evaluation)
+            ->with('success', 'Revisión QA registrada. La disputa queda pendiente de validación del coordinador.');
+    }
+
+    public function coordinatorReview(Request $request, DisputeResolution $dispute)
+    {
+        $this->authorize('coordinatorReview', $dispute);
+
+        $validated = $request->validate([
+            'coordinator_decision' => 'required|in:validated,needs_adjustment,escalate_manager',
+            'coordinator_notes' => 'required|string|max:5000',
+        ]);
+
+        $dispute->update([
+            'coordinator_reviewed_by' => auth()->id(),
+            'coordinator_reviewed_at' => now(),
+            'coordinator_decision' => $validated['coordinator_decision'],
+            'coordinator_notes' => $validated['coordinator_notes'],
+            'status' => DisputeResolution::STATUS_READY_MANAGER_RESOLUTION,
+        ]);
+
+        return redirect()->route('evaluations.show', $dispute->evaluation)
+            ->with('success', 'Validación del coordinador registrada. La disputa queda lista para resolución final.');
     }
 
     public function resolve(Request $request, DisputeResolution $dispute)
@@ -72,6 +137,7 @@ class AgentResponseController extends Controller
             'resolution_notes' => $validated['resolution_notes'],
             'adjusted_score' => $validated['adjusted_score'] ?? null,
             'resolved_at' => now(),
+            'status' => DisputeResolution::STATUS_RESOLVED,
         ]);
 
         $dispute->evaluation->update(['status' => Evaluation::STATUS_DISPUTE_RESOLVED]);

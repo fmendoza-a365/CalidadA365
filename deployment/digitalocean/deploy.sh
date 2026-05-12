@@ -3,8 +3,17 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/qa365}"
 BRANCH="${BRANCH:-main}"
+PHP_FPM_SERVICE="${PHP_FPM_SERVICE:-php8.3-fpm}"
+
+restore_app() {
+    if [[ -f artisan ]]; then
+        php artisan up >/dev/null 2>&1 || true
+    fi
+}
 
 cd "${APP_DIR}"
+
+trap restore_app EXIT
 
 php artisan down --retry=60 || true
 
@@ -17,6 +26,8 @@ composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 npm ci
 npm run build
 
+php artisan optimize:clear
+php artisan permission:cache-reset || true
 php artisan migrate --force
 php artisan storage:link || true
 
@@ -25,6 +36,9 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan event:cache
+
+php artisan route:list --name=quality-forms.update-context --json | grep -q '"name":"quality-forms.update-context"'
+php artisan route:list --name=quality-forms.context.download --json | grep -q '"name":"quality-forms.context.download"'
 
 chown -R www-data:www-data storage bootstrap/cache public/build
 chmod -R ug+rwX storage bootstrap/cache
@@ -41,7 +55,7 @@ supervisorctl restart qa365-default-worker:* || true
 supervisorctl restart qa365-ai-worker:* || true
 
 systemctl reload nginx
-systemctl reload php8.3-fpm
+systemctl restart "${PHP_FPM_SERVICE}"
 
 php artisan up
 php artisan about

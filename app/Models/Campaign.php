@@ -81,12 +81,19 @@ class Campaign extends Model
 
     public function scopeForUser($query, $user)
     {
-        // 1. View All (Admin, Managers)
-        if ($user->hasAnyRole(['admin', 'manager', 'qa_manager'])) {
+        // 1. Global visibility
+        if ($user->hasAnyRole(['admin', 'qa_manager'])) {
             return $query;
         }
 
-        // 2. Supervisor, Agent: View only campaigns they are assigned to
+        // 2. Manager: View only explicitly managed campaigns
+        if ($user->hasRole('manager')) {
+            return $query->whereHas('managers', function ($q) use ($user) {
+                $q->whereKey($user->id);
+            });
+        }
+
+        // 3. Supervisor, Agent: View only campaigns they are assigned to
         // Supervisors and Agents use CampaignUserAssignment
         if ($user->hasAnyRole(['supervisor', 'agent'])) {
             return $query->whereHas('assignments', function ($q) use ($user) {
@@ -95,10 +102,10 @@ class Campaign extends Model
             });
         }
 
-        // 3. QA Monitor / Coordinator: View only their assigned (managed) campaigns
+        // 4. QA Monitor / Coordinator: View only their assigned campaigns
         if ($user->hasAnyRole(['qa_monitor', 'qa_coordinator'])) {
             return $query->whereHas('managers', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
+                $q->whereKey($user->id);
             });
         }
 

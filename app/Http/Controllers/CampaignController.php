@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Campaign;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CampaignController extends Controller
 {
@@ -37,6 +39,8 @@ class CampaignController extends Controller
             'monitor_ids' => 'nullable|array',
             'monitor_ids.*' => 'exists:users,id',
         ]);
+
+        $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
 
         if ($request->hasFile('logo')) {
             $path = $request->file('logo')->store('campaigns/logos', 'public');
@@ -97,6 +101,8 @@ class CampaignController extends Controller
             'monitor_ids' => 'nullable|array',
             'monitor_ids.*' => 'exists:users,id',
         ]);
+
+        $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
 
         if ($request->hasFile('logo')) {
             // Delete old logo
@@ -180,6 +186,27 @@ class CampaignController extends Controller
     {
         if (!Campaign::forUser(auth()->user())->whereKey($campaign->id)->exists()) {
             abort(403, 'No tiene permiso para gestionar esta campaña.');
+        }
+    }
+
+    private function ensureCampaignManagerRoles(array $userIds): void
+    {
+        if (empty($userIds)) {
+            return;
+        }
+
+        $allowedRoles = ['qa_monitor', 'qa_coordinator', 'manager'];
+        $invalidNames = User::whereIn('id', $userIds)
+            ->whereDoesntHave('roles', function ($query) use ($allowedRoles) {
+                $query->whereIn('name', $allowedRoles);
+            })
+            ->pluck('name')
+            ->all();
+
+        if (!empty($invalidNames)) {
+            throw ValidationException::withMessages([
+                'monitor_ids' => 'Solo se pueden asignar monitores, coordinadores QA o managers a una campaña. Usuarios inválidos: ' . implode(', ', $invalidNames),
+            ]);
         }
     }
 }

@@ -118,6 +118,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('evaluations.respond');
 
     // Resolución de disputas
+    Route::post('disputes/{dispute}/supervisor-review', [AgentResponseController::class, 'supervisorReview'])
+        ->name('disputes.supervisor-review');
+    Route::post('disputes/{dispute}/qa-review', [AgentResponseController::class, 'qaReview'])
+        ->name('disputes.qa-review');
+    Route::post('disputes/{dispute}/coordinator-review', [AgentResponseController::class, 'coordinatorReview'])
+        ->name('disputes.coordinator-review');
     Route::post('disputes/{dispute}/resolve', [AgentResponseController::class, 'resolve'])
         ->name('disputes.resolve');
 

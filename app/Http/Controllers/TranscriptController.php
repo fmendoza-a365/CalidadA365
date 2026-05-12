@@ -179,11 +179,7 @@ class TranscriptController extends Controller
             }
 
             // Obtener supervisor de asignación activa
-            $assignment = CampaignUserAssignment::where([
-                'campaign_id' => $validated['campaign_id'],
-                'agent_id' => $validated['agent_id'],
-                'is_active' => true,
-            ])->first();
+            $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
             if (!$assignment) {
                 return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
@@ -400,11 +396,7 @@ class TranscriptController extends Controller
         }
 
         // Obtener supervisor de asignación activa
-        $assignment = CampaignUserAssignment::where([
-            'campaign_id' => $validated['campaign_id'],
-            'agent_id' => $validated['agent_id'],
-            'is_active' => true,
-        ])->first();
+        $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
         if (!$assignment) {
             return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
@@ -455,6 +447,25 @@ class TranscriptController extends Controller
     private function privateDisk(): string
     {
         return config('filesystems.default', 'local');
+    }
+
+    private function visibleAssignmentForUpload($user, int $campaignId, int $agentId): ?CampaignUserAssignment
+    {
+        $query = CampaignUserAssignment::where([
+            'campaign_id' => $campaignId,
+            'agent_id' => $agentId,
+            'is_active' => true,
+        ]);
+
+        if ($user->hasRole('supervisor')) {
+            $query->where('supervisor_id', $user->id);
+        }
+
+        if ($user->hasRole('agent')) {
+            $query->where('agent_id', $user->id);
+        }
+
+        return $query->first();
     }
 
     private function uploadErrorMessage(UploadedFile $file): string

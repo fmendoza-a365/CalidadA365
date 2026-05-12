@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\CampaignUserAssignment;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CampaignUserAssignmentController extends Controller
 {
@@ -51,6 +52,9 @@ class CampaignUserAssignmentController extends Controller
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'is_active' => 'boolean',
         ]);
+
+        $this->ensureUserHasRole($validated['agent_id'], 'agent', 'agent_id', 'El usuario seleccionado debe tener rol asesor.');
+        $this->ensureUserHasRole($validated['supervisor_id'], 'supervisor', 'supervisor_id', 'El usuario seleccionado debe tener rol supervisor.');
 
         // Verificar que no exista ya una asignación activa para este agente en esta campaña
         $exists = CampaignUserAssignment::where('campaign_id', $campaign->id)
@@ -102,6 +106,8 @@ class CampaignUserAssignmentController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        $this->ensureUserHasRole($validated['supervisor_id'], 'supervisor', 'supervisor_id', 'El usuario seleccionado debe tener rol supervisor.');
+
         $assignment->update([
             'supervisor_id' => $validated['supervisor_id'],
             'start_date' => $validated['start_date'],
@@ -131,6 +137,15 @@ class CampaignUserAssignmentController extends Controller
     {
         if (!Campaign::forUser(auth()->user())->whereKey($campaign->id)->exists()) {
             abort(403, 'No tiene permiso para gestionar asignaciones de esta campaña.');
+        }
+    }
+
+    private function ensureUserHasRole(int $userId, string $role, string $field, string $message): void
+    {
+        if (!User::role($role)->whereKey($userId)->exists()) {
+            throw ValidationException::withMessages([
+                $field => $message,
+            ]);
         }
     }
 }
