@@ -138,6 +138,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('quality-forms/{qualityForm}', [\App\Http\Controllers\QualityFormController::class, 'show'])
         ->middleware('permission:view_quality_forms')
         ->name('quality-forms.show');
+    Route::get('quality-forms/{qualityForm}/context', [\App\Http\Controllers\QualityFormController::class, 'viewContext'])
+        ->middleware('permission:view_quality_forms')
+        ->name('quality-forms.context.show');
     Route::get('quality-forms/{qualityForm}/context/download', [\App\Http\Controllers\QualityFormController::class, 'downloadContext'])
         ->middleware('permission:view_quality_forms')
         ->name('quality-forms.context.download');

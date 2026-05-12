@@ -144,6 +144,15 @@ class QualityFormController extends Controller
             ->with('success', 'Contexto operativo actualizado.');
     }
 
+    public function viewContext(QualityForm $qualityForm)
+    {
+        $this->ensureFormAccess($qualityForm);
+
+        $qualityForm->load(['campaign', 'contextUploadedBy']);
+
+        return view('quality-forms.context', compact('qualityForm'));
+    }
+
     public function downloadContext(QualityForm $qualityForm)
     {
         $this->ensureFormAccess($qualityForm);

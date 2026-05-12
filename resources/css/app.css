@@ -309,6 +309,51 @@
         border-color: #404040;
     }
 
+    .operational-context-full {
+        max-height: calc(100vh - 15rem);
+        overflow: auto;
+        border: 1px solid #d4d4d4;
+        border-radius: 0.75rem;
+        background-color: #fafafa;
+        padding: 1.25rem;
+        color: #262626;
+        line-height: 1.65;
+    }
+
+    html.dark .operational-context-full {
+        background-color: #0f0f0f;
+        border-color: #404040;
+        color: #e5e5e5;
+    }
+
+    .operational-context-full :where(p, li, td, th) {
+        overflow-wrap: anywhere;
+    }
+
+    .operational-context-full p {
+        white-space: pre-wrap;
+    }
+
+    .operational-context-full table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .operational-context-full th,
+    .operational-context-full td {
+        border: 1px solid #d4d4d4;
+        padding: 0.5rem 0.75rem;
+        vertical-align: top;
+        white-space: pre-wrap;
+    }
+
+    html.dark .operational-context-full th,
+    html.dark .operational-context-full td {
+        border-color: #404040;
+    }
+
     /* --- Stat Cards --- */
     .stat-card {
         @apply card p-6 relative overflow-hidden;
