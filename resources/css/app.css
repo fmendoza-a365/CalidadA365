@@ -191,6 +191,93 @@
         @apply p-6;
     }
 
+    /* --- Operational Context Viewer --- */
+    .operational-context-shell {
+        @apply overflow-hidden rounded-xl border border-gray-200 bg-gray-50;
+    }
+
+    html.dark .operational-context-shell {
+        background-color: #0f0f0f;
+        border-color: #2a2a2a;
+    }
+
+    .operational-context-toolbar {
+        @apply flex flex-col gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between;
+    }
+
+    html.dark .operational-context-toolbar {
+        background-color: #141414;
+        border-color: #2a2a2a;
+    }
+
+    .operational-context-preview {
+        max-height: 520px;
+        overflow: auto;
+        padding: 1.25rem;
+        color: #262626;
+        line-height: 1.65;
+    }
+
+    html.dark .operational-context-preview {
+        color: #e5e5e5;
+    }
+
+    .operational-context-preview.is-expanded {
+        max-height: none;
+    }
+
+    .operational-context-preview :where(p, li, td, th) {
+        overflow-wrap: anywhere;
+    }
+
+    .operational-context-preview p {
+        white-space: pre-wrap;
+    }
+
+    .operational-context-preview table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .operational-context-preview th,
+    .operational-context-preview td {
+        border: 1px solid #d4d4d4;
+        padding: 0.5rem 0.75rem;
+        vertical-align: top;
+        white-space: pre-wrap;
+    }
+
+    html.dark .operational-context-preview th,
+    html.dark .operational-context-preview td {
+        border-color: #404040;
+    }
+
+    .operational-context-preview th {
+        background-color: #f5f5f5;
+        font-weight: 700;
+    }
+
+    html.dark .operational-context-preview th {
+        background-color: #1c1c1c;
+    }
+
+    .operational-context-preview pre {
+        max-width: 100%;
+        overflow-x: auto;
+        border-radius: 0.75rem;
+        border: 1px solid #d4d4d4;
+        background-color: #ffffff;
+        padding: 1rem;
+        white-space: pre;
+    }
+
+    html.dark .operational-context-preview pre {
+        background-color: #0a0a0a;
+        border-color: #404040;
+    }
+
     /* --- Stat Cards --- */
     .stat-card {
         @apply card p-6 relative overflow-hidden;
