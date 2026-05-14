@@ -228,11 +228,11 @@ PROMPT;
         }
 
         $response = Http::withToken($apiKey)
-            ->timeout(60)
+            ->timeout(120)
             ->post('https://api.openai.com/v1/chat/completions', [
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad. Responde siempre en formato JSON válido.'],
+                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad. Responde ÚNICAMENTE en formato JSON válido. NO incluyas explicaciones ni texto fuera del objeto JSON.'],
                     ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['openai_temperature'],
@@ -269,9 +269,9 @@ PROMPT;
         // Extract system instructions from the prompt for better determinism
         // Let's pass a strong generic system string to systemInstruction,
         // and keep the variable data (transcript, criteria) in the user part.
-        $systemInstruction = 'Eres un experto analista de calidad de atención al cliente. Tu misión es evaluar las transcripciones con ESTRICTO APEGO a los criterios proporcionados. DEBES responder ÚNICAMENTE con JSON válido, sin bloques de código markdown, sin explicaciones adicionales.';
+        $systemInstruction = 'Eres un experto analista de calidad de atención al cliente. Tu misión es evaluar las transcripciones con ESTRICTO APEGO a los criterios proporcionados. DEBES responder ÚNICAMENTE con JSON válido, sin bloques de código markdown, sin explicaciones adicionales. Asegúrate de escapar correctamente comillas internas y saltos de línea.';
 
-        $response = Http::timeout(60)->post($url, [
+        $response = Http::timeout(120)->post($url, [
             'systemInstruction' => [
                 'parts' => [
                     ['text' => $systemInstruction],
@@ -324,12 +324,12 @@ PROMPT;
             'anthropic-version' => '2023-06-01',
             'content-type' => 'application/json',
         ])
-            ->timeout(60)
+            ->timeout(120)
             ->post('https://api.anthropic.com/v1/messages', [
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
                 'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['claude_temperature'],
                 'max_tokens' => $this->config['max_tokens'] ?? AiSettings::DEFAULTS['claude_max_tokens'],
-                'system' => 'Eres un experto analista de calidad. Responde siempre en formato JSON válido.',
+                'system' => 'Eres un experto analista de calidad. Responde ÚNICAMENTE en formato JSON válido. NO incluyas explicaciones fuera del JSON. Asegúrate de que todas las comillas internas en el JSON estén correctamente escapadas.',
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
                 ],

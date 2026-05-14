@@ -58,6 +58,7 @@ TAREA 1 - TRANSCRIPCIÓN:
   * REGLA DE IDENTIFICACIÓN: El "Agente" es quien suele iniciar el contacto (ej. saludando en nombre de la empresa, ofreciendo ayuda, asesorando o pidiendo validaciones). El "Cliente" es quien explica su problema, responde las validaciones o realiza las consultas de soporte. Si detectas un robot interactivo (IVR) al inicio, asócialo al lado de la empresa o simplemente como "Sistema:".
 - Incluye timestamps al inicio de cada cambio de hablante en formato [MM:SS].
 - Transcribe exactamente lo que se dice, incluyendo muletillas (eh, este, mmm), repeticiones y errores gramaticales.
+- IMPORTANTE: Evita "alucinaciones" de repetición infinita. Si el audio tiene silencio o ruido, no repitas la última frase indefinidamente.
 - Si hay pausas largas, indica [pausa]. Si algo es ininteligible, indica [inaudible].
 - El idioma principal es español latinoamericano.
 
@@ -140,6 +141,9 @@ PROMPT;
                 throw new \Exception('Gemini returned an empty response.');
             }
 
+            // Clean loops if any survived
+            $rawText = $this->cleanHallucinatedLoops($rawText);
+
             // Clean markdown code fences if present
             $rawText = preg_replace('/^```(?:json)?\s*/m', '', $rawText);
             $rawText = preg_replace('/\s*```$/m', '', $rawText);
@@ -180,6 +184,15 @@ PROMPT;
             Log::error('AudioTranscriptionService: Connection error - '.$e->getMessage());
             throw new \Exception('Could not connect to Gemini API: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Detects and removes long sequences of repeated words/phrases (hallucinations).
+     */
+    protected function cleanHallucinatedLoops(string $text): string
+    {
+        // Detects when a sequence of 5 to 30 characters repeats more than 4 times
+        return preg_replace('/(\b.{5,30}?\b)(?:\s+\1){4,}/i', '$1', $text);
     }
 
     /**
