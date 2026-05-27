@@ -41,7 +41,9 @@ Nuestro motor de evaluación (`AIEvaluationService`) utiliza arquitecturas de va
 1.  **Dependencias:** `composer install && npm ci && npm run build`
 2.  **Configuración:** `cp .env.example .env && php artisan key:generate`
 3.  **Base de Datos:** `php artisan migrate --seed`
-4.  **Ejecución:** `php artisan serve`
+4.  **Ejecución local con cargas de audio:** `composer serve-local`
+
+Para desarrollo con colas, logs y Vite en paralelo, usa `composer dev`. Ambos comandos levantan PHP con el `php.ini` del proyecto para permitir archivos de hasta 100MB.
 
 ### Despliegue en Producción
 El sistema esta orientado a DigitalOcean Droplets con workers persistentes y almacenamiento S3 compatible.

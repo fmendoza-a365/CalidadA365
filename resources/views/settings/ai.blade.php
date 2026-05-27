@@ -91,7 +91,7 @@
             </div>
 
             <!-- Configuración OpenAI -->
-            <div class="card mb-6" x-show="provider === 'openai'" x-transition>
+            <div class="card mb-6" x-show="provider === 'openai'" x-cloak>
                 <div class="card-header flex items-center gap-3">
                     <div class="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
                         <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -166,7 +166,7 @@
             </div>
 
             <!-- Configuración Gemini -->
-            <div class="card mb-6" x-show="provider === 'gemini'" x-transition>
+            <div class="card mb-6" x-show="provider === 'gemini'" x-cloak>
                 <div class="card-header flex items-center gap-3">
                     <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center">
                         <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -233,7 +233,7 @@
             </div>
 
             <!-- Configuración Claude -->
-            <div class="card mb-6" x-show="provider === 'claude'" x-transition>
+            <div class="card mb-6" x-show="provider === 'claude'" x-cloak>
                 <div class="card-header flex items-center gap-3">
                     <div class="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center">
                         <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,7 +306,7 @@
             </div>
 
             <!-- Configuración Simulado -->
-            <div class="card mb-6" x-show="provider === 'simulated'" x-transition>
+            <div class="card mb-6" x-show="provider === 'simulated'" x-cloak>
                 <div class="card-header flex items-center gap-3">
                     <div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                         <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

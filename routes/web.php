@@ -1,12 +1,14 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AgentResponseController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CampaignUserAssignmentController;
-use App\Http\Controllers\TranscriptController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvaluationController;
-use App\Http\Controllers\AgentResponseController;
+use App\Http\Controllers\EvaluationWorkQueueController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TranscriptController;
 use Illuminate\Support\Facades\Route;
 
 // Healthcheck route for load balancers and uptime checks.
@@ -24,6 +26,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Dashboard Calidad
     Route::get('/dashboard/quality', [App\Http\Controllers\DashboardQualityController::class, 'index'])->name('dashboard.quality');
+    Route::get('/work-queue', [EvaluationWorkQueueController::class, 'index'])->name('work-queue.index');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -107,11 +110,21 @@ Route::middleware(['auth'])->group(function () {
         ->name('evaluations.publish');
     Route::post('evaluations/{evaluation}/reanalyze', [EvaluationController::class, 'reanalyze'])
         ->name('evaluations.reanalyze');
+    Route::post('evaluations/{evaluation}/close', [EvaluationController::class, 'close'])
+        ->name('evaluations.close');
+    Route::post('evaluations/{evaluation}/reopen', [EvaluationController::class, 'reopen'])
+        ->name('evaluations.reopen');
     Route::get('evaluations/manual/{interaction}/create', [\App\Http\Controllers\ManualEvaluationController::class, 'create'])
         ->name('evaluations.create_manual');
     Route::post('evaluations/manual/{interaction}', [\App\Http\Controllers\ManualEvaluationController::class, 'store'])
         ->name('evaluations.store_manual');
     Route::resource('evaluations', EvaluationController::class)->only(['index', 'show']);
+    Route::get('exports/evaluations.csv', [ExportController::class, 'evaluations'])
+        ->name('exports.evaluations');
+    Route::get('exports/calibration.csv', [ExportController::class, 'calibration'])
+        ->name('exports.calibration');
+    Route::get('evaluations/{evaluation}/audit.csv', [ExportController::class, 'audit'])
+        ->name('exports.evaluation-audit');
 
     // Respuestas de asesores
     Route::post('evaluations/{evaluation}/respond', [AgentResponseController::class, 'store'])
@@ -186,19 +199,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('settings.ai.test');
     });
 
-    // Dashboard Widgets (Custom Dashboard API) - Available to all authenticated users
-    Route::get('dashboard/widgets', [\App\Http\Controllers\DashboardWidgetController::class, 'index'])
-        ->name('dashboard.widgets.index');
-    Route::post('dashboard/widgets', [\App\Http\Controllers\DashboardWidgetController::class, 'store'])
-        ->name('dashboard.widgets.store');
-    Route::put('dashboard/widgets/{widget}', [\App\Http\Controllers\DashboardWidgetController::class, 'update'])
-        ->name('dashboard.widgets.update');
-    Route::delete('dashboard/widgets/{widget}', [\App\Http\Controllers\DashboardWidgetController::class, 'destroy'])
-        ->name('dashboard.widgets.destroy');
-    Route::post('dashboard/widgets/bulk-update', [\App\Http\Controllers\DashboardWidgetController::class, 'bulkUpdate'])
-        ->name('dashboard.widgets.bulk-update');
-    Route::post('dashboard/widgets/data', [\App\Http\Controllers\WidgetDataController::class, 'getData'])
-        ->name('dashboard.widgets.data');
+    Route::get('settings/ai/performance', [\App\Http\Controllers\SettingsController::class, 'aiPerformance'])
+        ->name('settings.ai.performance');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

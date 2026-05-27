@@ -21,6 +21,11 @@ class PermissionSeeder extends Seeder
             'create_evaluations',
             'edit_evaluations',
             'delete_evaluations',
+            'manage_evaluation_lifecycle',
+            'export_evaluations',
+            'export_calibration',
+            'export_evaluation_audit',
+            'view_work_queue',
 
             // Campaigns
             'view_campaigns',
@@ -60,6 +65,8 @@ class PermissionSeeder extends Seeder
             // System
             'view_system_settings',
             'manage_ai_settings',
+            'view_ai_performance',
+            'manage_retention',
 
             // Insights
             'view_insights',
@@ -85,6 +92,11 @@ class PermissionSeeder extends Seeder
                 'view_all_evaluations',
                 'create_evaluations',
                 'edit_evaluations',
+                'manage_evaluation_lifecycle',
+                'export_evaluations',
+                'export_calibration',
+                'export_evaluation_audit',
+                'view_work_queue',
                 'view_campaigns',
                 'create_campaigns',
                 'edit_campaigns',
@@ -98,6 +110,7 @@ class PermissionSeeder extends Seeder
                 'edit_transcripts',
                 'view_monitor_dashboard',
                 'view_coordinator_dashboard',
+                'view_ai_performance',
             ]);
         }
 
@@ -127,6 +140,10 @@ class PermissionSeeder extends Seeder
                 'view_manager_dashboard',
                 'view_insights',
                 'view_users',
+                'export_evaluations',
+                'export_calibration',
+                'export_evaluation_audit',
+                'view_work_queue',
             ]);
         }
 
@@ -140,6 +157,8 @@ class PermissionSeeder extends Seeder
                 'view_transcripts',
                 'view_supervisor_dashboard',
                 'view_insights',
+                'export_evaluations',
+                'view_work_queue',
             ]);
         }
 
@@ -154,6 +173,10 @@ class PermissionSeeder extends Seeder
                 'view_transcripts',
                 'create_transcripts',
                 'view_monitor_dashboard',
+                'export_evaluations',
+                'export_calibration',
+                'export_evaluation_audit',
+                'view_work_queue',
             ]);
         }
 
@@ -173,6 +196,11 @@ class PermissionSeeder extends Seeder
                 'assign_agents',
                 'view_coordinator_dashboard',
                 'view_insights',
+                'manage_evaluation_lifecycle',
+                'export_evaluations',
+                'export_calibration',
+                'export_evaluation_audit',
+                'view_work_queue',
             ]);
         }
     }

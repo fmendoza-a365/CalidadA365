@@ -29,6 +29,9 @@
                     <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->name }}</option>
                 @endforeach
             </select>
+            @if(!auth()->user()->hasRole('agent'))
+                <a href="{{ route('exports.calibration', request()->query()) }}" class="btn-secondary btn-md">Exportar calibración</a>
+            @endif
         </form>
 
         {{-- KPI Row 1 --}}
@@ -121,6 +124,13 @@
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 Seguimiento Feedback
             </button>
+            @if(!auth()->user()->hasRole('agent'))
+            <button @click="tab = 'calibracion'" :class="tab === 'calibracion' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
+                Calibración IA
+            </button>
+            @endif
             <button @click="tab = 'ranking'" :class="tab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
@@ -291,6 +301,83 @@
             </div>
             @endif
         </div>
+
+        @if(!auth()->user()->hasRole('agent'))
+        {{-- ══════════════════════════════════════════ --}}
+        {{-- TAB 4: CALIBRACION IA                     --}}
+        {{-- ══════════════════════════════════════════ --}}
+        <div x-show="tab === 'calibracion'" x-transition.opacity class="space-y-5">
+            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
+                Calibración IA vs Monitor
+            </h3>
+
+            <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Pares Comparados</p>
+                    <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-1">{{ number_format($calibrationSummary['pair_count']) }}</p>
+                </div>
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Promedio IA</p>
+                    <p class="text-2xl font-extrabold text-sky-500 mt-1">{{ number_format($calibrationSummary['average_ai_score'], 2) }}%</p>
+                </div>
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Promedio Monitor</p>
+                    <p class="text-2xl font-extrabold text-indigo-500 mt-1">{{ number_format($calibrationSummary['average_manual_score'], 2) }}%</p>
+                </div>
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Diferencia Media</p>
+                    <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-1">{{ $calibrationSummary['average_score_delta'] > 0 ? '+' : '' }}{{ number_format($calibrationSummary['average_score_delta'], 2) }} pp</p>
+                    <p class="text-[10px] text-gray-400">{{ $calibrationSummary['direction_label'] }}</p>
+                </div>
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Delta Absoluto</p>
+                    <p class="text-2xl font-extrabold {{ $calibrationSummary['average_absolute_delta'] <= 5 ? 'text-emerald-500' : ($calibrationSummary['average_absolute_delta'] <= 10 ? 'text-amber-500' : 'text-rose-500') }} mt-1">{{ number_format($calibrationSummary['average_absolute_delta'], 2) }} pp</p>
+                </div>
+                <div class="qd-card">
+                    <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Acuerdo Criterios</p>
+                    <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-1">{{ $calibrationSummary['item_agreement_rate'] === null ? 'N/A' : number_format($calibrationSummary['item_agreement_rate'], 1).'%' }}</p>
+                    <p class="text-[10px] text-gray-400">{{ $calibrationSummary['high_delta_percentage'] }}% con delta alto</p>
+                </div>
+            </div>
+
+            <div class="qd-card">
+                <h4 class="qd-card-title">Últimos pares IA vs Monitor</h4>
+                <div class="overflow-x-auto mt-2">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="border-b-2 border-gray-200 dark:border-gray-700">
+                                <th class="text-left py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Campaña</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Asesor</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">IA</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Monitor</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Delta</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Acuerdo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($calibrationPairs as $pair)
+                                <tr class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                    <td class="py-2 px-2 text-gray-700 dark:text-gray-300">{{ $pair['campaign'] }}</td>
+                                    <td class="py-2 px-2 text-gray-700 dark:text-gray-300">{{ $pair['agent'] }}</td>
+                                    <td class="py-2 px-2 text-center font-bold text-sky-500">{{ number_format($pair['ai_score'], 1) }}%</td>
+                                    <td class="py-2 px-2 text-center font-bold text-indigo-500">{{ number_format($pair['manual_score'], 1) }}%</td>
+                                    <td class="py-2 px-2 text-center font-bold {{ $pair['absolute_score_delta'] <= 5 ? 'text-emerald-500' : ($pair['absolute_score_delta'] <= 10 ? 'text-amber-500' : 'text-rose-500') }}">
+                                        {{ $pair['score_delta'] > 0 ? '+' : '' }}{{ number_format($pair['score_delta'], 1) }} pp
+                                    </td>
+                                    <td class="py-2 px-2 text-center text-gray-600 dark:text-gray-400">
+                                        {{ $pair['item_agreement_rate'] === null ? 'N/A' : number_format($pair['item_agreement_rate'], 1).'%' }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="py-6 text-center text-gray-400 text-xs">Aún no hay evaluaciones con par IA y manual en el período seleccionado.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @endif
 
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: RANKING ASESORES                   --}}

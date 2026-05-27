@@ -39,4 +39,8 @@ return [
         'token' => trim(env('TELEGRAM_BOT_TOKEN', 'YOUR BOT TOKEN HERE'), '"\'')
     ],
 
+    'ffprobe' => [
+        'path' => env('FFPROBE_PATH'),
+    ],
+
 ];

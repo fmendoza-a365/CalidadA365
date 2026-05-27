@@ -6,7 +6,7 @@ This project is prepared for a low-cost DigitalOcean Droplet deployment.
 
 - Droplet: Basic or Premium AMD/Intel, 2 vCPU / 4 GB RAM / 80 GB SSD
 - OS: Ubuntu 24.04 LTS
-- App runtime: Nginx, PHP 8.3 FPM, Supervisor
+- App runtime: Nginx, PHP 8.3 FPM, Supervisor, FFmpeg/ffprobe
 - Database: PostgreSQL on the Droplet for the first stage
 - Queue/cache: Redis on the Droplet for the first stage
 - File storage: DigitalOcean Spaces, private bucket
@@ -108,6 +108,14 @@ sudo APP_DIR=/var/www/qa365 BRANCH=main bash deployment/digitalocean/deploy.sh
 
 The deploy script now clears Laravel caches, resets the permission cache, runs migrations, rebuilds Vite assets, validates the operational-context routes and restarts PHP-FPM so OPcache cannot serve old code.
 
+By default the deploy script creates a compressed database backup under `storage/app/backups/releases` before `php artisan migrate --force`. Do not disable this for production. To use another backup path:
+
+```bash
+sudo BACKUP_DIR=/var/backups/qa365 APP_DIR=/var/www/qa365 BRANCH=main bash deployment/digitalocean/deploy.sh
+```
+
+This deployment path updates code and schema without truncating the existing production database. It must not be replaced with `migrate:fresh`, manual table drops, or a new empty `.env` pointed at the live database.
+
 If the "Agregar Contexto" or "Editar Contexto" actions do not appear after deploying, run these checks on the Droplet:
 
 ```bash
@@ -135,6 +143,8 @@ Then confirm you are logged in with a role that has `edit_quality_forms`.
 - `FILESYSTEM_DISK=s3`
 - Private Spaces bucket
 - Daily database backups or Droplet snapshots
+- Release backup created before migrations
+- `FFPROBE_PATH=/usr/bin/ffprobe`
 - `composer audit --locked --no-dev`
 - `npm audit --omit=dev`
 - `php artisan test`

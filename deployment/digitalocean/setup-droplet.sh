@@ -18,7 +18,7 @@ add-apt-repository ppa:ondrej/php -y
 apt-get update
 
 apt-get install -y \
-    nginx supervisor postgresql postgresql-contrib redis-server certbot python3-certbot-nginx \
+    nginx supervisor postgresql postgresql-contrib postgresql-client redis-server certbot python3-certbot-nginx ffmpeg \
     "php${PHP_VERSION}-fpm" "php${PHP_VERSION}-cli" "php${PHP_VERSION}-pgsql" \
     "php${PHP_VERSION}-redis" "php${PHP_VERSION}-xml" "php${PHP_VERSION}-mbstring" \
     "php${PHP_VERSION}-curl" "php${PHP_VERSION}-zip" "php${PHP_VERSION}-gd" \

@@ -1,292 +1,289 @@
 <x-app-layout>
-    <x-slot name="header">Cargar Transcripción</x-slot>
+    <x-slot name="header">Cargar Interacción</x-slot>
 
-    <div class="form-container">
-        <div class="form-card">
-            <div class="form-body">
-                <form method="POST" action="{{ route('transcripts.store') }}" enctype="multipart/form-data"
-                    class="form-section" x-data="{ submitting: false }"
-                    @submit="if(submitting) { $event.preventDefault(); } else { submitting = true; }">
-                    @csrf
+    <div class="mx-auto max-w-[1280px]">
+        <form method="POST" action="{{ route('transcripts.store') }}" enctype="multipart/form-data"
+            class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
+            x-data="{ submitting: false, fileCount: 0, fileSize: '0 B' }"
+            @transcript-files-updated="fileCount = $event.detail.count; fileSize = $event.detail.size"
+            @submit="if(submitting) { $event.preventDefault(); } else { submitting = true; }">
+            @csrf
 
-                    <div class="form-row" x-data="{ 
-                        selectedCampaign: '{{ old('campaign_id') }}', 
-                        availableForms: [],
-                        allForms: {{ json_encode($qualityForms) }},
-                        selectedForm: '{{ old('quality_form_id') }}',
-                        availableAgents: [],
-                        allAgents: {{ json_encode($agentsByCampaign) }},
-                        selectedAgent: '{{ old('agent_id') }}'
-                    }" x-init="
-                        if(selectedCampaign) { 
-                            availableForms = allForms[selectedCampaign] || []; 
-                            availableAgents = allAgents[selectedCampaign] || [];
-                        }
-                        $watch('selectedCampaign', (val) => {
-                            availableForms = allForms[val] || [];
-                            selectedForm = '';
-                            availableAgents = allAgents[val] || [];
-                            selectedAgent = '';
-                        })
-                    ">
-                        <div class="form-group">
-                            <label for="campaign_id" class="form-label">Campaña <span
-                                    class="text-rose-500">*</span></label>
-                            <select name="campaign_id" id="campaign_id" class="form-select" required
-                                x-model="selectedCampaign">
-                                <option value="">Seleccione una campaña</option>
-                                @foreach($campaigns as $campaign)
-                                    <option value="{{ $campaign->id }}">
-                                        {{ $campaign->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />
-                        </div>
-
-                        <div class="form-group">
-                            <label for="quality_form_id" class="form-label">Ficha de Calidad (Opcional)</label>
-                            <select name="quality_form_id" id="quality_form_id" class="form-select"
-                                x-model="selectedForm">
-                                <option value="">Usar ficha por defecto de la campaña</option>
-                                <template x-for="form in availableForms" :key="form.id">
-                                    <option :value="form.id" x-text="form.name"></option>
-                                </template>
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Si seleccionas una ficha específica, la IA usará esos
-                                criterios. Si lo dejas vacío, usará la ficha activa de la campaña.</p>
-                            <x-input-error :messages="$errors->get('quality_form_id')" class="mt-1" />
-                        </div>
-
-                        <div class="form-group">
-                            <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
-                            <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent">
-                                <option value="">Seleccione un asesor</option>
-                                <template x-for="agent in availableAgents" :key="agent.id">
-                                    <option :value="agent.id" x-text="agent.name"></option>
-                                </template>
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1" x-show="!selectedCampaign">Selecciona una campaña
-                                primero para ver a sus asesores asignados.</p>
-                            <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
+            <div class="space-y-4">
+                <div class="card overflow-hidden">
+                    <div class="card-header">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-white">Nueva interacción</h3>
+                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Completa los datos mínimos y adjunta la evidencia.</p>
+                            </div>
+                            <span class="badge badge-danger w-fit">Requerido</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="occurred_at" class="form-label">Fecha y Hora de la Llamada <span
-                                class="text-rose-500">*</span></label>
-                        <input type="datetime-local" name="occurred_at" id="occurred_at"
-                            value="{{ old('occurred_at') }}" class="form-input" required>
-                        <x-input-error :messages="$errors->get('occurred_at')" class="mt-1" />
-                    </div>
-
-                    <div class="form-group" x-data="fileUploader()">
-                        <label for="transcript_files" class="form-label">Archivos de Transcripción <span
-                                class="text-rose-500">*</span></label>
-
-                        <!-- Drop Zone -->
-                        <div class="mt-2 border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer"
-                            :class="{ 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20': isDragging, 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-500': !isDragging }"
-                            @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
-                            @drop.prevent="handleDrop($event)" @click="$refs.fileInput.click()">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
-                                <span class="font-semibold text-indigo-600 dark:text-indigo-400">Clic para
-                                    seleccionar</span> o arrastra archivos aquí
-                            </p>
-                            <p class="mt-1 text-xs text-gray-500">Archivos .txt o audio (.mp3, .wav, .ogg, .opus,
-                                .m4a, .mp4, .aac, .webm, .flac), máximo 100MB</p>
-
-                            <!-- Hidden Input -->
-                            <input type="file" name="transcript_files[]" id="transcript_files" class="hidden"
-                                accept=".txt,.mp3,.wav,.ogg,.oga,.opus,.m4a,.mp4,.mpeg,.mpga,.aac,.webm,.flac" multiple required x-ref="fileInput"
-                                @change="handleFiles($event.target.files)">
-                        </div>
-
-                        <!-- Selected Files List -->
-                        <div class="mt-4 space-y-2" x-show="files.length > 0">
-                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">Archivos Seleccionados:
-                            </h4>
-                            <ul class="divide-y divide-gray-100 dark:divide-gray-700">
-                                <template x-for="(file, index) in files" :key="index">
-                                    <li class="flex items-center justify-between py-2 text-sm">
-                                        <div class="flex items-center">
-                                            <template x-if="isAudioFile(file.name)">
-                                                <svg class="w-4 h-4 text-purple-500 mr-2" fill="none"
-                                                    viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                                                </svg>
-                                            </template>
-                                            <template x-if="!isAudioFile(file.name)">
-                                                <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24"
-                                                    stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
-                                            </template>
-                                            <span class="text-gray-600 dark:text-gray-300" x-text="file.name"></span>
-                                            <span class="ml-2 text-xs text-gray-400"
-                                                x-text="formatSize(file.size)"></span>
-                                            <template x-if="isAudioFile(file.name)">
-                                                <span
-                                                    class="ml-2 text-xs bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 px-2 py-0.5 rounded-full">Audio</span>
-                                            </template>
-                                        </div>
-                                        <button type="button" @click="removeFile(index)"
-                                            class="text-rose-500 hover:text-rose-700">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </div>
-
-                        <x-input-error :messages="$errors->get('transcript_files')" class="mt-1" />
-                        @if($errors->has('transcript_files.*'))
-                            <x-input-error :messages="collect($errors->get('transcript_files.*'))->flatten()->all()"
-                                class="mt-1" />
-                        @endif
-                    </div>
-
-                    <script>
-                        function fileUploader() {
-                            return {
-                                isDragging: false,
-                                files: [],
-
-                                handleFiles(fileList) {
-                                    // Convert FileList to Array and add to existing files
-                                    // Note: We cannot easily modify the true value of file input for multiple additions
-                                    // So we just clear and reset for simplicity in this basic version, or adhere to input behavior
-                                    this.files = Array.from(fileList);
-                                },
-
-                                handleDrop(event) {
-                                    this.isDragging = false;
-                                    const droppedFiles = event.dataTransfer.files;
-                                    if (droppedFiles.length > 0) {
-                                        this.files = Array.from(droppedFiles);
-                                        // Sync with input
-                                        this.$refs.fileInput.files = droppedFiles;
-                                    }
-                                },
-
-                                removeFile(index) {
-                                    this.files.splice(index, 1);
-
-                                    // Create a new DataTransfer to update the input
-                                    const dt = new DataTransfer();
-                                    this.files.forEach(file => dt.items.add(file));
-                                    this.$refs.fileInput.files = dt.files;
-                                },
-
-                                formatSize(bytes) {
-                                    if (bytes === 0) return '0 B';
-                                    const k = 1024;
-                                    const sizes = ['B', 'KB', 'MB', 'GB'];
-                                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-                                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-                                },
-
-                                isAudioFile(name) {
-                                    const ext = name.split('.').pop().toLowerCase();
-                                    return ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'].includes(ext);
-                                }
+                    <div class="card-body space-y-7">
+                        <div x-data="{
+                            selectedCampaign: '{{ old('campaign_id') }}',
+                            availableForms: [],
+                            allForms: {{ json_encode($qualityForms) }},
+                            selectedForm: '{{ old('quality_form_id') }}',
+                            availableAgents: [],
+                            allAgents: {{ json_encode($agentsByCampaign) }},
+                            selectedAgent: '{{ old('agent_id') }}'
+                        }" x-init="
+                            if(selectedCampaign) {
+                                availableForms = allForms[selectedCampaign] || [];
+                                availableAgents = allAgents[selectedCampaign] || [];
                             }
-                        }
-                    </script>
-
-                    <div class="alert alert-info">
-                        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span>Las transcripciones de texto serán evaluadas automáticamente por nuestra IA. Los archivos
-                            de audio serán transcritos primero y luego evaluados.</span>
-                    </div>
-
-                    <div class="form-actions">
-
-                        <!-- Full Screen Loading Overlay for Upload/Transcription -->
-                        <template x-teleport="body">
-                            <div x-show="submitting" style="display: none;"
-                                x-transition:enter="transition ease-out duration-300"
-                                x-transition:enter-start="opacity-0 backdrop-blur-none"
-                                x-transition:enter-end="opacity-100 backdrop-blur-sm"
-                                class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm">
-
-                                <!-- Modern Floating Cloud/Upload Element -->
-                                <div class="relative w-32 h-32 mb-8">
-                                    <!-- Outer Radar Ping -->
-                                    <div
-                                        class="absolute inset-0 rounded-full bg-purple-500 opacity-20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]">
-                                    </div>
-
-                                    <!-- Spinning Ring -->
-                                    <div
-                                        class="absolute inset-2 rounded-full border-4 border-gray-700 border-t-purple-500 border-r-purple-500 animate-[spin_1.5s_linear_infinite]">
-                                    </div>
-
-                                    <!-- Inner Icon Container -->
-                                    <div
-                                        class="absolute inset-4 rounded-full bg-gray-800 flex items-center justify-center shadow-[0_0_30px_rgba(168,85,247,0.5)] border border-gray-700">
-                                        <svg class="w-10 h-10 text-purple-400 animate-bounce" fill="none"
-                                            viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                        </svg>
-                                    </div>
+                            $watch('selectedCampaign', (val) => {
+                                availableForms = allForms[val] || [];
+                                selectedForm = '';
+                                availableAgents = allAgents[val] || [];
+                                selectedAgent = '';
+                            })
+                        ">
+                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                                <div class="form-group">
+                                    <label for="campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
+                                    <select name="campaign_id" id="campaign_id" class="form-select" required x-model="selectedCampaign">
+                                        <option value="">Seleccione una campaña</option>
+                                        @foreach($campaigns as $campaign)
+                                            <option value="{{ $campaign->id }}">{{ $campaign->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />
                                 </div>
 
-                                <!-- Animated Text -->
-                                <div class="text-center">
-                                    <h2
-                                        class="text-2xl sm:text-3xl font-bold font-heading text-white mb-3 tracking-wide">
-                                        Procesando datos<span x-data="{ dots: '' }"
-                                            x-init="setInterval(() => { dots = dots.length >= 3 ? '' : dots + '.' }, 500)"
-                                            x-text="dots" class="inline-block w-6 text-left"></span>
-                                    </h2>
-                                    <p class="text-purple-200 text-sm sm:text-base animate-pulse">
-                                        Subiendo archivos y enviando a la IA para transcripción...<br>
-                                        <span class="text-gray-400 text-xs mt-2 block">(Este proceso puede tomar un
-                                            minuto dependiendo del tamaño del audio)</span>
-                                    </p>
+                                <div class="form-group">
+                                    <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
+                                    <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent">
+                                        <option value="">Seleccione un asesor</option>
+                                        <template x-for="agent in availableAgents" :key="agent.id">
+                                            <option :value="agent.id" x-text="agent.name"></option>
+                                        </template>
+                                    </select>
+                                    <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="quality_form_id" class="form-label">Ficha de calidad</label>
+                                    <select name="quality_form_id" id="quality_form_id" class="form-select" x-model="selectedForm">
+                                        <option value="">Ficha activa de la campaña</option>
+                                        <template x-for="form in availableForms" :key="form.id">
+                                            <option :value="form.id" x-text="form.name"></option>
+                                        </template>
+                                    </select>
+                                    <x-input-error :messages="$errors->get('quality_form_id')" class="mt-1" />
                                 </div>
                             </div>
-                        </template>
 
-                        <a href="{{ route('transcripts.index') }}" class="btn-secondary btn-md">Cancelar</a>
-                        <button type="submit" class="btn-primary btn-md" :disabled="submitting"
-                            :class="{ 'opacity-70 cursor-not-allowed': submitting }">
-                            <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div class="form-group">
+                                    <label for="occurred_at" class="form-label">Fecha y hora <span class="text-rose-500">*</span></label>
+                                    <input type="datetime-local" name="occurred_at" id="occurred_at"
+                                        value="{{ old('occurred_at') }}" class="form-input" required>
+                                    <x-input-error :messages="$errors->get('occurred_at')" class="mt-1" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="call_sn" class="form-label">SN / Código</label>
+                                    <input type="text" name="call_sn" id="call_sn" value="{{ old('call_sn') }}"
+                                        class="form-input font-mono" maxlength="100" placeholder="SN-2026-000123">
+                                    <x-input-error :messages="$errors->get('call_sn')" class="mt-1" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-6 dark:border-gray-800" x-data="fileUploader()">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Archivo de evidencia</h4>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">TXT o audio, máximo 100MB.</p>
+                                </div>
+                                <span class="badge badge-neutral">TXT / audio</span>
+                            </div>
+
+                            <label for="transcript_files" class="sr-only">Archivos</label>
+                            <div class="cursor-pointer rounded-xl border border-dashed px-5 py-6 text-center transition-colors"
+                                :class="{ 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20': isDragging, 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-gray-400': !isDragging }"
+                                @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
+                                @drop.prevent="handleDrop($event)" @click="$refs.fileInput.click()">
+                                <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                </div>
+                                <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-semibold text-indigo-600 dark:text-indigo-400">Seleccionar archivo</span>
+                                    o arrastrar aquí
+                                </p>
+                                <p class="mt-1 text-xs text-gray-500">.txt, .mp3, .wav, .ogg, .opus, .m4a, .mp4, .aac, .webm, .flac</p>
+
+                                <input type="file" name="transcript_files[]" id="transcript_files" class="hidden"
+                                    accept=".txt,.mp3,.wav,.ogg,.oga,.opus,.m4a,.mp4,.mpeg,.mpga,.aac,.webm,.flac"
+                                    multiple required x-ref="fileInput" @change="handleFiles($event.target.files)">
+                            </div>
+
+                            <div class="mt-4" x-show="files.length > 0" x-cloak>
+                                <div class="mb-2 flex items-center justify-between">
+                                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">Seleccionados</h4>
+                                    <span class="badge badge-neutral" x-text="files.length + ' archivo(s)'"></span>
+                                </div>
+                                <ul class="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
+                                    <template x-for="(file, index) in files" :key="index">
+                                        <li class="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                                            <div class="min-w-0">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="h-2 w-2 rounded-full" :class="isAudioFile(file.name) ? 'bg-purple-500' : 'bg-gray-400'"></span>
+                                                    <span class="truncate text-gray-700 dark:text-gray-200" x-text="file.name"></span>
+                                                </div>
+                                                <div class="mt-1 text-xs text-gray-400" x-text="formatSize(file.size)"></div>
+                                            </div>
+                                            <button type="button" @click.stop="removeFile(index)" class="btn-ghost btn-sm text-rose-600 hover:text-rose-700">
+                                                Quitar
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+
+                            <x-input-error :messages="$errors->get('transcript_files')" class="mt-3" />
+                            @if($errors->has('transcript_files.*'))
+                                <x-input-error :messages="collect($errors->get('transcript_files.*'))->flatten()->all()" class="mt-3" />
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @include('transcripts.partials.operational-fields', ['interaction' => null])
+            </div>
+
+            <aside class="xl:sticky xl:top-24 xl:self-start">
+                <div class="card">
+                    <div class="card-body space-y-5">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Resumen de Carga</h3>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Validación rápida antes de procesar.</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 border-y border-gray-100 py-4 dark:border-gray-800">
+                            <div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Archivos</div>
+                                <div class="mt-1 text-xl font-semibold text-gray-900 dark:text-white" x-text="fileCount"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Tamaño</div>
+                                <div class="mt-1 text-xl font-semibold text-gray-900 dark:text-white" x-text="fileSize"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 text-xs text-gray-500 dark:text-gray-400">
+                            <div class="flex items-center justify-between">
+                                <span>Límite por archivo</span>
+                                <span class="font-mono text-gray-700 dark:text-gray-300">100MB</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Proceso</span>
+                                <span class="font-mono text-gray-700 dark:text-gray-300">Automático</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-1">
+                            <button type="submit" class="btn-primary btn-md w-full" :disabled="submitting"
+                                :class="{ 'opacity-50 cursor-not-allowed': submitting }">
+                                <svg x-show="!submitting" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                <svg x-show="submitting" x-cloak class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span x-text="submitting ? 'Procesando...' : 'Cargar y Evaluar'"></span>
+                            </button>
+                            <a href="{{ route('transcripts.index') }}" class="btn-secondary btn-md w-full">Cancelar</a>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <template x-teleport="body">
+                <div x-show="submitting" x-cloak
+                    x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 backdrop-blur-none"
+                    x-transition:enter-end="opacity-100 backdrop-blur-sm"
+                    class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-900/80 backdrop-blur-sm">
+                    <div class="relative mb-8 h-28 w-28">
+                        <div class="absolute inset-0 rounded-full bg-purple-500 opacity-20 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                        <div class="absolute inset-2 rounded-full border-4 border-gray-700 border-t-purple-500 border-r-purple-500 animate-spin"></div>
+                        <div class="absolute inset-4 flex items-center justify-center rounded-full border border-gray-700 bg-gray-800 shadow-[0_0_30px_rgba(168,85,247,0.5)]">
+                            <svg class="h-9 w-9 animate-bounce text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
-                            <svg x-show="submitting" class="w-4 h-4 animate-spin hidden"
-                                :class="{ 'hidden': !submitting, 'block': submitting }"
-                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                    stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                </path>
-                            </svg>
-                            <span x-text="submitting ? 'Cargando...' : 'Cargar y Evaluar'"></span>
-                        </button>
+                        </div>
                     </div>
-                </form>
-            </div>
-        </div>
+                    <h2 class="text-2xl font-bold text-white">Procesando interacción</h2>
+                    <p class="mt-3 text-center text-sm text-purple-200">Subiendo archivos y preparando la evaluación de calidad.</p>
+                </div>
+            </template>
+        </form>
     </div>
+
+    <script>
+        function fileUploader() {
+            return {
+                isDragging: false,
+                files: [],
+
+                handleFiles(fileList) {
+                    this.files = Array.from(fileList);
+                    this.updateSummary();
+                },
+
+                handleDrop(event) {
+                    this.isDragging = false;
+                    const droppedFiles = event.dataTransfer.files;
+
+                    if (droppedFiles.length > 0) {
+                        this.files = Array.from(droppedFiles);
+                        this.$refs.fileInput.files = droppedFiles;
+                        this.updateSummary();
+                    }
+                },
+
+                removeFile(index) {
+                    this.files.splice(index, 1);
+
+                    const dt = new DataTransfer();
+                    this.files.forEach(file => dt.items.add(file));
+                    this.$refs.fileInput.files = dt.files;
+                    this.updateSummary();
+                },
+
+                updateSummary() {
+                    const bytes = this.files.reduce((total, file) => total + file.size, 0);
+                    this.$dispatch('transcript-files-updated', {
+                        count: this.files.length,
+                        size: this.formatSize(bytes),
+                    });
+                },
+
+                formatSize(bytes) {
+                    if (bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                },
+
+                isAudioFile(name) {
+                    const ext = name.split('.').pop().toLowerCase();
+                    return ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'].includes(ext);
+                }
+            }
+        }
+    </script>
 </x-app-layout>

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Campaign;
-use App\Models\Evaluation;
-use App\Models\DisputeResolution;
 use App\Models\CampaignUserAssignment;
+use App\Models\DisputeResolution;
+use App\Models\Evaluation;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -40,8 +40,7 @@ class DashboardController extends Controller
             ));
         }
 
-        // All other users get the customizable dashboard
-        return view('dashboard.custom');
+        return redirect()->route('dashboard.quality');
     }
 
     private function adminDashboard()

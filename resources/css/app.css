@@ -123,7 +123,7 @@
 
     /* --- Sidebar --- */
     .sidebar {
-        @apply fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static;
+        @apply fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white border-r border-gray-200 transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static;
     }
 
     html.dark .sidebar {
@@ -136,7 +136,7 @@
     }
 
     .nav-item {
-        @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200;
+        @apply flex min-h-10 items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200;
     }
 
     html.dark .nav-item {
@@ -163,6 +163,33 @@
 
     .nav-icon {
         @apply w-5 h-5 flex-shrink-0;
+    }
+
+    .sidebar-collapsed .sidebar-brand {
+        @apply justify-center px-3;
+    }
+
+    .sidebar-collapsed .sidebar-brand-logo {
+        @apply max-w-10;
+    }
+
+    .sidebar-collapsed nav>p,
+    .sidebar-collapsed .nav-item span,
+    .sidebar-collapsed .sidebar-user-details,
+    .sidebar-collapsed .sidebar-user-chevron {
+        display: none;
+    }
+
+    .sidebar-collapsed .nav-item {
+        @apply mx-auto h-10 w-10 justify-center gap-0 p-0;
+    }
+
+    .sidebar-collapsed .nav-icon {
+        @apply h-5 w-5;
+    }
+
+    .sidebar-collapsed .sidebar-user-link {
+        @apply mx-auto h-10 w-10 justify-center p-0;
     }
 
     /* --- Cards --- */

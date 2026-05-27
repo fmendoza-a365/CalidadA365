@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -21,8 +20,9 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             AdminUserSeeder::class,
         ]);
-        
-        // Demo Data is explicitly EXCLUDED for production safety.
-        // To seed demo data, run: php artisan db:seed --class=DemoDataSeeder
+
+        // Demo data is explicitly excluded for production safety.
+        // To review current functionality with examples, run:
+        // php artisan db:seed --class=CurrentFunctionalityDemoSeeder
     }
 }

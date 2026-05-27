@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\QualityAnalyticsService;
 use App\Models\Campaign;
+use App\Services\EvaluationCalibrationService;
+use App\Services\QualityAnalyticsService;
 use Illuminate\Http\Request;
 
 class DashboardQualityController extends Controller
 {
     protected QualityAnalyticsService $analytics;
 
-    public function __construct(QualityAnalyticsService $analytics)
+    protected EvaluationCalibrationService $calibration;
+
+    public function __construct(QualityAnalyticsService $analytics, EvaluationCalibrationService $calibration)
     {
         $this->analytics = $analytics;
+        $this->calibration = $calibration;
     }
 
     public function index(Request $request)
@@ -47,6 +51,8 @@ class DashboardQualityController extends Controller
         $agentRanking = $this->analytics->getAgentRanking($filters);
         $topDefects = $this->analytics->getTopDefects($filters);
         $evalsByCampaign = $this->analytics->getEvalsByCampaign($filters);
+        $calibrationSummary = $this->calibration->summary($filters, auth()->user());
+        $calibrationPairs = $this->calibration->recentPairs($filters, auth()->user());
 
         $campaigns = Campaign::forUser(auth()->user())->orderBy('name')->get();
 
@@ -68,6 +74,8 @@ class DashboardQualityController extends Controller
             'agentRanking',
             'topDefects',
             'evalsByCampaign',
+            'calibrationSummary',
+            'calibrationPairs',
             'filters',
             'campaigns'
         ));

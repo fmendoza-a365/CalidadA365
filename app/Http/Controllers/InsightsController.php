@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\InsightReport;
-use App\Models\Evaluation;
 use App\Models\Campaign;
+use App\Models\Evaluation;
+use App\Models\InsightReport;
 use App\Services\AIEvaluationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,21 +20,32 @@ class InsightsController extends Controller
 
     public function index(Request $request)
     {
-        $reports = InsightReport::with('campaign', 'creator')->latest()->paginate(10);
-        $campaigns = Campaign::where('is_active', true)->get();
-
         // Comprehensive Stats
         $user = auth()->user();
+        $reports = InsightReport::with('campaign', 'creator')
+            ->where(function ($query) use ($user) {
+                $query->whereHas('campaign', function ($campaignQuery) use ($user) {
+                    $campaignQuery->forUser($user);
+                });
+
+                if ($user->hasAnyRole(['admin', 'qa_manager'])) {
+                    $query->orWhereNull('campaign_id');
+                }
+            })
+            ->latest()
+            ->paginate(10);
+        $campaigns = Campaign::forUser($user)->active()->orderBy('name')->get();
+
         $totalEvaluations = Evaluation::forUser($user)->count();
         $avgScore = Evaluation::forUser($user)->avg('percentage_score') ?? 0;
-        $complianceRate = $totalEvaluations > 0 
-            ? (Evaluation::forUser($user)->where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100 
+        $complianceRate = $totalEvaluations > 0
+            ? (Evaluation::forUser($user)->where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100
             : 0;
 
         // Top Failed Criteria
-        $topFailedCriteria = \App\Models\EvaluationItem::whereHas('evaluation', function($query) use ($user) {
-                $query->forUser($user);
-            })
+        $topFailedCriteria = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user) {
+            $query->forUser($user);
+        })
             ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
             ->selectRaw('quality_subattributes.name, count(*) as count')
@@ -44,9 +55,9 @@ class InsightsController extends Controller
             ->get();
 
         // Critical Failures (Critical items that failed)
-        $criticalFailures = \App\Models\EvaluationItem::whereHas('evaluation', function($query) use ($user) {
-                $query->forUser($user);
-            })
+        $criticalFailures = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user) {
+            $query->forUser($user);
+        })
             ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
             ->where('quality_subattributes.is_critical', true)
@@ -96,24 +107,30 @@ class InsightsController extends Controller
 
     public function generate(Request $request)
     {
+        $user = auth()->user();
         $validated = $request->validate([
             'campaign_id' => 'required|exists:campaigns,id',
             'type' => 'required|in:operational,strategic',
             'days' => 'required|integer|min:1|max:90',
         ]);
 
+        if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para generar insights en esta campaña.');
+        }
+
         $startDate = Carbon::now()->subDays($validated['days']);
         $endDate = Carbon::now();
 
         // Fetch evaluations with comprehensive eager loading to prevent N+1 queries
-        $evaluations = Evaluation::where('campaign_id', $validated['campaign_id'])
+        $evaluations = Evaluation::forUser($user)
+            ->where('campaign_id', $validated['campaign_id'])
             ->whereBetween('created_at', [$startDate, $endDate])
             ->with([
                 'items.subAttribute:id,name,attribute_id,is_critical', // Eager load sub-attributes
                 'items.subAttribute.attribute:id,name', // Eager load parent attributes
                 'campaign:id,name,description', // Only needed columns
                 'formVersion.formAttributes.subAttributes', // Form criteria for analysis
-                'agent:id,name' // Agent info for analysis
+                'agent:id,name', // Agent info for analysis
             ])
             ->get();
 
@@ -139,13 +156,34 @@ class InsightsController extends Controller
 
     public function show(InsightReport $insight)
     {
+        $this->ensureReportAccess($insight);
+
         return view('insights.show', compact('insight'));
     }
 
     public function destroy(InsightReport $insight)
     {
+        $this->ensureReportAccess($insight);
+
         $insight->delete();
-        
+
         return redirect()->route('insights.index')->with('success', 'Reporte eliminado exitosamente.');
+    }
+
+    private function ensureReportAccess(InsightReport $insight): void
+    {
+        $user = auth()->user();
+
+        if (! $insight->campaign_id) {
+            if ($user->hasAnyRole(['admin', 'qa_manager']) || $insight->generated_by === $user->id) {
+                return;
+            }
+
+            abort(403, 'No tiene permiso para ver este reporte.');
+        }
+
+        if (! Campaign::forUser($user)->whereKey($insight->campaign_id)->exists()) {
+            abort(403, 'No tiene permiso para ver este reporte.');
+        }
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ScoreTranscriptJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
+use App\Services\EvaluationCalibrationService;
 use Illuminate\Http\Request;
 
 class EvaluationController extends Controller
@@ -12,18 +13,13 @@ class EvaluationController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Evaluation::with(['agent', 'campaign', 'interaction'])
+        $query = Evaluation::with(['agent', 'campaign', 'interaction', 'evaluator', 'reviewer', 'publisher', 'dispute'])
             ->forUser($user);
 
-        if ($request->campaign_id) {
-            $query->where('campaign_id', $request->campaign_id);
-        }
+        $this->applyIndexFilters($query, $request);
 
-        if ($request->status) {
-            $query->where('status', $request->status);
-        }
-
-        $evaluations = $query->latest()->paginate(20);
+        $summary = $this->indexSummary(clone $query);
+        $evaluations = $query->latest()->paginate(20)->withQueryString();
         $campaigns = Campaign::active()->forUser($user)->orderBy('name')->get();
         $statusOptions = [
             Evaluation::STATUS_PENDING_AI,
@@ -35,12 +31,65 @@ class EvaluationController extends Controller
             Evaluation::STATUS_AGENT_ACCEPTED,
             Evaluation::STATUS_AGENT_DISPUTED,
             Evaluation::STATUS_DISPUTE_RESOLVED,
+            Evaluation::STATUS_CLOSED,
+        ];
+        $typeOptions = [
+            'ai' => 'IA',
+            'manual' => 'Manual',
         ];
 
-        return view('evaluations.index', compact('evaluations', 'campaigns', 'statusOptions'));
+        return view('evaluations.index', compact('evaluations', 'campaigns', 'statusOptions', 'typeOptions', 'summary'));
     }
 
-    public function show(Evaluation $evaluation)
+    private function applyIndexFilters($query, Request $request): void
+    {
+        $query
+            ->when($request->filled('campaign_id'), fn ($query) => $query->where('campaign_id', $request->integer('campaign_id')))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
+            ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
+            ->when($request->filled('start_date'), fn ($query) => $query->whereDate('evaluations.created_at', '>=', $request->date('start_date')->format('Y-m-d')))
+            ->when($request->filled('end_date'), fn ($query) => $query->whereDate('evaluations.created_at', '<=', $request->date('end_date')->format('Y-m-d')))
+            ->when($request->filled('score_band'), function ($query) use ($request) {
+                match ($request->string('score_band')->toString()) {
+                    'excellent' => $query->where('percentage_score', '>=', 90),
+                    'good' => $query->whereBetween('percentage_score', [80, 89.99]),
+                    'watch' => $query->whereBetween('percentage_score', [70, 79.99]),
+                    'critical' => $query->where('percentage_score', '<', 70)->whereNotNull('percentage_score'),
+                    'unscored' => $query->whereNull('percentage_score'),
+                    default => null,
+                };
+            })
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $term = trim($request->string('q')->toString());
+
+                $query->where(function ($query) use ($term) {
+                    $query
+                        ->whereHas('agent', fn ($agentQuery) => $agentQuery->where('name', 'like', "%{$term}%")->orWhere('email', 'like', "%{$term}%"))
+                        ->orWhereHas('campaign', fn ($campaignQuery) => $campaignQuery->where('name', 'like', "%{$term}%"))
+                        ->orWhereHas('evaluator', fn ($evaluatorQuery) => $evaluatorQuery->where('name', 'like', "%{$term}%"));
+                });
+            });
+    }
+
+    private function indexSummary($query): array
+    {
+        $evaluations = $query->get();
+        $scored = $evaluations->whereNotNull('percentage_score');
+
+        return [
+            'total' => $evaluations->count(),
+            'avg_score' => round((float) $scored->avg('percentage_score'), 1),
+            'pending_review' => $evaluations->whereIn('status', [
+                Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+                Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
+            ])->count(),
+            'disputed' => $evaluations->where('status', Evaluation::STATUS_AGENT_DISPUTED)->count(),
+            'critical' => $scored->filter(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score < 70)->count(),
+            'closed' => $evaluations->where('status', Evaluation::STATUS_CLOSED)->count(),
+        ];
+    }
+
+    public function show(Evaluation $evaluation, EvaluationCalibrationService $calibrationService)
     {
         $this->authorize('view', $evaluation);
 
@@ -53,17 +102,24 @@ class EvaluationController extends Controller
             'dispute.qaReviewer',
             'dispute.coordinatorReviewer',
             'dispute.resolvedBy',
+            'auditEvents.actor',
             'reviewer',
             'publisher',
             'evaluator',
+            'closer',
+            'reopener',
         ]);
+
+        $calibrationComparison = auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'supervisor'])
+            ? $calibrationService->compareForEvaluation($evaluation)
+            : null;
 
         // Marcar como vista por el asesor
         if (auth()->user()->hasRole('agent') && $evaluation->isVisibleToAgent() && ! $evaluation->agent_viewed_at) {
             $evaluation->update(['agent_viewed_at' => now()]);
         }
 
-        return view('evaluations.show', compact('evaluation'));
+        return view('evaluations.show', compact('evaluation', 'calibrationComparison'));
     }
 
     public function publish(Request $request, Evaluation $evaluation)
@@ -78,6 +134,8 @@ class EvaluationController extends Controller
             return back()->with('error', 'Esta evaluación no está en un estado publicable.');
         }
 
+        $fromStatus = $evaluation->status;
+
         $evaluation->update([
             'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
             'reviewed_by' => auth()->id(),
@@ -88,6 +146,12 @@ class EvaluationController extends Controller
             'finalized_at' => now(),
             'evaluator_id' => $evaluation->evaluator_id ?: auth()->id(),
         ]);
+
+        $evaluation->recordAuditEvent('published', auth()->user(), [
+            'type' => $evaluation->type,
+            'percentage_score' => $evaluation->percentage_score,
+            'review_notes_present' => filled($validated['review_notes'] ?? null),
+        ], $fromStatus, Evaluation::STATUS_PUBLISHED_TO_AGENT);
 
         if ($evaluation->agent) {
             $evaluation->agent->notify(new \App\Notifications\EvaluationCompleted($evaluation));
@@ -109,11 +173,17 @@ class EvaluationController extends Controller
             return back()->with('error', 'No se puede reanalizar una evaluación ya publicada al asesor.');
         }
 
+        $fromStatus = $evaluation->status;
+
         $evaluation->update([
             'status' => Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
             'reanalysis_requested_at' => now(),
             'reanalysis_requested_by' => auth()->id(),
         ]);
+
+        $evaluation->recordAuditEvent('reanalyze_requested', auth()->user(), [
+            'interaction_id' => $evaluation->interaction_id,
+        ], $fromStatus, Evaluation::STATUS_AI_REANALYSIS_REQUESTED);
 
         $evaluation->interaction->update(['status' => 'queued']);
         ScoreTranscriptJob::dispatch($evaluation->interaction_id)->onQueue('ai-scoring');
@@ -128,13 +198,78 @@ class EvaluationController extends Controller
             abort(403);
         }
 
+        if ($evaluation->isClosed()) {
+            return back()->with('error', 'No se puede modificar una evaluación cerrada.');
+        }
+
         $evaluation->is_gold = ! $evaluation->is_gold;
         $evaluation->save();
+
+        $evaluation->recordAuditEvent($evaluation->is_gold ? 'gold_marked' : 'gold_unmarked', auth()->user(), [
+            'is_gold' => $evaluation->is_gold,
+        ]);
 
         $message = $evaluation->is_gold
             ? 'Evaluación marcada como Golden Record (Referencia para IA).'
             : 'Evaluación desmarcada como Golden Record.';
 
         return back()->with('success', $message);
+    }
+
+    public function close(Request $request, Evaluation $evaluation)
+    {
+        $this->authorize('close', $evaluation);
+
+        $validated = $request->validate([
+            'closure_reason' => 'nullable|string|max:1000',
+        ]);
+
+        if (! $evaluation->canBeClosed()) {
+            return back()->with('error', 'Esta evaluación no se puede cerrar desde su estado actual.');
+        }
+
+        $fromStatus = $evaluation->status;
+
+        $evaluation->update([
+            'status' => Evaluation::STATUS_CLOSED,
+            'previous_status_before_close' => $fromStatus,
+            'closed_at' => now(),
+            'closed_by' => auth()->id(),
+            'closure_reason' => $validated['closure_reason'] ?? null,
+        ]);
+
+        $evaluation->recordAuditEvent('closed', auth()->user(), [
+            'reason_present' => filled($validated['closure_reason'] ?? null),
+        ], $fromStatus, Evaluation::STATUS_CLOSED);
+
+        return redirect()->route('evaluations.show', $evaluation)
+            ->with('success', 'Evaluación cerrada.');
+    }
+
+    public function reopen(Evaluation $evaluation)
+    {
+        $this->authorize('reopen', $evaluation);
+
+        if (! $evaluation->canBeReopened()) {
+            return back()->with('error', 'Esta evaluación no tiene un estado previo para reabrir.');
+        }
+
+        $fromStatus = $evaluation->status;
+        $toStatus = $evaluation->previous_status_before_close;
+
+        $evaluation->update([
+            'status' => $toStatus,
+            'previous_status_before_close' => null,
+            'closed_at' => null,
+            'closed_by' => null,
+            'closure_reason' => null,
+            'reopened_at' => now(),
+            'reopened_by' => auth()->id(),
+        ]);
+
+        $evaluation->recordAuditEvent('reopened', auth()->user(), [], $fromStatus, $toStatus);
+
+        return redirect()->route('evaluations.show', $evaluation)
+            ->with('success', 'Evaluación reabierta.');
     }
 }

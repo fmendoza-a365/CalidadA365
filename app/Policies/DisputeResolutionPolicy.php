@@ -2,22 +2,23 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\DisputeResolution;
+use App\Models\User;
 
 class DisputeResolutionPolicy
 {
     public function supervisorReview(User $user, DisputeResolution $dispute): bool
     {
-        return !$dispute->isResolved()
-            && !$dispute->qa_reviewed_at
+        return ! $dispute->isResolved()
+            && ! $dispute->evaluation?->isClosed()
+            && ! $dispute->qa_reviewed_at
             && $user->hasRole('supervisor')
             && $dispute->evaluation?->interaction?->supervisor_id === $user->id;
     }
 
     public function qaReview(User $user, DisputeResolution $dispute): bool
     {
-        if ($dispute->isResolved() || $dispute->qa_reviewed_at || !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
+        if ($dispute->isResolved() || $dispute->evaluation?->isClosed() || $dispute->qa_reviewed_at || ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
             return false;
         }
 
@@ -30,7 +31,7 @@ class DisputeResolutionPolicy
 
     public function coordinatorReview(User $user, DisputeResolution $dispute): bool
     {
-        if ($dispute->isResolved() || !$dispute->qa_reviewed_at || $dispute->coordinator_reviewed_at || !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+        if ($dispute->isResolved() || $dispute->evaluation?->isClosed() || ! $dispute->qa_reviewed_at || $dispute->coordinator_reviewed_at || ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
             return false;
         }
 
@@ -43,6 +44,8 @@ class DisputeResolutionPolicy
 
     public function resolve(User $user, DisputeResolution $dispute): bool
     {
-        return $user->hasAnyRole(['admin', 'qa_manager']) && !$dispute->isResolved();
+        return $user->hasAnyRole(['admin', 'qa_manager'])
+            && ! $dispute->evaluation?->isClosed()
+            && ! $dispute->isResolved();
     }
 }

@@ -11,7 +11,10 @@
             
             <div class="flex items-center gap-4">
                  <!-- Filters (Inline for better space usage, or keep separate if too many) -->
-                <form method="GET" action="{{ route('transcripts.index') }}" class="flex items-center gap-2">
+                <form method="GET" action="{{ route('transcripts.index') }}" class="flex flex-wrap items-center gap-2">
+                    <input type="search" name="search" value="{{ request('search') }}"
+                        class="form-input py-1 text-sm w-48" placeholder="Buscar SN, ID o motivo">
+
                     <select name="campaign_id" class="form-select py-1 text-sm w-40" onchange="this.form.submit()">
                         <option value="">Todas las campañas</option>
                         @foreach($campaigns as $campaign)
@@ -26,8 +29,26 @@
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
                         <option value="evaluated" {{ request('status') == 'evaluated' ? 'selected' : '' }}>Evaluada</option>
                     </select>
+
+                    <select name="channel" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
+                        <option value="">Canal</option>
+                        @foreach($formOptions['channels'] as $value => $label)
+                            <option value="{{ $value }}" {{ request('channel') === $value ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <select name="priority" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
+                        <option value="">Prioridad</option>
+                        @foreach($formOptions['priorities'] as $value => $label)
+                            <option value="{{ $value }}" {{ request('priority') === $value ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
                     
-                    @if(request('campaign_id') || request('status'))
+                    @if(request('campaign_id') || request('status') || request('search') || request('channel') || request('priority'))
                         <a href="{{ route('transcripts.index') }}" class="btn-ghost btn-sm text-gray-500" title="Limpiar filtros">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -51,9 +72,10 @@
             <table class="table">
                 <thead class="sticky top-0 z-10">
                     <tr>
-                        <th class="w-16">ID</th>
+                        <th class="w-56">Interacción</th>
                         <th>Asesor</th>
                         <th>Campaña</th>
+                        <th>Contexto</th>
                         <th>Fecha Llamada</th>
                         <th class="text-center w-32">Estado</th>
                         <th class="text-right w-32">Acciones</th>
@@ -63,7 +85,8 @@
                     @forelse($interactions as $interaction)
                         <tr>
                             <td>
-                                <div class="flex items-center gap-1.5">
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-1.5">
                                     @if($interaction->isAudio())
                                         <svg class="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" viewBox="0 0 24 24"
                                             stroke="currentColor" title="Audio">
@@ -77,7 +100,14 @@
                                                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                         </svg>
                                     @endif
-                                    <span class="text-xs text-gray-500 font-mono">#{{ $interaction->id }}</span>
+                                        <span class="text-xs text-gray-500 font-mono">#{{ $interaction->id }}</span>
+                                    </div>
+                                    <div class="font-mono text-xs text-gray-700 dark:text-gray-300">
+                                        {{ $interaction->call_sn ?: 'Sin SN' }}
+                                    </div>
+                                    @if($interaction->external_id)
+                                        <div class="font-mono text-[11px] text-gray-400">{{ $interaction->external_id }}</div>
+                                    @endif
                                 </div>
                             </td>
                             <td>
@@ -85,6 +115,26 @@
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->campaign?->name ?? '—' }}
+                            </td>
+                            <td>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    @if($interaction->channel)
+                                        <span class="badge badge-neutral">{{ $formOptions['channels'][$interaction->channel] ?? $interaction->channel }}</span>
+                                    @endif
+                                    @if($interaction->priority)
+                                        @php
+                                            $priorityClass = match ($interaction->priority) {
+                                                'critical', 'risk' => 'badge-danger',
+                                                'high', 'complaint' => 'badge-warning',
+                                                default => 'badge-neutral',
+                                            };
+                                        @endphp
+                                        <span class="badge {{ $priorityClass }}">{{ $formOptions['priorities'][$interaction->priority] ?? $interaction->priority }}</span>
+                                    @endif
+                                </div>
+                                @if($interaction->contact_reason)
+                                    <div class="mt-1 max-w-56 truncate text-xs text-gray-500 dark:text-gray-400">{{ $interaction->contact_reason }}</div>
+                                @endif
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->occurred_at?->format('d/m/Y H:i') ?? '—' }}
@@ -187,7 +237,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24"

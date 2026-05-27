@@ -8,6 +8,9 @@ use App\Models\Campaign;
 use App\Models\CampaignUserAssignment;
 use App\Models\Evaluation;
 use App\Models\Interaction;
+use App\Models\User;
+use App\Support\TranscriptAudioTimeline;
+use App\Support\TranscriptConversationParser;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -17,6 +20,50 @@ use Illuminate\Support\Str;
 
 class TranscriptController extends Controller
 {
+    private const CHANNEL_OPTIONS = [
+        'call' => 'Llamada',
+        'whatsapp' => 'WhatsApp',
+        'chat' => 'Chat',
+        'email' => 'Correo',
+        'ticket' => 'Ticket',
+        'other' => 'Otro',
+    ];
+
+    private const DIRECTION_OPTIONS = [
+        'inbound' => 'Inbound',
+        'outbound' => 'Outbound',
+        'internal' => 'Interna',
+    ];
+
+    private const OUTCOME_OPTIONS = [
+        'resolved' => 'Resuelto',
+        'unresolved' => 'No resuelto',
+        'escalated' => 'Escalado',
+        'abandoned' => 'Abandono',
+        'follow_up' => 'Seguimiento',
+    ];
+
+    private const PRIORITY_OPTIONS = [
+        'normal' => 'Normal',
+        'high' => 'Alta',
+        'critical' => 'Crítica',
+        'complaint' => 'Reclamo',
+        'risk' => 'Riesgo',
+    ];
+
+    private const LANGUAGE_OPTIONS = [
+        'es' => 'Español',
+        'en' => 'Inglés',
+        'pt' => 'Portugués',
+        'other' => 'Otro',
+    ];
+
+    private const DIARIZATION_OPTIONS = [
+        'auto' => 'Automática',
+        'single_channel' => 'Canal único mezclado',
+        'separate_channels' => 'Canales separados',
+    ];
+
     private const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'mp4', 'mpeg', 'mpga', 'aac', 'webm', 'flac'];
 
     private const TEXT_EXTENSIONS = ['txt'];
@@ -61,10 +108,34 @@ class TranscriptController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->channel) {
+            $query->where('channel', $request->channel);
+        }
+
+        if ($request->priority) {
+            $query->where('priority', $request->priority);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where(function ($query) use ($search) {
+                $query->where('call_sn', 'like', "%{$search}%")
+                    ->orWhere('external_id', 'like', "%{$search}%")
+                    ->orWhere('file_name', 'like', "%{$search}%")
+                    ->orWhere('contact_reason', 'like', "%{$search}%")
+                    ->orWhere('customer_reference', 'like', "%{$search}%");
+
+                if (ctype_digit($search)) {
+                    $query->orWhereKey((int) $search);
+                }
+            });
+        }
+
         $interactions = $query->latest('occurred_at')->paginate(20);
         $campaigns = Campaign::active()->forUser($user)->get();
+        $formOptions = $this->formOptions();
 
-        return view('transcripts.index', compact('interactions', 'campaigns'));
+        return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions'));
     }
 
     public function create()
@@ -96,12 +167,12 @@ class TranscriptController extends Controller
         if ($user->hasRole('supervisor')) {
             $assignmentsQuery->where('supervisor_id', $user->id);
             $agentIds = $assignmentsQuery->pluck('agent_id');
-            $agents = \App\Models\User::whereIn('id', $agentIds)->orderBy('name')->get();
+            $agents = User::whereIn('id', $agentIds)->orderBy('name')->get();
         } elseif ($user->hasRole('agent')) {
             $agents = collect([$user]);
             $assignmentsQuery->where('agent_id', $user->id);
         } else {
-            $agents = \App\Models\User::role('agent')->orderBy('name')->get();
+            $agents = User::role('agent')->orderBy('name')->get();
         }
 
         $assignments = $assignmentsQuery->get();
@@ -114,7 +185,9 @@ class TranscriptController extends Controller
             })->unique('id')->values();
         });
 
-        return view('transcripts.create', compact('campaigns', 'agents', 'qualityForms', 'agentsByCampaign'));
+        $formOptions = $this->formOptions();
+
+        return view('transcripts.create', compact('campaigns', 'agents', 'qualityForms', 'agentsByCampaign', 'formOptions'));
     }
 
     public function store(Request $request)
@@ -154,6 +227,22 @@ class TranscriptController extends Controller
                 'quality_form_id' => 'nullable|exists:quality_forms,id',
                 'agent_id' => 'required|exists:users,id',
                 'occurred_at' => 'required|date',
+                'call_sn' => 'nullable|string|max:100',
+                'external_id' => 'nullable|string|max:120',
+                'channel' => 'nullable|in:'.implode(',', array_keys(self::CHANNEL_OPTIONS)),
+                'direction' => 'nullable|in:'.implode(',', array_keys(self::DIRECTION_OPTIONS)),
+                'language' => 'nullable|in:'.implode(',', array_keys(self::LANGUAGE_OPTIONS)),
+                'contact_reason' => 'nullable|string|max:160',
+                'outcome' => 'nullable|in:'.implode(',', array_keys(self::OUTCOME_OPTIONS)),
+                'customer_reference' => 'nullable|string|max:120',
+                'queue_name' => 'nullable|string|max:120',
+                'product_name' => 'nullable|string|max:120',
+                'priority' => 'nullable|in:'.implode(',', array_keys(self::PRIORITY_OPTIONS)),
+                'tags' => 'nullable|string|max:500',
+                'diarization_mode' => 'nullable|in:'.implode(',', array_keys(self::DIARIZATION_OPTIONS)),
+                'analyze_emotion' => 'nullable|boolean',
+                'detect_critical_compliance' => 'nullable|boolean',
+                'ai_context' => 'nullable|string|max:1000',
                 'transcript_files' => 'required|array|min:1|max:50',
                 'transcript_files.*' => "required|file|extensions:{$allExtensions}|mimetypes:{$allowedMimeTypes}|max:".self::UPLOAD_MAX_KB,
             ], [
@@ -162,6 +251,9 @@ class TranscriptController extends Controller
                 'transcript_files.*.mimetypes' => 'El archivo no parece ser un TXT o audio válido. Si el audio viene de WhatsApp, súbalo como .opus, .ogg o .m4a.',
                 'transcript_files.*.max' => 'Cada archivo puede pesar hasta 100 MB.',
             ]);
+
+            $callSn = $this->normalizeCallSn($validated['call_sn'] ?? null);
+            $uploadMetadata = $this->uploadMetadata($validated, $request);
 
             if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
                 abort(403, 'No tiene permiso para cargar audios en esta campaña.');
@@ -210,8 +302,19 @@ class TranscriptController extends Controller
                     'uploaded_by' => auth()->id(),
                     'file_path' => $path,
                     'file_name' => $file->getClientOriginalName(),
+                    'call_sn' => $callSn,
+                    'external_id' => $this->normalizeNullableString($validated['external_id'] ?? null),
                     'source_type' => $isAudio ? 'audio' : 'text',
+                    'channel' => $validated['channel'] ?? 'call',
+                    'direction' => $validated['direction'] ?? null,
+                    'contact_reason' => $this->normalizeNullableString($validated['contact_reason'] ?? null),
+                    'outcome' => $validated['outcome'] ?? null,
+                    'customer_reference' => $this->normalizeNullableString($validated['customer_reference'] ?? null),
+                    'queue_name' => $this->normalizeNullableString($validated['queue_name'] ?? null),
+                    'product_name' => $this->normalizeNullableString($validated['product_name'] ?? null),
+                    'priority' => $validated['priority'] ?? 'normal',
                     'batch_id' => $batchId,
+                    'metadata' => $uploadMetadata,
                 ];
 
                 if ($isAudio) {
@@ -253,16 +356,32 @@ class TranscriptController extends Controller
         }
     }
 
-    public function show(Interaction $interaction)
-    {
+    public function show(
+        Interaction $interaction,
+        TranscriptConversationParser $conversationParser,
+        TranscriptAudioTimeline $audioTimelineBuilder
+    ) {
         $user = auth()->user();
         if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
             abort(403, 'No tiene permiso para ver esta transcripción.');
         }
 
-        $interaction->load(['campaign', 'agent', 'supervisor', 'evaluation.items.subAttribute']);
+        $interaction->load(['campaign', 'agent', 'supervisor', 'uploadedBy', 'evaluation.items.subAttribute']);
+        $conversationTurns = $conversationParser->parse($interaction->transcript_text);
+        $audioTimeline = null;
 
-        return view('transcripts.show', compact('interaction'));
+        if ($interaction->isAudio()) {
+            $audioTimeline = $audioTimelineBuilder->build(
+                $conversationTurns,
+                $interaction->audio_duration,
+                $this->audioMetadata($interaction)
+            );
+            $conversationTurns = $audioTimeline['turns'];
+        }
+
+        $formOptions = $this->formOptions();
+
+        return view('transcripts.show', compact('interaction', 'conversationTurns', 'audioTimeline', 'formOptions'));
     }
 
     public function download(Interaction $interaction)
@@ -354,7 +473,9 @@ class TranscriptController extends Controller
                 return back()->with('error', 'Esta interacción no tiene una ficha de calidad publicada para evaluar.');
             }
 
-            Evaluation::createPendingAiForInteraction($interaction, $formVersion);
+            Evaluation::createPendingAiForInteraction($interaction, $formVersion, $user, [
+                'source' => 'manual_request',
+            ]);
 
             $interaction->update(['status' => 'queued']);
             ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
@@ -379,14 +500,16 @@ class TranscriptController extends Controller
             $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
                 ->where('is_active', true)
                 ->pluck('agent_id');
-            $agents = \App\Models\User::whereIn('id', $agentIds)->orderBy('name')->get();
+            $agents = User::whereIn('id', $agentIds)->orderBy('name')->get();
         } elseif ($user->hasRole('agent')) {
             $agents = collect([$user]);
         } else {
-            $agents = \App\Models\User::role('agent')->orderBy('name')->get();
+            $agents = User::role('agent')->orderBy('name')->get();
         }
 
-        return view('transcripts.edit', compact('interaction', 'campaigns', 'agents'));
+        $formOptions = $this->formOptions();
+
+        return view('transcripts.edit', compact('interaction', 'campaigns', 'agents', 'formOptions'));
     }
 
     public function update(Request $request, Interaction $interaction)
@@ -400,8 +523,27 @@ class TranscriptController extends Controller
             'campaign_id' => 'required|exists:campaigns,id',
             'agent_id' => 'required|exists:users,id',
             'occurred_at' => 'required|date',
+            'call_sn' => 'nullable|string|max:100',
+            'external_id' => 'nullable|string|max:120',
+            'channel' => 'nullable|in:'.implode(',', array_keys(self::CHANNEL_OPTIONS)),
+            'direction' => 'nullable|in:'.implode(',', array_keys(self::DIRECTION_OPTIONS)),
+            'language' => 'nullable|in:'.implode(',', array_keys(self::LANGUAGE_OPTIONS)),
+            'contact_reason' => 'nullable|string|max:160',
+            'outcome' => 'nullable|in:'.implode(',', array_keys(self::OUTCOME_OPTIONS)),
+            'customer_reference' => 'nullable|string|max:120',
+            'queue_name' => 'nullable|string|max:120',
+            'product_name' => 'nullable|string|max:120',
+            'priority' => 'nullable|in:'.implode(',', array_keys(self::PRIORITY_OPTIONS)),
+            'tags' => 'nullable|string|max:500',
+            'diarization_mode' => 'nullable|in:'.implode(',', array_keys(self::DIARIZATION_OPTIONS)),
+            'analyze_emotion' => 'nullable|boolean',
+            'detect_critical_compliance' => 'nullable|boolean',
+            'ai_context' => 'nullable|string|max:1000',
             'transcript_text' => 'nullable|string',
         ]);
+
+        $callSn = $this->normalizeCallSn($validated['call_sn'] ?? null);
+        $metadata = $this->replaceUploadMetadata($interaction->metadata ?? [], $this->uploadMetadata($validated, $request));
 
         if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
             abort(403, 'No tiene permiso para mover esta transcripción a la campaña seleccionada.');
@@ -419,6 +561,17 @@ class TranscriptController extends Controller
             'agent_id' => $validated['agent_id'],
             'supervisor_id' => $assignment->supervisor_id,
             'occurred_at' => $validated['occurred_at'],
+            'call_sn' => $callSn,
+            'external_id' => $this->normalizeNullableString($validated['external_id'] ?? null),
+            'channel' => $validated['channel'] ?? 'call',
+            'direction' => $validated['direction'] ?? null,
+            'contact_reason' => $this->normalizeNullableString($validated['contact_reason'] ?? null),
+            'outcome' => $validated['outcome'] ?? null,
+            'customer_reference' => $this->normalizeNullableString($validated['customer_reference'] ?? null),
+            'queue_name' => $this->normalizeNullableString($validated['queue_name'] ?? null),
+            'product_name' => $this->normalizeNullableString($validated['product_name'] ?? null),
+            'priority' => $validated['priority'] ?? 'normal',
+            'metadata' => $metadata,
             'transcript_text' => $validated['transcript_text'] ?? $interaction->transcript_text,
         ]);
 
@@ -461,6 +614,88 @@ class TranscriptController extends Controller
         return config('filesystems.default', 'local');
     }
 
+    private function audioMetadata(Interaction $interaction): array
+    {
+        $metadata = $interaction->metadata ?? [];
+
+        if (! empty($metadata['sentiment']) || ! str_starts_with(trim((string) $interaction->transcript_text), '{')) {
+            return $metadata;
+        }
+
+        $parsed = json_decode((string) $interaction->transcript_text, true);
+
+        if (is_array($parsed) && isset($parsed['sentiment'])) {
+            $metadata['sentiment'] = $parsed['sentiment'];
+        }
+
+        if (is_array($parsed) && isset($parsed['sentiment_segments']) && is_array($parsed['sentiment_segments'])) {
+            $metadata['sentiment_segments'] = $parsed['sentiment_segments'];
+        }
+
+        return $metadata;
+    }
+
+    private function formOptions(): array
+    {
+        return [
+            'channels' => self::CHANNEL_OPTIONS,
+            'directions' => self::DIRECTION_OPTIONS,
+            'outcomes' => self::OUTCOME_OPTIONS,
+            'priorities' => self::PRIORITY_OPTIONS,
+            'languages' => self::LANGUAGE_OPTIONS,
+            'diarizationModes' => self::DIARIZATION_OPTIONS,
+        ];
+    }
+
+    private function uploadMetadata(array $validated, Request $request): array
+    {
+        return [
+            'upload' => [
+                'origin' => 'manual_upload',
+                'language' => $validated['language'] ?? 'es',
+                'tags' => $this->tagList($validated['tags'] ?? null),
+                'diarization_mode' => $validated['diarization_mode'] ?? 'auto',
+                'analysis_options' => [
+                    'emotion' => $request->boolean('analyze_emotion'),
+                    'critical_compliance' => $request->boolean('detect_critical_compliance'),
+                ],
+                'ai_context' => $this->normalizeNullableString($validated['ai_context'] ?? null),
+            ],
+        ];
+    }
+
+    private function replaceUploadMetadata(array $currentMetadata, array $uploadMetadata): array
+    {
+        $currentMetadata['upload'] = $uploadMetadata['upload'] ?? [];
+
+        return $currentMetadata;
+    }
+
+    private function normalizeCallSn(?string $callSn): ?string
+    {
+        $callSn = trim((string) $callSn);
+
+        return $callSn !== '' ? $callSn : null;
+    }
+
+    private function normalizeNullableString(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function tagList(?string $tags): array
+    {
+        return collect(explode(',', (string) $tags))
+            ->map(fn (string $tag) => trim($tag))
+            ->filter()
+            ->unique()
+            ->take(20)
+            ->values()
+            ->all();
+    }
+
     private function visibleAssignmentForUpload($user, int $campaignId, int $agentId): ?CampaignUserAssignment
     {
         $query = CampaignUserAssignment::where([
@@ -484,7 +719,7 @@ class TranscriptController extends Controller
     {
         return match ($file->getError()) {
             UPLOAD_ERR_INI_SIZE => 'PHP rechazó el archivo por upload_max_filesize. Valor actual detectado: '
-                .ini_get('upload_max_filesize').'. Reinicie el servidor con: php -c php.ini artisan serve --host=127.0.0.1 --port=8000',
+                .ini_get('upload_max_filesize').'. Reinicie el servidor local con: php -c php.ini -S 127.0.0.1:8000 -t public local-server.php',
             UPLOAD_ERR_FORM_SIZE => 'El formulario rechazó el archivo por tamaño máximo declarado en HTML.',
             UPLOAD_ERR_PARTIAL => 'El archivo se subió parcialmente. Intente nuevamente y evite cerrar o refrescar la página durante la carga.',
             UPLOAD_ERR_NO_TMP_DIR => 'PHP no tiene carpeta temporal para recibir el archivo. Configure upload_tmp_dir o permisos de /tmp.',

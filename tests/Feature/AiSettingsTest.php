@@ -70,6 +70,23 @@ class AiSettingsTest extends TestCase
         $this->assertSame('new-key', Setting::get('ai.gemini_api_key'));
     }
 
+    public function test_ai_provider_panels_do_not_use_layout_shifting_transitions(): void
+    {
+        $admin = $this->adminUser();
+
+        $response = $this->actingAs($admin)->get(route('settings.ai'));
+
+        $response->assertOk();
+        $response->assertSee("x-show=\"provider === 'openai'\" x-cloak", false);
+        $response->assertSee("x-show=\"provider === 'gemini'\" x-cloak", false);
+        $response->assertSee("x-show=\"provider === 'claude'\" x-cloak", false);
+        $response->assertSee("x-show=\"provider === 'simulated'\" x-cloak", false);
+        $response->assertDontSee("x-show=\"provider === 'openai'\" x-transition", false);
+        $response->assertDontSee("x-show=\"provider === 'gemini'\" x-transition", false);
+        $response->assertDontSee("x-show=\"provider === 'claude'\" x-transition", false);
+        $response->assertDontSee("x-show=\"provider === 'simulated'\" x-transition", false);
+    }
+
     public function test_ai_settings_update_preserves_hidden_provider_fields(): void
     {
         $admin = $this->adminUser();

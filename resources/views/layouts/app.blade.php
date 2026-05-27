@@ -28,40 +28,62 @@
     <div x-data="sidebar" class="app-container">
 
         <!-- Mobile Overlay -->
-        <div x-show="open" x-transition:enter="transition-opacity ease-out duration-300"
+        <div x-show="open && !desktop" x-transition:enter="transition-opacity ease-out duration-300"
             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="transition-opacity ease-in duration-200" x-transition:leave-start="opacity-100"
             x-transition:leave-end="opacity-0" @click="open = false" class="sidebar-overlay lg:hidden"></div>
 
         <!-- Sidebar -->
-        <aside :class="open ? 'translate-x-0' : '-translate-x-full'" class="sidebar">
+        <aside
+            :class="[
+                open ? 'translate-x-0' : '-translate-x-full',
+                collapsed && desktop ? 'lg:w-20 sidebar-collapsed' : 'lg:w-64'
+            ]"
+            class="sidebar">
             <!-- Logo -->
-            <div class="flex items-center justify-start h-16 px-6 border-b border-gray-200 dark:border-gray-800">
+            <div
+                class="sidebar-brand relative flex items-center justify-start h-16 px-6 border-b border-gray-200 dark:border-gray-800">
                 <img src="{{ asset('infoarchives/QALogo.png') }}" alt="QA Center"
-                    class="h-9 w-auto object-contain transition-all duration-300 filter grayscale hover:grayscale-0 hover:filter-none dark:invert dark:hover:invert-0">
+                    class="sidebar-brand-logo h-9 w-auto object-contain transition-all duration-300 filter grayscale hover:grayscale-0 hover:filter-none dark:invert dark:hover:invert-0">
+
+                <button type="button" @click="toggleCollapse()"
+                    class="hidden lg:inline-flex absolute -right-3 top-5 h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                    :title="collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'"
+                    :aria-label="collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'">
+                    <svg x-show="!collapsed" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <svg x-show="collapsed" x-cloak class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Navigation -->
             <nav class="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
                 <p class="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Principal</p>
 
-                <a href="{{ route('dashboard') }}"
-                    class="nav-item {{ request()->routeIs('dashboard') ? 'nav-item-active' : '' }}">
-                    <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                    <span>Dashboard</span>
-                </a>
-
-                <a href="{{ route('dashboard.quality') }}"
-                    class="nav-item {{ request()->routeIs('dashboard.quality') ? 'nav-item-active' : '' }}">
-                    <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <span>Dashboard Calidad</span>
-                </a>
+                @if(auth()->user()->hasRole('agent'))
+                    <a href="{{ route('dashboard') }}"
+                        class="nav-item {{ request()->routeIs('dashboard') ? 'nav-item-active' : '' }}" title="Dashboard">
+                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+                @else
+                    <a href="{{ route('dashboard.quality') }}"
+                        class="nav-item {{ request()->routeIs('dashboard') || request()->routeIs('dashboard.quality') ? 'nav-item-active' : '' }}"
+                        title="Dashboard Calidad">
+                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span>Dashboard Calidad</span>
+                    </a>
+                @endif
 
                 @if(auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts') || auth()->user()->can('view_insights'))
                     <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestión</p>
@@ -113,8 +135,21 @@
 
                 <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Operación</p>
 
+                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager', 'supervisor']) || auth()->user()->can('view_work_queue'))
+                    <a href="{{ route('work-queue.index') }}"
+                        class="nav-item {{ request()->routeIs('work-queue.*') ? 'nav-item-active' : '' }}"
+                        title="Bandeja">
+                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span>Bandeja</span>
+                    </a>
+                @endif
+
                 <a href="{{ route('evaluations.index') }}"
-                    class="nav-item {{ request()->routeIs('evaluations.*') ? 'nav-item-active' : '' }}">
+                    class="nav-item {{ request()->routeIs('evaluations.*') ? 'nav-item-active' : '' }}"
+                    title="Evaluaciones">
                     <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -152,13 +187,26 @@
                     <p class="px-3 py-2 mt-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Configuración</p>
 
                     <a href="{{ route('settings.ai') }}"
-                        class="nav-item {{ request()->routeIs('settings.*') ? 'nav-item-active' : '' }}">
+                        class="nav-item {{ request()->routeIs('settings.ai') ? 'nav-item-active' : '' }}"
+                        title="IA y Modelos">
                         <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                         <span>IA y Modelos</span>
                     </a>
+
+                    @if(auth()->user()->hasRole('admin') || auth()->user()->can('view_ai_performance'))
+                        <a href="{{ route('settings.ai.performance') }}"
+                            class="nav-item {{ request()->routeIs('settings.ai.performance') ? 'nav-item-active' : '' }}"
+                            title="Rendimiento IA">
+                            <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Rendimiento IA</span>
+                        </a>
+                    @endif
                 @endif
 
                 <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Recursos</p>
@@ -179,19 +227,20 @@
             <!-- User Section -->
             <div class="p-4 border-t border-gray-200 dark:border-gray-800">
                 <a href="{{ route('profile.edit') }}"
-                    class="flex items-center gap-3 mb-3 p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
+                    class="sidebar-user-link flex items-center gap-3 mb-3 p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
+                    title="{{ auth()->user()->name }}">
                     <div
                         class="avatar avatar-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-900 transition-colors">
                         {{ substr(auth()->user()->name, 0, 1) }}
                     </div>
-                    <div class="flex-1 min-w-0">
+                    <div class="sidebar-user-details flex-1 min-w-0">
                         <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ auth()->user()->name }}
                         </p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
                             {{ auth()->user()->roles->first()?->name ?? 'Usuario' }}
                         </p>
                     </div>
-                    <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
+                    <svg class="sidebar-user-chevron w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"
                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
@@ -200,7 +249,8 @@
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit"
-                        class="w-full nav-item text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10">
+                        class="w-full nav-item text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                        title="Cerrar Sesión">
                         <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

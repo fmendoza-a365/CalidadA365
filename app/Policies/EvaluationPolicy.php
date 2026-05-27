@@ -2,8 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Evaluation;
+use App\Models\User;
 
 class EvaluationPolicy
 {
@@ -34,19 +34,39 @@ class EvaluationPolicy
 
     public function publish(User $user, Evaluation $evaluation): bool
     {
-        return $this->canReview($user, $evaluation) && $evaluation->canBePublished();
+        return $this->canReview($user, $evaluation)
+            && ! $evaluation->isClosed()
+            && $evaluation->canBePublished();
     }
 
     public function reanalyze(User $user, Evaluation $evaluation): bool
     {
         return $this->canReview($user, $evaluation)
             && $evaluation->type === 'ai'
-            && !$evaluation->isVisibleToAgent();
+            && ! $evaluation->isClosed()
+            && ! $evaluation->isVisibleToAgent();
+    }
+
+    public function close(User $user, Evaluation $evaluation): bool
+    {
+        return ($user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator']) || $user->can('manage_evaluation_lifecycle'))
+            && $this->canReview($user, $evaluation)
+            && $evaluation->canBeClosed();
+    }
+
+    public function reopen(User $user, Evaluation $evaluation): bool
+    {
+        if (! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator']) && ! $user->can('manage_evaluation_lifecycle')) {
+            return false;
+        }
+
+        return $evaluation->canBeReopened()
+            && ($user->hasRole('admin') || Evaluation::forUser($user)->whereKey($evaluation->id)->exists());
     }
 
     private function canReview(User $user, Evaluation $evaluation): bool
     {
-        if (!$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
+        if (! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
             return false;
         }
 

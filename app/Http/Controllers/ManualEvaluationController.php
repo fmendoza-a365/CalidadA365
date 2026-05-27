@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Interaction;
+use Illuminate\Http\Request;
 
 class ManualEvaluationController extends Controller
 {
@@ -17,7 +17,7 @@ class ManualEvaluationController extends Controller
         }
 
         $campaign = $interaction->campaign;
-        // Asumiendo que la campaña tiene un form versions activo. 
+        // Asumiendo que la campaña tiene un form versions activo.
         // Si no, usar la última versión disponible global o de la campaña.
         if ($interaction->quality_form_id) {
             $formVersion = $interaction->qualityForm->versions()
@@ -28,7 +28,7 @@ class ManualEvaluationController extends Controller
             $formVersion = $campaign->activeFormVersion;
 
             // Fallback: Si la campaña no tiene ficha activa configurada, usar la última publicada de cualquier ficha de la campaña
-            if (!$formVersion) {
+            if (! $formVersion) {
                 $latestForm = $campaign->forms()->whereHas('versions', function ($q) {
                     $q->where('status', 'published');
                 })->first();
@@ -42,7 +42,7 @@ class ManualEvaluationController extends Controller
             }
         }
 
-        if (!$formVersion) {
+        if (! $formVersion) {
             return back()->with('error', 'No hay una ficha de calidad activa para evaluar esta campaña.');
         }
 
@@ -65,7 +65,7 @@ class ManualEvaluationController extends Controller
             'items.*.notes' => 'nullable|string',
         ]);
 
-        $evaluation = \DB::transaction(function () use ($request, $interaction, $validated) {
+        $evaluation = \DB::transaction(function () use ($interaction, $validated) {
             $formVersion = \App\Models\QualityFormVersion::findOrFail($validated['form_version_id']);
 
             if ($formVersion->form->campaign_id !== $interaction->campaign_id) {
@@ -98,7 +98,7 @@ class ManualEvaluationController extends Controller
                 }
 
                 // Solo sumar items no-críticos al total
-                if (!$subAttribute->is_critical) {
+                if (! $subAttribute->is_critical) {
                     $totalScore += $itemScore;
                     $totalPossible += $itemMaxScore;
                 }
@@ -141,6 +141,13 @@ class ManualEvaluationController extends Controller
 
             $evaluation->items()->createMany($itemsData);
 
+            $evaluation->recordAuditEvent('manual_created', auth()->user(), [
+                'form_version_id' => $formVersion->id,
+                'items_count' => count($itemsData),
+                'percentage_score' => $evaluation->percentage_score,
+                'has_critical_failure' => $hasCriticalFailure,
+            ], null, \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT);
+
             return $evaluation;
         });
 
@@ -155,11 +162,11 @@ class ManualEvaluationController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user->can('create_evaluations') && !$user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+        if (! $user->can('create_evaluations') && ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
             abort(403, 'No tiene permiso para crear evaluaciones manuales.');
         }
 
-        if (!Interaction::forUser($user)->whereKey($interaction->id)->exists()) {
+        if (! Interaction::forUser($user)->whereKey($interaction->id)->exists()) {
             abort(403, 'No tiene permiso para evaluar esta interacción.');
         }
     }

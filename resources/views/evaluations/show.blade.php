@@ -48,6 +48,8 @@
                             <span class="badge badge-success">Aceptada</span>
                         @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_DISPUTED)
                             <span class="badge badge-danger">En Disputa</span>
+                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_CLOSED)
+                            <span class="badge badge-neutral">Cerrada</span>
                         @else
                             <span class="badge badge-neutral">{{ \App\Models\Evaluation::statusLabel($evaluation->status) }}</span>
                         @endif
@@ -112,10 +114,125 @@
                                 </button>
                             </form>
                         @endif
+                        @can('close', $evaluation)
+                            <form method="POST" action="{{ route('evaluations.close', $evaluation) }}" class="mt-3 space-y-2">
+                                @csrf
+                                <textarea name="closure_reason" rows="2" class="form-textarea text-xs"
+                                    placeholder="Motivo de cierre (opcional)"></textarea>
+                                <button type="submit" class="btn-secondary btn-sm w-full justify-center">
+                                    Cerrar Evaluación
+                                </button>
+                            </form>
+                        @endcan
+                        @can('reopen', $evaluation)
+                            <form method="POST" action="{{ route('evaluations.reopen', $evaluation) }}" class="mt-2">
+                                @csrf
+                                <button type="submit" class="btn-primary btn-sm w-full justify-center">
+                                    Reabrir Evaluación
+                                </button>
+                            </form>
+                        @endcan
                     </div>
                 </div>
             </div>
         </div>
+
+        @if($evaluation->isClosed())
+            <div class="alert alert-info">
+                <div>
+                    <strong>Evaluación cerrada</strong>
+                    <p class="mt-1 text-sm">
+                        Cerrada por {{ $evaluation->closer?->name ?? 'N/A' }}
+                        @if($evaluation->closed_at)
+                            el {{ $evaluation->closed_at->format('d/m/Y H:i') }}
+                        @endif
+                    </p>
+                    @if($evaluation->closure_reason)
+                        <p class="mt-1 text-sm">{{ $evaluation->closure_reason }}</p>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @if($calibrationComparison)
+            @php
+                $delta = $calibrationComparison['score_delta'];
+                $absoluteDelta = $calibrationComparison['absolute_score_delta'];
+                $agreement = $calibrationComparison['item_agreement_rate'];
+                $deltaClass = $absoluteDelta <= 5
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : ($absoluteDelta <= 10 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400');
+                $statusLabels = [
+                    'compliant' => 'Cumple',
+                    'non_compliant' => 'No cumple',
+                    'not_found' => 'No encontrado',
+                ];
+                $mismatches = collect($calibrationComparison['criteria'])
+                    ->filter(fn ($criterion) => $criterion['comparable'] && ! $criterion['matches'])
+                    ->take(8);
+            @endphp
+            <div class="card border-sky-100 dark:border-sky-500/30">
+                <div class="card-header">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Calibración IA vs Monitor</h3>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $calibrationComparison['item_matches_count'] }} de {{ $calibrationComparison['item_compared_count'] }} criterios alineados
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body space-y-4">
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Puntaje IA</div>
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">{{ number_format($calibrationComparison['ai_score'], 1) }}%</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Puntaje Monitor</div>
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">{{ number_format($calibrationComparison['manual_score'], 1) }}%</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Diferencia</div>
+                            <div class="text-xl font-bold {{ $deltaClass }}">
+                                {{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 1) }} pp
+                            </div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Acuerdo por criterio</div>
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">
+                                {{ $agreement === null ? 'N/A' : number_format($agreement, 1).'%' }}
+                            </div>
+                        </div>
+                    </div>
+
+                    @if($mismatches->isNotEmpty())
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-200 dark:border-gray-700">
+                                        <th class="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Criterio con diferencia</th>
+                                        <th class="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">IA</th>
+                                        <th class="py-2 pl-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Monitor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($mismatches as $criterion)
+                                        <tr class="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                                            <td class="py-2 pr-3 text-gray-800 dark:text-gray-200">{{ $criterion['criterion'] }}</td>
+                                            <td class="py-2 px-3 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['ai_status']] ?? 'Sin dato' }}</td>
+                                            <td class="py-2 pl-3 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['manual_status']] ?? 'Sin dato' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+                            La IA y el monitor están alineados en los criterios comparables.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         @if($evaluation->isPendingMonitorReview() && auth()->user()->cannot('respond', $evaluation))
             <div class="card border-indigo-100 dark:border-indigo-500/30">
@@ -168,6 +285,15 @@
                         </svg>
                         <h3 class="font-semibold text-gray-900 dark:text-white">Feedback de Inteligencia Artificial</h3>
                     </div>
+                    @if($evaluation->ai_provider || $evaluation->ai_model || $evaluation->ai_prompt_version)
+                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Proveedor: {{ $evaluation->ai_provider ?? 'N/A' }}
+                            <span class="mx-1">|</span>
+                            Modelo: {{ $evaluation->ai_model ?? 'N/A' }}
+                            <span class="mx-1">|</span>
+                            Prompt: {{ $evaluation->ai_prompt_version ?? 'N/A' }}
+                        </div>
+                    @endif
                 </div>
                 <div class="card-body">
                     @php
@@ -537,6 +663,44 @@
                     </form>
                     @endif
                     @endcan
+                </div>
+            </div>
+        @endif
+
+        @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'supervisor']) && $evaluation->auditEvents->isNotEmpty())
+            <div class="card">
+                <div class="card-header">
+                    <div class="flex items-center justify-between gap-3">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Bitácora de Evaluación</h3>
+                        <a href="{{ route('exports.evaluation-audit', $evaluation) }}" class="btn-secondary btn-sm">Exportar CSV</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach($evaluation->auditEvents as $event)
+                            <div class="py-3 first:pt-0 last:pb-0">
+                                <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <div class="font-medium text-gray-900 dark:text-white">
+                                            {{ \App\Models\EvaluationAuditEvent::eventLabel($event->event) }}
+                                        </div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                                            {{ $event->actor?->name ?? 'Sistema' }}
+                                            @if($event->from_status || $event->to_status)
+                                                <span class="mx-1">-</span>
+                                                {{ $event->from_status ? \App\Models\Evaluation::statusLabel($event->from_status) : 'Inicio' }}
+                                                ->
+                                                {{ $event->to_status ? \App\Models\Evaluation::statusLabel($event->to_status) : 'Sin cambio' }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
+                                        {{ $event->occurred_at->format('d/m/Y H:i') }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
         @endif

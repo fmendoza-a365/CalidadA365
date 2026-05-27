@@ -16,28 +16,30 @@ class TranscribeAudioJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
+
     public $timeout = 600; // 10 minutes max for large audio files
 
-    public function __construct(public int $interactionId)
-    {
-    }
+    public function __construct(public int $interactionId) {}
 
     public function handle(AudioTranscriptionService $transcriptionService): void
     {
         $interaction = Interaction::find($this->interactionId);
 
-        if (!$interaction) {
+        if (! $interaction) {
             Log::error("TranscribeAudioJob: Interaction {$this->interactionId} not found");
+
             return;
         }
 
         if ($interaction->source_type !== 'audio') {
             Log::info("TranscribeAudioJob: Interaction {$this->interactionId} is not an audio file, skipping");
+
             return;
         }
 
         if ($interaction->transcription_status === 'completed') {
             Log::info("TranscribeAudioJob: Interaction {$this->interactionId} already transcribed");
+
             return;
         }
 
@@ -52,8 +54,12 @@ class TranscribeAudioJob implements ShouldQueue
                 'status' => 'uploaded',
             ];
 
+            if (! empty($result['duration_seconds'])) {
+                $updateData['audio_duration'] = (int) $result['duration_seconds'];
+            }
+
             // Store sentiment analysis in metadata
-            if (!empty($result['sentiment'])) {
+            if (! empty($result['sentiment'])) {
                 $metadata = $interaction->metadata ?? [];
                 $metadata['sentiment'] = $result['sentiment'];
                 $updateData['metadata'] = $metadata;
@@ -61,7 +67,7 @@ class TranscribeAudioJob implements ShouldQueue
 
             $interaction->update($updateData);
 
-            if (!$interaction->aiEvaluation()->exists() && $interaction->hasScorableQualityForm()) {
+            if (! $interaction->aiEvaluation()->exists() && $interaction->hasScorableQualityForm()) {
                 $interaction->update(['status' => 'queued']);
                 ScoreTranscriptJob::dispatch($interaction->id)->onQueue('ai-scoring');
             }
@@ -74,7 +80,7 @@ class TranscribeAudioJob implements ShouldQueue
                 'status' => 'uploaded',
             ]);
 
-            Log::error("TranscribeAudioJob: Failed for interaction {$this->interactionId}: " . $e->getMessage());
+            Log::error("TranscribeAudioJob: Failed for interaction {$this->interactionId}: ".$e->getMessage());
             throw $e;
         }
     }
@@ -89,6 +95,6 @@ class TranscribeAudioJob implements ShouldQueue
             ]);
         }
 
-        Log::error("TranscribeAudioJob: Permanently failed for interaction {$this->interactionId}: " . $exception->getMessage());
+        Log::error("TranscribeAudioJob: Permanently failed for interaction {$this->interactionId}: ".$exception->getMessage());
     }
 }

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Campaign;
 use App\Models\Setting;
+use App\Services\AiPerformanceService;
 use App\Support\AiSettings;
 use Illuminate\Http\Request;
 
@@ -13,7 +15,7 @@ class SettingsController extends Controller
      */
     public function aiSettings()
     {
-        if (! auth()->user()->hasRole('admin')) {
+        if (! auth()->user()->hasRole('admin') && ! auth()->user()->can('view_ai_performance')) {
             abort(403, 'Acceso no autorizado.');
         }
 
@@ -185,5 +187,22 @@ class SettingsController extends Controller
                 'message' => 'Error: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    public function aiPerformance(Request $request, AiPerformanceService $aiPerformance)
+    {
+        if (! auth()->user()->hasRole('admin') && ! auth()->user()->can('view_ai_performance')) {
+            abort(403, 'Acceso no autorizado.');
+        }
+
+        $filters = [
+            'start_date' => $request->input('start_date', now()->startOfMonth()->format('Y-m-d')),
+            'end_date' => $request->input('end_date', now()->format('Y-m-d')),
+            'campaign_id' => $request->input('campaign_id'),
+        ];
+        $performance = $aiPerformance->summary($filters, auth()->user());
+        $campaigns = Campaign::forUser(auth()->user())->orderBy('name')->get();
+
+        return view('settings.ai-performance', compact('performance', 'filters', 'campaigns'));
     }
 }

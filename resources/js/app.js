@@ -35,17 +35,33 @@ window.ThemeManager = ThemeManager;
 // Alpine.js Data Components
 Alpine.data('sidebar', () => ({
     open: window.innerWidth >= 1024,
-    
+    desktop: window.innerWidth >= 1024,
+    collapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+
     init() {
         window.addEventListener('resize', () => {
-            if (window.innerWidth >= 1024) {
+            this.desktop = window.innerWidth >= 1024;
+
+            if (this.desktop) {
                 this.open = true;
+            } else {
+                this.collapsed = false;
             }
         });
     },
 
     toggle() {
+        if (this.desktop) {
+            this.toggleCollapse();
+            return;
+        }
+
         this.open = !this.open;
+    },
+
+    toggleCollapse() {
+        this.collapsed = !this.collapsed;
+        localStorage.setItem('sidebarCollapsed', this.collapsed ? 'true' : 'false');
     }
 }));
 
@@ -66,6 +82,186 @@ Alpine.data('dropdown', () => ({
 
     close() {
         this.open = false;
+    }
+}));
+
+Alpine.data('audioReview', (config = {}) => ({
+    audioUrl: config.audioUrl || '',
+    timeline: config.timeline || {},
+    bars: config.timeline?.bars || [],
+    segments: config.timeline?.segments || [],
+    duration: Number(config.timeline?.duration || 0),
+    currentTime: 0,
+    playing: false,
+    speed: '1',
+
+    init() {
+        this.$nextTick(() => {
+            if (!this.$refs.audio) {
+                return;
+            }
+
+            this.$refs.audio.playbackRate = Number(this.speed);
+        });
+    },
+
+    get progress() {
+        if (!this.duration) {
+            return 0;
+        }
+
+        return Math.min(100, Math.max(0, (this.currentTime / this.duration) * 100));
+    },
+
+    get currentLabel() {
+        return this.formatTime(this.currentTime);
+    },
+
+    get durationLabel() {
+        return this.formatTime(this.duration);
+    },
+
+    get activeSegment() {
+        if (!this.segments.length) {
+            return null;
+        }
+
+        const current = this.segments.find((segment) => this.currentTime >= segment.start && this.currentTime < segment.end);
+
+        if (current) {
+            return current;
+        }
+
+        return [...this.segments].reverse().find((segment) => this.currentTime >= segment.start) || this.segments[0];
+    },
+
+    get activeTurnId() {
+        return this.activeSegment?.turn_id || null;
+    },
+
+    get activeSegmentLabel() {
+        if (!this.activeSegment) {
+            return 'Sin segmento activo';
+        }
+
+        return `${this.activeSegment.start_label} · ${this.activeSegment.label} · ${this.activeSegment.emotion_label}`;
+    },
+
+    get eventSegments() {
+        if (!this.segments.length) {
+            return [];
+        }
+
+        return this.segments
+            .filter((segment, index, items) => {
+                const previous = items[index - 1];
+                const score = Math.abs(Number(segment.score || 0));
+
+                return index === 0
+                    || index === items.length - 1
+                    || score >= 0.35
+                    || segment.sentiment !== previous?.sentiment
+                    || segment.emotion !== previous?.emotion
+                    || segment.speaker !== previous?.speaker;
+            })
+            .slice(0, 80);
+    },
+
+    onLoadedMetadata() {
+        const nativeDuration = Number(this.$refs.audio?.duration || 0);
+
+        if (Number.isFinite(nativeDuration) && nativeDuration > this.duration) {
+            this.duration = nativeDuration;
+        }
+    },
+
+    onTimeUpdate() {
+        this.currentTime = Number(this.$refs.audio?.currentTime || 0);
+    },
+
+    onEnded() {
+        this.playing = false;
+    },
+
+    toggle() {
+        if (!this.$refs.audio) {
+            return;
+        }
+
+        if (this.$refs.audio.paused) {
+            this.$refs.audio.play();
+            this.playing = true;
+            return;
+        }
+
+        this.$refs.audio.pause();
+        this.playing = false;
+    },
+
+    seek(seconds) {
+        const nextTime = Math.min(Math.max(Number(seconds) || 0, 0), this.duration || Number(seconds) || 0);
+        this.currentTime = nextTime;
+
+        if (this.$refs.audio) {
+            this.$refs.audio.currentTime = nextTime;
+        }
+    },
+
+    seekFromWaveform(event) {
+        if (!this.duration) {
+            return;
+        }
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const ratio = (event.clientX - rect.left) / rect.width;
+        this.seek(this.duration * ratio);
+    },
+
+    setSpeed(value) {
+        const speed = Number(value) || 1;
+
+        if (this.$refs.audio) {
+            this.$refs.audio.playbackRate = speed;
+        }
+    },
+
+    speakerName(speaker) {
+        if (speaker === 'client') {
+            return 'Cliente';
+        }
+
+        if (speaker === 'agent') {
+            return 'Agente';
+        }
+
+        return 'Sistema';
+    },
+
+    segmentPreview(segment) {
+        const message = String(segment?.message || '').replace(/\s+/g, ' ').trim();
+
+        if (!message) {
+            return 'Sin extracto disponible';
+        }
+
+        return message.length > 150 ? `${message.slice(0, 147)}...` : message;
+    },
+
+    eventTitle(segment) {
+        return `${segment.start_label} · ${this.speakerName(segment.speaker)} · ${segment.emotion_label}`;
+    },
+
+    formatTime(seconds) {
+        const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        const remainingSeconds = safeSeconds % 60;
+
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+
+        return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
     }
 }));
 

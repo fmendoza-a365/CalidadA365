@@ -6,6 +6,8 @@ use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 class AudioTranscriptionService
 {
@@ -48,6 +50,8 @@ class AudioTranscriptionService
 
         try {
             $audioData = $disk->get($filePath);
+            $audioDurationSeconds = $this->durationSecondsFromStoredAudio($filePath)
+                ?? $this->durationSecondsFromAudioBytes($audioData, $filePath);
             $base64Audio = base64_encode($audioData);
             $mimeType = $this->getMimeType($filePath);
 
@@ -167,6 +171,7 @@ PROMPT;
                 return [
                     'transcript' => $cleanTranscript,
                     'sentiment' => null,
+                    'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
                 ];
             }
 
@@ -178,11 +183,17 @@ PROMPT;
             return [
                 'transcript' => $cleanTranscript,
                 'sentiment' => $parsed['sentiment'] ?? null,
+                'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
             ];
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('AudioTranscriptionService: Connection error - '.$e->getMessage());
-            throw new \Exception('Could not connect to Gemini API: '.$e->getMessage());
+            $safeMessage = $this->sanitizeProviderError($e->getMessage());
+
+            Log::error('AudioTranscriptionService: Connection error', [
+                'error' => $safeMessage,
+            ]);
+
+            throw new \Exception('Could not connect to Gemini API: '.$safeMessage);
         }
     }
 
@@ -215,6 +226,70 @@ PROMPT;
         };
     }
 
+    protected function durationSecondsFromAudioBytes(string $audioData, string $filePath): ?int
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+        if ($extension !== 'wav' || strlen($audioData) < 44) {
+            return null;
+        }
+
+        if (substr($audioData, 0, 4) !== 'RIFF' || substr($audioData, 8, 4) !== 'WAVE') {
+            return null;
+        }
+
+        $offset = 12;
+        $byteRate = null;
+        $dataSize = null;
+        $length = strlen($audioData);
+
+        while ($offset + 8 <= $length) {
+            $chunkId = substr($audioData, $offset, 4);
+            $chunkSize = unpack('V', substr($audioData, $offset + 4, 4))[1] ?? 0;
+            $chunkDataOffset = $offset + 8;
+
+            if ($chunkId === 'fmt ' && $chunkSize >= 16 && $chunkDataOffset + 16 <= $length) {
+                $fmt = unpack('vformat/vchannels/VsampleRate/VbyteRate', substr($audioData, $chunkDataOffset, 14));
+                $byteRate = (int) ($fmt['byteRate'] ?? 0);
+            }
+
+            if ($chunkId === 'data') {
+                $dataSize = (int) $chunkSize;
+            }
+
+            if ($byteRate && $dataSize) {
+                break;
+            }
+
+            $offset = $chunkDataOffset + $chunkSize + ($chunkSize % 2);
+        }
+
+        if (! $byteRate || ! $dataSize) {
+            return null;
+        }
+
+        return max(1, (int) round($dataSize / $byteRate));
+    }
+
+    protected function durationSecondsFromTranscript(string $transcript): ?int
+    {
+        preg_match_all('/\[?(\d{1,2}):(\d{2})(?::(\d{2}))?\]?/', $transcript, $matches, PREG_SET_ORDER);
+
+        $maxSeconds = null;
+
+        foreach ($matches as $match) {
+            if (isset($match[3]) && $match[3] !== '') {
+                $seconds = ((int) $match[1] * 3600) + ((int) $match[2] * 60) + (int) $match[3];
+            } else {
+                $seconds = ((int) $match[1] * 60) + (int) $match[2];
+            }
+
+            $maxSeconds = max($maxSeconds ?? 0, $seconds);
+        }
+
+        return $maxSeconds ? $maxSeconds : null;
+    }
+
     /**
      * Simulate transcription for development/testing when no API key is available.
      */
@@ -238,6 +313,7 @@ PROMPT;
 
         return [
             'transcript' => $transcript,
+            'duration_seconds' => $this->durationSecondsFromStoredAudio($filePath) ?? $this->durationSecondsFromTranscript($transcript),
             'sentiment' => [
                 'overall' => 'positivo',
                 'overall_score' => 0.7,
@@ -255,5 +331,76 @@ PROMPT;
                 'summary' => 'Llamada positiva donde el agente resolvió de manera eficiente un problema de cobro duplicado. El cliente pasó de preocupado a satisfecho.',
             ],
         ];
+    }
+
+    private function durationSecondsFromStoredAudio(string $filePath): ?int
+    {
+        $disk = Storage::disk(config('filesystems.default', 'local'));
+
+        if (! $disk->exists($filePath)) {
+            return null;
+        }
+
+        if (method_exists($disk, 'path')) {
+            $durationFromProbe = $this->durationSecondsFromMediaProbe($disk->path($filePath));
+
+            if ($durationFromProbe) {
+                return $durationFromProbe;
+            }
+        }
+
+        return $this->durationSecondsFromAudioBytes($disk->get($filePath), $filePath);
+    }
+
+    private function durationSecondsFromMediaProbe(string $absolutePath): ?int
+    {
+        if (! is_file($absolutePath)) {
+            return null;
+        }
+
+        $binary = config('services.ffprobe.path')
+            ?: env('FFPROBE_PATH')
+            ?: (new ExecutableFinder)->find('ffprobe');
+
+        if (! $binary) {
+            return null;
+        }
+
+        try {
+            $process = new Process([
+                $binary,
+                '-v',
+                'error',
+                '-show_entries',
+                'format=duration',
+                '-of',
+                'default=noprint_wrappers=1:nokey=1',
+                $absolutePath,
+            ]);
+            $process->setTimeout(10);
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                return null;
+            }
+
+            $duration = (float) trim($process->getOutput());
+
+            return $duration > 0 ? max(1, (int) round($duration)) : null;
+        } catch (\Throwable $e) {
+            Log::debug('AudioTranscriptionService: ffprobe duration detection failed', [
+                'file' => $absolutePath,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function sanitizeProviderError(string $message): string
+    {
+        $message = preg_replace('/([?&]key=)[^&\s"]+/i', '$1[redacted]', $message) ?? $message;
+
+        return preg_replace('/AIza[0-9A-Za-z_\-]{20,}/', '[redacted-api-key]', $message) ?? $message;
     }
 }

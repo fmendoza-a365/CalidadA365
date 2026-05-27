@@ -83,12 +83,17 @@
                 Operación
             </p>
 
-            @can('view_evaluations')
-                <x-nav-link-sidebar :href="route('evaluations.index')" :active="request()->routeIs('evaluations.*')"
-                    icon="star" :open="true">
-                    Evaluaciones
+            @if(!auth()->user()->hasRole('agent'))
+                <x-nav-link-sidebar :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')"
+                    icon="clipboard-list" :open="true">
+                    Bandeja
                 </x-nav-link-sidebar>
-            @endcan
+            @endif
+
+            <x-nav-link-sidebar :href="route('evaluations.index')" :active="request()->routeIs('evaluations.*')"
+                icon="star" :open="true">
+                Evaluaciones
+            </x-nav-link-sidebar>
         </div>
 
         @if(auth()->user()->hasRole('admin') || auth()->user()->can('view_users') || auth()->user()->can('manage_roles'))
@@ -127,6 +132,10 @@
                     <x-nav-link-sidebar :href="route('settings.ai')" :active="request()->routeIs('settings.*')" icon="cog"
                         :open="true">
                         IA y Modelos
+                    </x-nav-link-sidebar>
+                    <x-nav-link-sidebar :href="route('settings.ai.performance')" :active="request()->routeIs('settings.ai.performance')" icon="chart-bar"
+                        :open="true">
+                        Rendimiento IA
                     </x-nav-link-sidebar>
                 @endcan
             </div>

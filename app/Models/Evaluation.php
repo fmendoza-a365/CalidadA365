@@ -39,9 +39,19 @@ class Evaluation extends Model
         'max_possible_score',
         'percentage_score',
         'status',
+        'previous_status_before_close',
+        'closed_at',
+        'closed_by',
+        'closure_reason',
+        'reopened_at',
+        'reopened_by',
         'is_gold',
         'ai_processed_at',
         'ai_model',
+        'ai_provider',
+        'ai_prompt_version',
+        'ai_prompt_hash',
+        'ai_settings_snapshot',
         'reviewed_by',
         'reviewed_at',
         'review_notes',
@@ -62,11 +72,14 @@ class Evaluation extends Model
         'percentage_score' => 'decimal:2',
         'is_gold' => 'boolean',
         'ai_processed_at' => 'datetime',
+        'ai_settings_snapshot' => 'array',
         'reviewed_at' => 'datetime',
         'visible_to_agent_at' => 'datetime',
         'agent_viewed_at' => 'datetime',
         'finalized_at' => 'datetime',
         'reanalysis_requested_at' => 'datetime',
+        'closed_at' => 'datetime',
+        'reopened_at' => 'datetime',
     ];
 
     public function scopeGold($query)
@@ -74,9 +87,9 @@ class Evaluation extends Model
         return $query->where('is_gold', true);
     }
 
-    public static function createPendingAiForInteraction(Interaction $interaction, QualityFormVersion $formVersion): self
+    public static function createPendingAiForInteraction(Interaction $interaction, QualityFormVersion $formVersion, ?User $actor = null, array $metadata = []): self
     {
-        return self::create([
+        $evaluation = self::create([
             'interaction_id' => $interaction->id,
             'form_version_id' => $formVersion->id,
             'campaign_id' => $interaction->campaign_id,
@@ -88,6 +101,16 @@ class Evaluation extends Model
             'percentage_score' => null,
             'status' => self::STATUS_PENDING_AI,
         ]);
+
+        $evaluation->recordAuditEvent(
+            'ai_queued',
+            $actor,
+            $metadata,
+            null,
+            self::STATUS_PENDING_AI
+        );
+
+        return $evaluation;
     }
 
     public function interaction()
@@ -125,6 +148,16 @@ class Evaluation extends Model
         return $this->belongsTo(User::class, 'published_by');
     }
 
+    public function closer()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function reopener()
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
+    }
+
     public function items()
     {
         return $this->hasMany(EvaluationItem::class);
@@ -140,6 +173,28 @@ class Evaluation extends Model
         return $this->hasOne(DisputeResolution::class);
     }
 
+    public function auditEvents()
+    {
+        return $this->hasMany(EvaluationAuditEvent::class)->latest('occurred_at');
+    }
+
+    public function recordAuditEvent(
+        string $event,
+        ?User $actor = null,
+        array $metadata = [],
+        ?string $fromStatus = null,
+        ?string $toStatus = null
+    ): EvaluationAuditEvent {
+        return $this->auditEvents()->create([
+            'actor_id' => $actor?->id,
+            'event' => $event,
+            'from_status' => $fromStatus,
+            'to_status' => $toStatus,
+            'metadata' => empty($metadata) ? null : $metadata,
+            'occurred_at' => now(),
+        ]);
+    }
+
     public function scopeVisibleToAgent($query)
     {
         return $query->whereIn('status', [
@@ -148,11 +203,6 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED,
             self::STATUS_DISPUTE_RESOLVED,
             self::STATUS_CLOSED,
-            'visible_to_agent',
-            'agent_responded',
-            'disputed',
-            'resolved',
-            'final',
         ]);
     }
 
@@ -241,11 +291,6 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED,
             self::STATUS_DISPUTE_RESOLVED,
             self::STATUS_CLOSED,
-            'visible_to_agent',
-            'agent_responded',
-            'disputed',
-            'resolved',
-            'final',
         ], true);
     }
 
@@ -267,6 +312,26 @@ class Evaluation extends Model
         ], true);
     }
 
+    public function isClosed(): bool
+    {
+        return $this->status === self::STATUS_CLOSED;
+    }
+
+    public function canBeClosed(): bool
+    {
+        return ! $this->isClosed() && in_array($this->status, [
+            self::STATUS_AI_FAILED,
+            self::STATUS_PUBLISHED_TO_AGENT,
+            self::STATUS_AGENT_ACCEPTED,
+            self::STATUS_DISPUTE_RESOLVED,
+        ], true);
+    }
+
+    public function canBeReopened(): bool
+    {
+        return $this->isClosed() && filled($this->previous_status_before_close);
+    }
+
     public static function statusLabel(string $status): string
     {
         return [
@@ -281,11 +346,6 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED => 'Disputada por asesor',
             self::STATUS_DISPUTE_RESOLVED => 'Disputa resuelta',
             self::STATUS_CLOSED => 'Cerrada',
-            'visible_to_agent' => 'Pendiente firma',
-            'agent_responded' => 'Firmada',
-            'disputed' => 'En disputa',
-            'resolved' => 'Resuelta',
-            'final' => 'Final',
         ][$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
 }

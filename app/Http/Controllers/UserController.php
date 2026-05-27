@@ -6,21 +6,37 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
-use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Auth;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $users = User::with('roles')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $term = trim($request->string('q')->toString());
 
-        return view('users.index', compact('users'));
+                $query->where(function ($query) use ($term) {
+                    $query->where('name', 'like', "%{$term}%")
+                        ->orWhere('paternal_surname', 'like', "%{$term}%")
+                        ->orWhere('maternal_surname', 'like', "%{$term}%")
+                        ->orWhere('username', 'like', "%{$term}%")
+                        ->orWhere('email', 'like', "%{$term}%")
+                        ->orWhere('department', 'like', "%{$term}%");
+                });
+            })
+            ->when($request->filled('role'), fn ($query) => $query->role($request->string('role')->toString()))
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
+
+        $roles = Role::orderBy('name')->get();
+
+        return view('users.index', compact('users', 'roles'));
     }
 
     /**

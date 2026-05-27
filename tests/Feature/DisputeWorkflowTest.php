@@ -63,6 +63,11 @@ class DisputeWorkflowTest extends TestCase
             'status' => DisputeResolution::STATUS_PENDING_QA_REVIEW,
             'supervisor_reviewed_by' => $supervisor->id,
         ]);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'actor_id' => $supervisor->id,
+            'event' => 'dispute_supervisor_reviewed',
+        ]);
 
         $this->actingAs($monitor)
             ->post(route('disputes.qa-review', $dispute->fresh()), [
@@ -76,6 +81,11 @@ class DisputeWorkflowTest extends TestCase
             'status' => DisputeResolution::STATUS_PENDING_COORDINATOR_REVIEW,
             'qa_reviewed_by' => $monitor->id,
         ]);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'actor_id' => $monitor->id,
+            'event' => 'dispute_qa_reviewed',
+        ]);
 
         $this->actingAs($coordinator)
             ->post(route('disputes.coordinator-review', $dispute->fresh()), [
@@ -88,6 +98,11 @@ class DisputeWorkflowTest extends TestCase
             'id' => $dispute->id,
             'status' => DisputeResolution::STATUS_READY_MANAGER_RESOLUTION,
             'coordinator_reviewed_by' => $coordinator->id,
+        ]);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'actor_id' => $coordinator->id,
+            'event' => 'dispute_coordinator_reviewed',
         ]);
 
         $this->actingAs($qaManager)
@@ -107,6 +122,13 @@ class DisputeWorkflowTest extends TestCase
             'id' => $evaluation->id,
             'status' => Evaluation::STATUS_DISPUTE_RESOLVED,
             'percentage_score' => 92,
+        ]);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'actor_id' => $qaManager->id,
+            'event' => 'dispute_resolved',
+            'from_status' => Evaluation::STATUS_AGENT_DISPUTED,
+            'to_status' => Evaluation::STATUS_DISPUTE_RESOLVED,
         ]);
     }
 

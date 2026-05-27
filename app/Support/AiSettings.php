@@ -8,6 +8,8 @@ class AiSettings
 {
     public const PROVIDERS = ['simulated', 'openai', 'gemini', 'claude'];
 
+    public const PROMPT_VERSION = 'quality-evaluation-v1';
+
     public const DEFAULTS = [
         'provider' => 'simulated',
         'openai_model' => 'gpt-4o-mini',
@@ -86,6 +88,19 @@ class AiSettings
                 'compliance_rate' => (int) self::get('simulated_compliance_rate'),
             ],
         };
+    }
+
+    public static function versionSnapshot(?string $provider = null): array
+    {
+        $provider ??= self::provider();
+        $config = self::providerConfig($provider);
+        unset($config['api_key']);
+
+        return [
+            'provider' => $provider,
+            'prompt_version' => self::PROMPT_VERSION,
+            'config' => $config,
+        ];
     }
 
     public static function transcriptionConfig(): array

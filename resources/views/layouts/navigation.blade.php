@@ -34,6 +34,12 @@
                         </x-nav-link>
                     @endif
 
+                    @if(!auth()->user()->hasRole('agent'))
+                        <x-nav-link :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')">
+                            Bandeja
+                        </x-nav-link>
+                    @endif
+
                     <x-nav-link :href="route('evaluations.index')" :active="request()->routeIs('evaluations.*')">
                         Evaluaciones
                     </x-nav-link>
@@ -121,6 +127,12 @@
 
                 <x-responsive-nav-link :href="route('insights.index')" :active="request()->routeIs('insights.*')">
                     Insights IA
+                </x-responsive-nav-link>
+            @endif
+
+            @if(!auth()->user()->hasRole('agent'))
+                <x-responsive-nav-link :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')">
+                    Bandeja
                 </x-responsive-nav-link>
             @endif
 

@@ -1,11 +1,26 @@
 <x-app-layout>
     <x-slot name="header">Transcripción #{{ $interaction->id }}</x-slot>
 
-    <div class="space-y-6">
+    @php
+        $audioReviewConfig = null;
+
+        if ($interaction->isAudio()) {
+            $audioReviewConfig = json_encode([
+                'audioUrl' => route('transcripts.audio', $interaction),
+                'timeline' => $audioTimeline ?? [],
+            ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG);
+        }
+    @endphp
+
+    <div class="space-y-6"
+        @if($interaction->isAudio())
+            data-audio-review='{{ $audioReviewConfig }}'
+            x-data="audioReview(JSON.parse($el.dataset.audioReview))"
+        @endif>
         <!-- Información General -->
         <div class="card">
             <div class="card-body">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
                     <div>
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña</div>
                         <p class="font-medium text-gray-900 dark:text-white">
@@ -16,6 +31,12 @@
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Asesor</div>
                         <p class="font-medium text-gray-900 dark:text-white">
                             {{ $interaction->agent?->name ?? 'Usuario eliminado' }}
+                        </p>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">SN / Código</div>
+                        <p class="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                            {{ $interaction->call_sn ?: '—' }}
                         </p>
                     </div>
                     <div>
@@ -34,29 +55,109 @@
             </div>
         </div>
 
-        <!-- Audio Player (for audio sources) -->
-        @if($interaction->isAudio())
-            <div class="card">
-                <div class="card-header flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                        </svg>
+        @php
+            $uploadMetadata = $interaction->metadata['upload'] ?? [];
+            $tags = $uploadMetadata['tags'] ?? [];
+            $analysisOptions = $uploadMetadata['analysis_options'] ?? [];
+        @endphp
+
+        <div class="card">
+            <div class="card-header flex items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Contexto Operativo</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Metadatos cargados para priorización, revisión e IA.</p>
+                </div>
+                @if($interaction->priority)
+                    @php
+                        $priorityClass = match ($interaction->priority) {
+                            'critical', 'risk' => 'badge-danger',
+                            'high', 'complaint' => 'badge-warning',
+                            default => 'badge-neutral',
+                        };
+                    @endphp
+                    <span class="badge {{ $priorityClass }}">
+                        {{ $formOptions['priorities'][$interaction->priority] ?? ucfirst($interaction->priority) }}
+                    </span>
+                @endif
+            </div>
+            <div class="card-body space-y-5">
+                <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Canal</div>
+                        <div class="mt-1 font-medium text-gray-900 dark:text-white">{{ $formOptions['channels'][$interaction->channel] ?? '—' }}</div>
                     </div>
                     <div>
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Audio Original</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ $interaction->file_name }}</p>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Tipo</div>
+                        <div class="mt-1 font-medium text-gray-900 dark:text-white">{{ $formOptions['directions'][$interaction->direction] ?? '—' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">ID externo</div>
+                        <div class="mt-1 font-mono text-sm text-gray-900 dark:text-white">{{ $interaction->external_id ?: '—' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Cargado por</div>
+                        <div class="mt-1 font-medium text-gray-900 dark:text-white">{{ $interaction->uploadedBy?->name ?? '—' }}</div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <audio controls class="w-full" preload="metadata">
-                        <source src="{{ route('transcripts.audio', $interaction) }}" type="audio/mpeg">
-                        Tu navegador no soporta la reproducción de audio.
-                    </audio>
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Motivo</div>
+                        <p class="mt-2 text-sm text-gray-800 dark:text-gray-200">{{ $interaction->contact_reason ?: '—' }}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Resultado</div>
+                        <p class="mt-2 text-sm text-gray-800 dark:text-gray-200">{{ $formOptions['outcomes'][$interaction->outcome] ?? '—' }}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Cliente / Producto</div>
+                        <p class="mt-2 text-sm text-gray-800 dark:text-gray-200">
+                            {{ $interaction->customer_reference ?: '—' }}
+                            @if($interaction->product_name)
+                                <span class="text-gray-400">/</span> {{ $interaction->product_name }}
+                            @endif
+                        </p>
+                    </div>
                 </div>
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Etiquetas</div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @forelse($tags as $tag)
+                                <span class="badge badge-neutral">{{ $tag }}</span>
+                            @empty
+                                <span class="text-sm text-gray-500 dark:text-gray-400">—</span>
+                            @endforelse
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Configuración IA</div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <span class="badge badge-info">{{ $formOptions['languages'][$uploadMetadata['language'] ?? 'es'] ?? 'Español' }}</span>
+                            <span class="badge badge-neutral">{{ $formOptions['diarizationModes'][$uploadMetadata['diarization_mode'] ?? 'auto'] ?? 'Automática' }}</span>
+                            @if($analysisOptions['emotion'] ?? false)
+                                <span class="badge badge-success">Emociones</span>
+                            @endif
+                            @if($analysisOptions['critical_compliance'] ?? false)
+                                <span class="badge badge-warning">Críticos</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                @if(!empty($uploadMetadata['ai_context']))
+                    <div class="rounded-xl bg-gray-50 p-4 dark:bg-gray-900/40">
+                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Contexto IA</div>
+                        <p class="mt-2 text-sm text-gray-800 dark:text-gray-200">{{ $uploadMetadata['ai_context'] }}</p>
+                    </div>
+                @endif
             </div>
+        </div>
+
+        <!-- Audio Player (for audio sources) -->
+        @if($interaction->isAudio())
+            @include('transcripts.partials.audio-review', ['timeline' => $audioTimeline ?? []])
         @endif
 
         <!-- Transcription Status (for audio being transcribed) -->
@@ -103,230 +204,30 @@
             </div>
         @endif
 
-        <!-- Análisis de Sentimiento -->
-        @php
-            $sentiment = $interaction->metadata['sentiment'] ?? null;
-            
-            // Retroactive Fix: If sentiment is empty but transcript_text looks like JSON, try to parse it
-            if (empty($sentiment) && $interaction->isAudio() && str_starts_with(trim($interaction->transcript_text), '{')) {
-                try {
-                    $parsed = json_decode($interaction->transcript_text, true);
-                    if ($parsed && isset($parsed['sentiment'])) {
-                        $sentiment = $parsed; // Use the whole object to match the expected format below
-                    }
-                } catch (\Exception $e) {}
-            }
-            
-            // If the retroactive fix didn't wrap it in ['sentiment'], handle both cases
-            $sentimentData = $sentiment['sentiment'] ?? $sentiment;
-        @endphp
-
-        @if($interaction->isAudio() && !empty($sentimentData))
-            @php $sentiment = $sentimentData; @endphp
-            <div class="card">
-                <div class="card-header flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Análisis de Sentimiento</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sentiment['summary'] ?? '' }}</p>
-                    </div>
-                    @php
-                        $overallSentiment = $sentiment['overall'] ?? 'neutro';
-                        $sentimentColors = [
-                            'positivo' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400',
-                            'negativo' => 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400',
-                            'neutro' => 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400',
-                            'mixto' => 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
-                        ];
-                        $sentimentEmojis = ['positivo' => '😊', 'negativo' => '😟', 'neutro' => '😐', 'mixto' => '🔄'];
-                    @endphp
-                    <span
-                        class="ml-auto px-3 py-1 rounded-full text-sm font-medium {{ $sentimentColors[$overallSentiment] ?? $sentimentColors['neutro'] }}">
-                        {{ $sentimentEmojis[$overallSentiment] ?? '😐' }} {{ ucfirst($overallSentiment) }}
-                    </span>
-                </div>
-                <div class="card-body">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Agente -->
-                        @if(!empty($sentiment['agent']))
-                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <div
-                                        class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
-                                        <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none"
-                                            viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                    </div>
-                                    <span class="font-semibold text-gray-900 dark:text-white">Agente</span>
-                                    @php
-                                        $agentScore = $sentiment['agent']['score'] ?? 0;
-                                        $agentColor = $agentScore > 0.3 ? 'text-emerald-600' : ($agentScore < -0.3 ? 'text-rose-600' : 'text-gray-600');
-                                    @endphp
-                                    <span
-                                        class="ml-auto text-sm font-mono {{ $agentColor }}">{{ number_format($agentScore, 1) }}</span>
-                                </div>
-                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
-                                    <div class="h-2 rounded-full transition-all {{ $agentScore > 0.3 ? 'bg-emerald-500' : ($agentScore < -0.3 ? 'bg-rose-500' : 'bg-amber-500') }}"
-                                        style="width: {{ (($agentScore + 1) / 2) * 100 }}%"></div>
-                                </div>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sentiment['agent']['tone'] ?? '' }}</p>
-                            </div>
-                        @endif
-
-                        <!-- Cliente -->
-                        @if(!empty($sentiment['client']))
-                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <div
-                                        class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center">
-                                        <svg class="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none"
-                                            viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </div>
-                                    <span class="font-semibold text-gray-900 dark:text-white">Cliente</span>
-                                    @php
-                                        $clientScore = $sentiment['client']['score'] ?? 0;
-                                        $clientColor = $clientScore > 0.3 ? 'text-emerald-600' : ($clientScore < -0.3 ? 'text-rose-600' : 'text-gray-600');
-                                        $satisfaction = $sentiment['client']['satisfaction'] ?? 'neutro';
-                                        $satColors = ['satisfecho' => 'badge-success', 'insatisfecho' => 'badge-danger', 'neutro' => 'badge-warning'];
-                                    @endphp
-                                    <span
-                                        class="ml-auto text-sm font-mono {{ $clientColor }}">{{ number_format($clientScore, 1) }}</span>
-                                </div>
-                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
-                                    <div class="h-2 rounded-full transition-all {{ $clientScore > 0.3 ? 'bg-emerald-500' : ($clientScore < -0.3 ? 'bg-rose-500' : 'bg-amber-500') }}"
-                                        style="width: {{ (($clientScore + 1) / 2) * 100 }}%"></div>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sentiment['client']['tone'] ?? '' }}
-                                    </p>
-                                    <span
-                                        class="badge {{ $satColors[$satisfaction] ?? 'badge-warning' }}">{{ ucfirst($satisfaction) }}</span>
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @endif
-
         <!-- Contenido de la Transcripción -->
         @if(!$interaction->isTranscribing() && !empty($interaction->transcript_text))
             <div class="card">
                 <div class="card-header">
                     <h3 class="font-semibold text-gray-900 dark:text-white">
-                        {{ $interaction->isAudio() ? 'Transcripción del Audio' : 'Contenido de la Transcripción' }}
+                        Conversación
                     </h3>
                 </div>
-                <div class="card-body">
-                    @if($interaction->isAudio())
-                        {{-- Chat bubble format for audio transcripts --}}
-                            @php
-                                // Clean literal \n if they exist
-                                $cleanText = str_replace('\n', "\n", $interaction->transcript_text);
-                                
-                                // Retroactive Cleaning: If it was stored as raw JSON, try to extract just the transcript
-                                if (str_starts_with(trim($cleanText), '{')) {
-                                    $parsed = json_decode($cleanText, true);
-                                    if ($parsed && isset($parsed['transcript'])) {
-                                        $cleanText = $parsed['transcript'];
-                                    }
-                                }
+                <div class="card-body" x-data="{ showRawTranscript: false }">
+                    @include('transcripts.partials.conversation', [
+                        'turns' => $conversationTurns ?? [],
+                        'isAudio' => $interaction->isAudio(),
+                    ])
 
-                                // Robust parsing: split by [MM:SS] Speaker: pattern
-                                $lines = preg_split('/(?=\[?(?:\d{1,2}:\d{2})\]?\s*(?:Agente|Cliente):)/i', $cleanText, -1, PREG_SPLIT_NO_EMPTY);
-                                
-                                // Fallback
-                                if (count($lines) <= 1 && str_contains($cleanText, "\n")) {
-                                    $lines = explode("\n", $cleanText);
-                                }
-                            @endphp
-                            @foreach($lines as $line)
-                                @php
-                                    $line = trim($line);
-                                    if (empty($line) || strlen($line) < 3 || str_starts_with($line, '{') || str_ends_with($line, '}')) continue; // Skip artifacts
-                                    
-                                    $isAgent = stripos($line, 'Agente') !== false;
-                                    $isClient = stripos($line, 'Cliente') !== false;
-                                    
-                                    // Extract timestamp (more flexible regex - with or without brackets)
-                                    preg_match('/(?:\[|\()?(\d{1,2}:\d{2})(?:\]|\))?/', $line, $timeMatch);
-                                    $timestamp = $timeMatch[1] ?? '';
-                                    
-                                    // Clean message
-                                    // 1. Remove timestamp [00:00] or 00:00] or [00:00
-                                    $message = preg_replace('/^\[?\d{1,2}:\d{2}\]?\s*/', '', $line);
-                                    // 2. Remove Speaker Label (Agente: / Cliente:)
-                                    $message = preg_replace('/^(?:Agente|Cliente):?\s*/i', '', $message);
-                                    // 3. Remove leading/trailing quotes or junk
-                                    $message = trim($message, " \"'\n\r\t\v\0");
-                                @endphp
-                                
-                                @if($isAgent)
-                                    <div class="flex gap-3 items-start group">
-                                        <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                                            <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                            </svg>
-                                        </div>
-                                        <div class="flex flex-col items-start max-w-[85%]">
-                                            <div class="flex items-center gap-2 mb-1 ml-1">
-                                                <span class="text-xs font-bold text-gray-700 dark:text-gray-300">Agente</span>
-                                                @if($timestamp)
-                                                    <span class="text-[10px] text-gray-400 font-mono">{{ $timestamp }}</span>
-                                                @endif
-                                            </div>
-                                            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
-                                                <p class="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">{{ $message }}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @elseif($isClient)
-                                    <div class="flex gap-3 items-start justify-end group">
-                                        <div class="flex flex-col items-end max-w-[85%]">
-                                            <div class="flex items-center gap-2 mb-1 mr-1">
-                                                @if($timestamp)
-                                                    <span class="text-[10px] text-gray-400 font-mono">{{ $timestamp }}</span>
-                                                @endif
-                                                <span class="text-xs font-bold text-gray-700 dark:text-gray-300">Cliente</span>
-                                            </div>
-                                            <div class="bg-indigo-600 dark:bg-indigo-600 rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-                                                <p class="text-sm text-white leading-relaxed whitespace-pre-wrap">{{ $message }}</p>
-                                            </div>
-                                        </div>
-                                        <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                                            <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                @else
-                                    @if(strlen($line) > 5)
-                                        <div class="flex justify-center my-2">
-                                            <span class="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full italic">{{ $line }}</span>
-                                        </div>
-                                    @endif
-                                @endif
-                            @endforeach
+                    <div class="mt-4">
+                        <button type="button" @click="showRawTranscript = !showRawTranscript"
+                            class="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
+                            <span x-text="showRawTranscript ? 'Ocultar texto plano' : 'Ver texto plano'"></span>
+                        </button>
+
+                        <div x-show="showRawTranscript" x-cloak class="mt-3 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+                            <pre class="max-h-96 overflow-y-auto whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-gray-700 dark:text-gray-300" style="overflow-wrap: anywhere;">{{ $interaction->transcript_text }}</pre>
                         </div>
-                    @else
-                        {{-- Plain text format for .txt uploads --}}
-                        {{-- Plain text format for .txt uploads --}}
-                        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 max-h-96 overflow-y-auto scrollbar-thin">
-                            <pre
-                                class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-mono leading-relaxed">{{ $interaction->transcript_text }}</pre>
-                        </div>
-                    @endif
+                    </div>
                 </div>
             </div>
         @endif

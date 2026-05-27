@@ -385,10 +385,10 @@ PROMPT;
         }
 
         // Common fix 3: Escape unescaped control characters inside JSON strings (preserves formatting)
-        $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function($matches) {
+        $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function ($matches) {
             return str_replace(
-                ["\n", "\r", "\t"], 
-                ["\\n", "\\r", "\\t"], 
+                ["\n", "\r", "\t"],
+                ['\\n', '\\r', '\\t'],
                 preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $matches[0])
             );
         }, $jsonString);
@@ -403,8 +403,8 @@ PROMPT;
 
         if ($start !== false && $end !== false && $end > $start) {
             $jsonString = substr($content, $start, $end - $start + 1);
-            $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function($matches) {
-                return str_replace(["\n", "\r", "\t"], ["\\n", "\\r", "\\t"], preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $matches[0]));
+            $cleanJson = preg_replace_callback('/"(?:\\\\.|[^"\\\\])*"/', function ($matches) {
+                return str_replace(["\n", "\r", "\t"], ['\\n', '\\r', '\\t'], preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $matches[0]));
             }, $jsonString);
             $result = json_decode($cleanJson, true);
             if (json_last_error() === JSON_ERROR_NONE) {
@@ -478,6 +478,10 @@ PROMPT;
             'evaluator_id' => null,
             'ai_processed_at' => now(),
             'ai_model' => $this->getModelName(),
+            'ai_provider' => $this->provider,
+            'ai_prompt_version' => AiSettings::PROMPT_VERSION,
+            'ai_prompt_hash' => hash('sha256', $prompt),
+            'ai_settings_snapshot' => AiSettings::versionSnapshot($this->provider),
             'ai_summary' => $response['general_feedback'] ?? null,
             'ai_prompt' => $prompt,
             'ai_raw_response' => $rawResponse,
@@ -489,6 +493,8 @@ PROMPT;
             'visible_to_agent_at' => null,
             'finalized_at' => null,
         ];
+
+        $fromStatus = $existingEvaluation?->status;
 
         if ($existingEvaluation) {
             $evaluation = $existingEvaluation;
@@ -565,6 +571,14 @@ PROMPT;
             'max_possible_score' => $totalWeight,
             'percentage_score' => round($percentageScore, 2),
         ]);
+
+        $evaluation->recordAuditEvent('ai_evaluated', null, [
+            'provider' => $this->provider,
+            'model' => $this->getModelName(),
+            'items_count' => count($response['items'] ?? []),
+            'has_critical_failure' => $hasCriticalFailure,
+            'percentage_score' => round($percentageScore, 2),
+        ], $fromStatus, Evaluation::STATUS_PENDING_MONITOR_REVIEW);
 
         return $evaluation;
     }

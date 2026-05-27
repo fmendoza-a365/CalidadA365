@@ -39,6 +39,15 @@ class AiEvaluationQueueTest extends TestCase
             'status' => Evaluation::STATUS_PENDING_AI,
         ]);
 
+        $evaluation = Evaluation::where('interaction_id', $interaction->id)->firstOrFail();
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'actor_id' => $admin->id,
+            'event' => 'ai_queued',
+            'from_status' => null,
+            'to_status' => Evaluation::STATUS_PENDING_AI,
+        ]);
+
         $this->actingAs($admin)
             ->get(route('evaluations.index'))
             ->assertOk()
@@ -55,6 +64,26 @@ class AiEvaluationQueueTest extends TestCase
 
         $this->assertSame(Evaluation::STATUS_PENDING_MONITOR_REVIEW, $evaluation->fresh()->status);
         $this->assertSame('scored', $interaction->fresh()->status);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'event' => 'ai_processing_started',
+            'from_status' => Evaluation::STATUS_PENDING_AI,
+            'to_status' => Evaluation::STATUS_AI_PROCESSING,
+        ]);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $evaluation->id,
+            'event' => 'ai_evaluated',
+            'from_status' => Evaluation::STATUS_AI_PROCESSING,
+            'to_status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+        ]);
+        $this->assertDatabaseHas('evaluations', [
+            'id' => $evaluation->id,
+            'ai_provider' => 'simulated',
+            'ai_model' => 'simulated',
+            'ai_prompt_version' => \App\Support\AiSettings::PROMPT_VERSION,
+        ]);
+        $this->assertNotNull($evaluation->fresh()->ai_prompt_hash);
+        $this->assertArrayNotHasKey('api_key', $evaluation->fresh()->ai_settings_snapshot['config']);
     }
 
     private function scorableInteraction(): array
