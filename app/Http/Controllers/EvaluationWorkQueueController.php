@@ -19,28 +19,24 @@ class EvaluationWorkQueueController extends Controller
             abort(403);
         }
 
-        $pendingReview = Evaluation::with(['agent', 'campaign', 'interaction'])
+        $pendingReviewQuery = Evaluation::with(['agent', 'campaign', 'interaction'])
             ->forUser($user)
             ->whereIn('status', [
                 Evaluation::STATUS_PENDING_MONITOR_REVIEW,
                 Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
             ])
-            ->latest()
-            ->limit(25)
-            ->get();
+            ->whereDoesntHave('interaction.manualEvaluation');
 
-        $aiQueue = Evaluation::with(['agent', 'campaign', 'interaction'])
+        $aiQueueQuery = Evaluation::with(['agent', 'campaign', 'interaction'])
             ->forUser($user)
             ->whereIn('status', [
                 Evaluation::STATUS_PENDING_AI,
                 Evaluation::STATUS_AI_PROCESSING,
                 Evaluation::STATUS_AI_FAILED,
             ])
-            ->latest()
-            ->limit(25)
-            ->get();
+            ->whereDoesntHave('interaction.manualEvaluation');
 
-        $disputes = DisputeResolution::with([
+        $disputesQuery = DisputeResolution::with([
             'evaluation.agent',
             'evaluation.campaign',
             'evaluation.interaction',
@@ -48,10 +44,7 @@ class EvaluationWorkQueueController extends Controller
             ->whereHas('evaluation', function ($query) use ($user) {
                 $query->forUser($user)->where('status', '!=', Evaluation::STATUS_CLOSED);
             })
-            ->where('status', '!=', DisputeResolution::STATUS_RESOLVED)
-            ->latest()
-            ->limit(25)
-            ->get();
+            ->where('status', '!=', DisputeResolution::STATUS_RESOLVED);
 
         $filters = [
             'start_date' => $request->input('start_date', now()->subDays(30)->format('Y-m-d')),
@@ -61,17 +54,30 @@ class EvaluationWorkQueueController extends Controller
 
         $calibrationAlerts = collect($calibrationService->recentPairs($filters, $user, 50))
             ->filter(fn (array $pair) => $pair['absolute_score_delta'] >= 10)
-            ->take(25)
             ->values();
         $productivity = $operationalMetrics->summary($filters, $user);
         $campaigns = Campaign::active()->forUser($user)->orderBy('name')->get();
 
         $counts = [
-            'pending_review' => $pendingReview->count(),
-            'ai_queue' => $aiQueue->count(),
-            'disputes' => $disputes->count(),
+            'pending_review' => (clone $pendingReviewQuery)->count(),
+            'ai_queue' => (clone $aiQueueQuery)->count(),
+            'disputes' => (clone $disputesQuery)->count(),
             'calibration_alerts' => $calibrationAlerts->count(),
         ];
+
+        $pendingReview = $pendingReviewQuery
+            ->latest()
+            ->paginate(8, ['*'], 'review_page')
+            ->withQueryString();
+        $aiQueue = $aiQueueQuery
+            ->latest()
+            ->paginate(8, ['*'], 'ai_page')
+            ->withQueryString();
+        $disputes = $disputesQuery
+            ->latest()
+            ->paginate(6, ['*'], 'dispute_page')
+            ->withQueryString();
+        $calibrationAlerts = $calibrationAlerts->take(6);
 
         return view('work-queue.index', compact(
             'pendingReview',

@@ -50,7 +50,18 @@ class EvaluationCalibrationTest extends TestCase
             ->assertSee('Evidencia:')
             ->assertSee('Cliente confirma que recibió la solución.')
             ->assertSee('Nota IA original')
-            ->assertSee('La IA no detectó cierre explícito.');
+            ->assertSee('La IA no detectó cierre explícito.')
+            ->assertDontSee('Ver Evaluación IA')
+            ->assertDontSee('Marcar Gold');
+    }
+
+    public function test_ai_evaluation_route_redirects_to_final_manual_evaluation_when_it_exists(): void
+    {
+        [$admin, , $manualEvaluation, $aiEvaluation] = $this->evaluationPair();
+
+        $this->actingAs($admin)
+            ->get(route('evaluations.show', $aiEvaluation))
+            ->assertRedirect(route('evaluations.show', $manualEvaluation));
     }
 
     public function test_agent_does_not_see_internal_calibration_card(): void

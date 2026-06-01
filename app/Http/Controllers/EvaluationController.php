@@ -26,6 +26,7 @@ class EvaluationController extends Controller
         ])->forUser($user);
 
         $this->applyIndexFilters($query, $request);
+        $this->applyFinalEvaluationScope($query);
 
         $summary = $this->indexSummary(clone $query);
         $evaluations = $query->latest()->paginate(20)->withQueryString();
@@ -48,6 +49,15 @@ class EvaluationController extends Controller
         ];
 
         return view('evaluations.index', compact('evaluations', 'campaigns', 'statusOptions', 'typeOptions', 'summary'));
+    }
+
+    private function applyFinalEvaluationScope($query): void
+    {
+        $query->where(function ($query) {
+            $query
+                ->where('type', 'manual')
+                ->orWhereDoesntHave('interaction.manualEvaluation');
+        });
     }
 
     private function applyIndexFilters($query, Request $request): void
@@ -101,6 +111,16 @@ class EvaluationController extends Controller
     public function show(Evaluation $evaluation, EvaluationCalibrationService $calibrationService)
     {
         $this->authorize('view', $evaluation);
+
+        if ($evaluation->type === 'ai') {
+            $manualEvaluation = $evaluation->interaction?->manualEvaluation()->first();
+
+            if ($manualEvaluation) {
+                $this->authorize('view', $manualEvaluation);
+
+                return redirect()->route('evaluations.show', $manualEvaluation);
+            }
+        }
 
         $evaluation->load([
             'interaction.aiEvaluation.items.subAttribute',
@@ -208,8 +228,8 @@ class EvaluationController extends Controller
             abort(403);
         }
 
-        if ($evaluation->isClosed()) {
-            return back()->with('error', 'No se puede modificar una evaluación cerrada.');
+        if ($evaluation->type !== 'manual' || ! $evaluation->isVisibleToAgent()) {
+            return back()->with('error', 'Solo una evaluación final corregida puede usarse como referencia IA.');
         }
 
         $evaluation->is_gold = ! $evaluation->is_gold;

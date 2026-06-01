@@ -142,7 +142,10 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Alertas de calibración IA</h3>
+                    <div class="flex items-center justify-between gap-3">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Alertas de calibración IA</h3>
+                        <span class="badge badge-neutral">{{ $counts['calibration_alerts'] }}</span>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="space-y-3">
@@ -167,7 +170,12 @@
         <div class="grid grid-cols-1 gap-6 2xl:grid-cols-2">
             <div class="card">
                 <div class="card-header">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Evaluaciones IA pendientes de revisión</h3>
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Evaluaciones IA pendientes de revisión</h3>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $pendingReview->firstItem() ?? 0 }}-{{ $pendingReview->lastItem() ?? 0 }} de {{ $counts['pending_review'] }}
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     @include('work-queue.partials.evaluation-list', ['items' => $pendingReview, 'empty' => 'No hay evaluaciones pendientes de revisión.'])
@@ -176,17 +184,22 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Disputas por resolver</h3>
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Disputas por resolver</h3>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ $disputes->firstItem() ?? 0 }}-{{ $disputes->lastItem() ?? 0 }} de {{ $counts['disputes'] }}
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="space-y-3">
                         @forelse($disputes as $dispute)
-                            <a href="{{ route('evaluations.show', $dispute->evaluation) }}" class="block rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-rose-200 hover:bg-rose-50/30 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/5">
-                                <div class="flex items-start justify-between gap-3">
+                            <a href="{{ route('evaluations.show', $dispute->evaluation) }}" class="block rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition hover:border-rose-200 hover:bg-rose-50/30 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/5">
+                                <div class="flex items-center justify-between gap-3">
                                     <div class="min-w-0">
                                         <div class="font-semibold text-gray-900 dark:text-white">{{ $dispute->evaluation->agent?->name ?? 'N/A' }}</div>
-                                        <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $dispute->evaluation->campaign?->name ?? 'N/A' }}</div>
-                                        <div class="mt-2 text-xs text-gray-400 dark:text-gray-500">{{ $dispute->created_at->diffForHumans() }}</div>
+                                        <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $dispute->evaluation->campaign?->name ?? 'N/A' }}</div>
+                                        <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ $dispute->created_at->diffForHumans() }}</div>
                                     </div>
                                     <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                         {{ \App\Models\DisputeResolution::statusLabel($dispute->status) }}
@@ -197,13 +210,23 @@
                             <div class="rounded-2xl border border-dashed border-gray-200 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">No hay disputas abiertas.</div>
                         @endforelse
                     </div>
+                    @if($disputes->hasPages())
+                        <div class="pt-3">
+                            {{ $disputes->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h3 class="font-semibold text-gray-900 dark:text-white">Cola IA y fallos</h3>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Cola IA y fallos</h3>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ $aiQueue->firstItem() ?? 0 }}-{{ $aiQueue->lastItem() ?? 0 }} de {{ $counts['ai_queue'] }}
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 @include('work-queue.partials.evaluation-list', ['items' => $aiQueue, 'empty' => 'No hay evaluaciones IA en cola o con fallo.'])

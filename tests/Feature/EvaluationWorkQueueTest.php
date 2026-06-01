@@ -29,6 +29,38 @@ class EvaluationWorkQueueTest extends TestCase
             ->assertSee('Campaign');
     }
 
+    public function test_work_queue_paginates_pending_reviews_and_skips_manually_corrected_interactions(): void
+    {
+        [$admin] = $this->pendingEvaluation('Visible Agent 01');
+
+        foreach (range(2, 10) as $index) {
+            $this->pendingEvaluation('Visible Agent '.str_pad((string) $index, 2, '0', STR_PAD_LEFT));
+        }
+
+        [, , $hiddenEvaluation, $hiddenInteraction, $version] = $this->pendingEvaluation('Hidden Corrected Agent');
+
+        Evaluation::create([
+            'interaction_id' => $hiddenInteraction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $hiddenEvaluation->campaign_id,
+            'agent_id' => $hiddenEvaluation->agent_id,
+            'type' => 'manual',
+            'evaluator_id' => $admin->id,
+            'total_score' => 90,
+            'max_possible_score' => 100,
+            'percentage_score' => 90,
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'visible_to_agent_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('work-queue.index'))
+            ->assertOk()
+            ->assertSee('1-8 de 10')
+            ->assertSee('Visible Agent')
+            ->assertDontSee('Hidden Corrected Agent');
+    }
+
     public function test_agent_cannot_access_work_queue(): void
     {
         $agent = $this->userWithRole('agent');
@@ -38,10 +70,11 @@ class EvaluationWorkQueueTest extends TestCase
             ->assertForbidden();
     }
 
-    private function pendingEvaluation(): array
+    private function pendingEvaluation(string $agentName = 'Agent'): array
     {
         $admin = $this->userWithRole('admin');
         $agent = $this->userWithRole('agent');
+        $agent->forceFill(['name' => $agentName])->save();
         $supervisor = $this->userWithRole('supervisor');
         $campaign = Campaign::create(['name' => 'Campaign']);
         $form = QualityForm::create([
@@ -66,7 +99,7 @@ class EvaluationWorkQueueTest extends TestCase
             'transcript_text' => 'Test transcript',
             'status' => 'uploaded',
         ]);
-        Evaluation::create([
+        $evaluation = Evaluation::create([
             'interaction_id' => $interaction->id,
             'form_version_id' => $version->id,
             'campaign_id' => $campaign->id,
@@ -78,7 +111,7 @@ class EvaluationWorkQueueTest extends TestCase
             'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
         ]);
 
-        return [$admin, $agent];
+        return [$admin, $agent, $evaluation, $interaction, $version];
     }
 
     private function userWithRole(string $role): User

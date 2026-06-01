@@ -12,111 +12,98 @@
             </div>
         @endif
 
-        <!-- Resumen -->
+        @php
+            $score = (float) $evaluation->percentage_score;
+            $scoreClass = match (true) {
+                $score >= 90 => 'score-excellent',
+                $score >= 80 => 'score-good',
+                $score >= 70 => 'score-average',
+                default => 'score-poor',
+            };
+            $isCorrectedFinal = $evaluation->type === 'manual' && $evaluation->interaction?->aiEvaluation;
+            $statusBadgeClass = match ($evaluation->status) {
+                \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT => 'badge-warning',
+                \App\Models\Evaluation::STATUS_AGENT_ACCEPTED,
+                \App\Models\Evaluation::STATUS_DISPUTE_RESOLVED => 'badge-success',
+                \App\Models\Evaluation::STATUS_AGENT_DISPUTED,
+                \App\Models\Evaluation::STATUS_AI_FAILED => 'badge-danger',
+                default => $evaluation->isPendingMonitorReview() ? 'badge-warning' : 'badge-neutral',
+            };
+        @endphp
+
         <div class="card">
-            <div class="p-4">
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[12rem_repeat(3,minmax(0,1fr))_18rem] xl:items-start">
-                    <div>
-                        @php
-                            $score = $evaluation->percentage_score;
-                            $scoreClass = match (true) {
-                                $score >= 90 => 'score-excellent',
-                                $score >= 80 => 'score-good',
-                                $score >= 70 => 'score-average',
-                                default => 'score-poor',
-                            };
-                        @endphp
-                        <div class="text-3xl font-bold leading-none {{ $scoreClass }}">{{ number_format($score, 1) }}%</div>
-                        <div class="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Puntaje Final</div>
+            <div class="p-4 lg:p-5">
+                <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
+                            <div class="lg:w-40">
+                                <div class="text-3xl font-bold leading-none {{ $scoreClass }}">{{ number_format($score, 1) }}%</div>
+                                <div class="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Puntaje final</div>
+                            </div>
+
+                            <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Evaluación</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">
+                                        {{ $isCorrectedFinal ? 'Final corregida' : 'Evaluación IA' }}
+                                    </p>
+                                    @if($evaluation->evaluator)
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Monitor: {{ $evaluation->evaluator->name }}</p>
+                                    @endif
+                                </div>
+                                <div>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign->name }}</p>
+                                </div>
+                                <div>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Interacción</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">
+                                        {{ $evaluation->interaction?->occurred_at?->format('d/m/Y H:i') ?? $evaluation->created_at->format('d/m/Y H:i') }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado</div>
+                                    <span class="badge {{ $statusBadgeClass }}">{{ \App\Models\Evaluation::statusLabel($evaluation->status) }}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña</div>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign->name }}</p>
-                    </div>
-                    <div>
-                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Fecha</div>
-                        <p class="font-medium text-gray-900 dark:text-white">
-                            {{ $evaluation->created_at->format('d/m/Y') }}</p>
-                    </div>
-                    <div>
-                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado</div>
-                        @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
-                            <span class="badge badge-warning">Pendiente Revision</span>
-                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
-                            <span class="badge badge-warning">Publicada</span>
-                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_ACCEPTED)
-                            <span class="badge badge-success">Aceptada</span>
-                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_AGENT_DISPUTED)
-                            <span class="badge badge-danger">En Disputa</span>
-                        @elseif($evaluation->status === \App\Models\Evaluation::STATUS_CLOSED)
-                            <span class="badge badge-neutral">Cerrada</span>
-                        @else
-                            <span class="badge badge-neutral">{{ \App\Models\Evaluation::statusLabel($evaluation->status) }}</span>
-                        @endif
-                    </div>
-                    <div class="space-y-2">
+
+                    <div class="grid gap-2 sm:grid-cols-2 xl:w-[360px] xl:grid-cols-1">
                         <a href="{{ route('transcripts.show', $evaluation->interaction) }}"
                             class="btn-secondary btn-sm w-full justify-center text-center">
                             Ver Transcripción
                         </a>
 
-                        @if ($evaluation->type === 'ai')
-                            @if ($manualEval = $evaluation->interaction->manualEvaluation)
-                                <a href="{{ route('evaluations.show', $manualEval) }}"
-                                    class="btn-ghost btn-sm mt-2 w-full justify-center text-indigo-600 dark:text-gray-400">
-                                    Ver Corrección Manual
+                        @if ($evaluation->type === 'ai' && ! $evaluation->interaction->manualEvaluation)
+                            @can('publish', $evaluation)
+                                <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
+                                    class="btn-primary btn-sm w-full justify-center">
+                                    Corregir Manualmente
                                 </a>
-                            @else
-                                @can('publish', $evaluation)
-                                    <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
-                                        class="btn-primary btn-sm mt-2 w-full justify-center">
-                                        Corregir Manualmente
-                                    </a>
-                                @endcan
-                            @endif
-                        @elseif ($evaluation->type === 'manual')
-                            @if ($aiEval = $evaluation->interaction->aiEvaluation)
-                                <a href="{{ route('evaluations.show', $aiEval) }}"
-                                    class="btn-ghost btn-sm mt-2 w-full justify-center text-indigo-600 dark:text-gray-400">
-                                    Ver Evaluación IA
-                                </a>
-                            @endif
-                            <div class="mt-2 text-xs text-center text-gray-500">
-                                Evaluado por: {{ $evaluation->evaluator->name ?? 'N/A' }}
-                            </div>
+                            @endcan
                         @endif
+
                         @can('publish', $evaluation)
-                            <form method="POST" action="{{ route('evaluations.publish', $evaluation) }}" class="mt-2">
+                            <form method="POST" action="{{ route('evaluations.publish', $evaluation) }}">
                                 @csrf
                                 <button type="submit" class="btn-primary btn-sm w-full justify-center">
                                     Aprobar y Publicar
                                 </button>
                             </form>
                         @endcan
+
                         @can('reanalyze', $evaluation)
-                            <form method="POST" action="{{ route('evaluations.reanalyze', $evaluation) }}" class="mt-2">
+                            <form method="POST" action="{{ route('evaluations.reanalyze', $evaluation) }}">
                                 @csrf
                                 <button type="submit" class="btn-secondary btn-sm w-full justify-center">
                                     Reanalizar IA
                                 </button>
                             </form>
                         @endcan
-                        @if(auth()->user()->hasAnyRole(['admin', 'qa_manager']))
-                            <form method="POST" action="{{ route('evaluations.toggle-gold', $evaluation) }}" class="mt-2">
-                                @csrf
-                                <button type="submit"
-                                    class="w-full btn-sm justify-center {{ $evaluation->is_gold ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400' }}"
-                                    title="{{ $evaluation->is_gold ? 'Desmarcar referencia' : 'Usar como ejemplo para la IA' }}">
-                                    @if($evaluation->is_gold)
-                                        🏆 Golden Record
-                                    @else
-                                        ★ Marcar Gold
-                                    @endif
-                                </button>
-                            </form>
-                        @endif
+
                         @can('close', $evaluation)
-                            <form method="POST" action="{{ route('evaluations.close', $evaluation) }}" class="space-y-2">
+                            <form method="POST" action="{{ route('evaluations.close', $evaluation) }}" class="grid gap-2 sm:col-span-2 xl:col-span-1">
                                 @csrf
                                 <input type="text" name="closure_reason" class="form-input text-xs"
                                     placeholder="Motivo de cierre (opcional)">
@@ -125,8 +112,9 @@
                                 </button>
                             </form>
                         @endcan
+
                         @can('reopen', $evaluation)
-                            <form method="POST" action="{{ route('evaluations.reopen', $evaluation) }}" class="mt-2">
+                            <form method="POST" action="{{ route('evaluations.reopen', $evaluation) }}">
                                 @csrf
                                 <button type="submit" class="btn-primary btn-sm w-full justify-center">
                                     Reabrir Evaluación
@@ -169,19 +157,35 @@
                     'not_found' => 'No encontrado',
                 ];
                 $mismatches = collect($calibrationComparison['criteria'])
-                    ->filter(fn ($criterion) => $criterion['comparable'] && ! $criterion['matches'])
-                    ->take(8);
+                    ->filter(fn ($criterion) => $criterion['comparable'] && ! $criterion['matches']);
             @endphp
-            <div class="card border-sky-100 dark:border-sky-500/30">
-                <div class="card-header">
-                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Calibración IA vs Monitor</h3>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ $calibrationComparison['item_matches_count'] }} de {{ $calibrationComparison['item_compared_count'] }} criterios alineados
-                        </span>
+            <details class="card border-sky-100 dark:border-sky-500/30">
+                <summary class="card-header cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">Calibración IA vs Monitor</h3>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                {{ $calibrationComparison['item_matches_count'] }} de {{ $calibrationComparison['item_compared_count'] }} criterios alineados.
+                                {{ $mismatches->count() }} diferencia(s) detectada(s).
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 text-sm">
+                            <span class="rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
+                                IA {{ number_format($calibrationComparison['ai_score'], 1) }}%
+                            </span>
+                            <span class="rounded-lg border border-gray-200 px-3 py-1.5 dark:border-gray-700">
+                                Monitor {{ number_format($calibrationComparison['manual_score'], 1) }}%
+                            </span>
+                            <span class="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold {{ $deltaClass }} dark:border-gray-700">
+                                {{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 1) }} pp
+                            </span>
+                            <span class="rounded-lg border border-gray-200 px-3 py-1.5 text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                Mostrar detalle
+                            </span>
+                        </div>
                     </div>
-                </div>
-                <div class="card-body space-y-4">
+                </summary>
+                <div class="card-body space-y-4 border-t border-gray-100 dark:border-gray-800">
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                             <div class="text-xs text-gray-500 dark:text-gray-400">Puntaje IA</div>
@@ -206,21 +210,21 @@
                     </div>
 
                     @if($mismatches->isNotEmpty())
-                        <div class="overflow-x-auto">
+                        <div class="max-h-96 overflow-auto rounded-lg border border-gray-200 dark:border-gray-800">
                             <table class="w-full text-sm">
-                                <thead>
+                                <thead class="sticky top-0 bg-white dark:bg-[#141414]">
                                     <tr class="border-b border-gray-200 dark:border-gray-700">
-                                        <th class="py-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Criterio con diferencia</th>
-                                        <th class="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">IA</th>
-                                        <th class="py-2 pl-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Monitor</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Criterio con diferencia</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">IA</th>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Monitor</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($mismatches as $criterion)
                                         <tr class="border-b border-gray-100 dark:border-gray-800 last:border-0">
-                                            <td class="py-2 pr-3 text-gray-800 dark:text-gray-200">{{ $criterion['criterion'] }}</td>
-                                            <td class="py-2 px-3 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['ai_status']] ?? 'Sin dato' }}</td>
-                                            <td class="py-2 pl-3 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['manual_status']] ?? 'Sin dato' }}</td>
+                                            <td class="px-3 py-2 text-gray-800 dark:text-gray-200">{{ $criterion['criterion'] }}</td>
+                                            <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['ai_status']] ?? 'Sin dato' }}</td>
+                                            <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ $statusLabels[$criterion['manual_status']] ?? 'Sin dato' }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -232,42 +236,22 @@
                         </div>
                     @endif
                 </div>
-            </div>
+            </details>
         @endif
 
         @if($evaluation->isPendingMonitorReview() && auth()->user()->cannot('respond', $evaluation))
             <div class="card border-indigo-100 dark:border-indigo-500/30">
                 <div class="card-body">
-                    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                        <div>
-                            <h3 class="font-semibold text-gray-900 dark:text-white">Revision del monitor pendiente</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Esta evaluacion fue generada por IA y aun no es visible para el asesor.
+                    <div>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Revisión del monitor pendiente</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Esta evaluación fue generada por IA y aún no es visible para el asesor. Las acciones disponibles están en el encabezado de la evaluación.
+                        </p>
+                        @if($evaluation->reanalysis_requested_at)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Reanálisis solicitado el {{ $evaluation->reanalysis_requested_at->format('d/m/Y H:i') }}.
                             </p>
-                            @if($evaluation->reanalysis_requested_at)
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    Reanalisis solicitado el {{ $evaluation->reanalysis_requested_at->format('d/m/Y H:i') }}.
-                                </p>
-                            @endif
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-2 md:min-w-[320px]">
-                            @can('publish', $evaluation)
-                                <form method="POST" action="{{ route('evaluations.publish', $evaluation) }}" class="flex-1">
-                                    @csrf
-                                    <button type="submit" class="btn-primary btn-md w-full justify-center">
-                                        Aprobar y Publicar
-                                    </button>
-                                </form>
-                            @endcan
-                            @can('reanalyze', $evaluation)
-                                <form method="POST" action="{{ route('evaluations.reanalyze', $evaluation) }}" class="flex-1">
-                                    @csrf
-                                    <button type="submit" class="btn-secondary btn-md w-full justify-center">
-                                        Reanalizar
-                                    </button>
-                                </form>
-                            @endcan
-                        </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -285,7 +269,7 @@
                                 d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <h3 class="font-semibold text-gray-900 dark:text-white">
-                            {{ $evaluation->type === 'manual' ? 'Feedback de Corrección Manual' : 'Feedback de Inteligencia Artificial' }}
+                            Feedback de evaluación
                         </h3>
                     </div>
                     @if($evaluation->type === 'ai' && ($evaluation->ai_provider || $evaluation->ai_model || $evaluation->ai_prompt_version))
@@ -314,7 +298,7 @@
                             }
                         } else {
                             // Fallback for non-structured feedback
-                            $sections[] = ['title' => '📝 Resumen General', 'content' => $summary];
+                            $sections[] = ['title' => 'Resumen General', 'content' => $summary];
                         }
                     @endphp
 
