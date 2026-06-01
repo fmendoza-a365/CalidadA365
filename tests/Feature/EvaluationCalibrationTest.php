@@ -46,7 +46,11 @@ class EvaluationCalibrationTest extends TestCase
             ->assertOk()
             ->assertSee('Calibración IA vs Monitor')
             ->assertSee('+10.0 pp')
-            ->assertSee('50.0%');
+            ->assertSee('50.0%')
+            ->assertSee('Transcripción / Evidencia')
+            ->assertSee('Cliente confirma que recibió la solución.')
+            ->assertSee('IA original')
+            ->assertSee('La IA no detectó cierre explícito.');
     }
 
     public function test_agent_does_not_see_internal_calibration_card(): void
@@ -156,6 +160,8 @@ class EvaluationCalibrationTest extends TestCase
                 'max_score' => 1,
                 'weighted_score' => 0,
                 'confidence' => 0.9,
+                'evidence_quote' => 'Cliente confirma que recibió la solución.',
+                'ai_notes' => 'La IA no detectó cierre explícito.',
             ],
         ]);
         $manualEvaluation->items()->createMany([
@@ -174,6 +180,7 @@ class EvaluationCalibrationTest extends TestCase
                 'max_score' => 1,
                 'weighted_score' => 50,
                 'confidence' => 1,
+                'ai_notes' => 'Monitor valida cierre por confirmación del cliente.',
             ],
         ]);
 

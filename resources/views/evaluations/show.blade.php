@@ -14,9 +14,9 @@
 
         <!-- Resumen -->
         <div class="card">
-            <div class="card-body">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-6">
-                    <div class="text-center">
+            <div class="p-4">
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[12rem_repeat(3,minmax(0,1fr))_18rem] xl:items-start">
+                    <div>
                         @php
                             $score = $evaluation->percentage_score;
                             $scoreClass = match (true) {
@@ -26,20 +26,20 @@
                                 default => 'score-poor',
                             };
                         @endphp
-                        <div class="text-4xl font-bold {{ $scoreClass }}">{{ number_format($score, 1) }}%</div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Puntaje Final</div>
+                        <div class="text-3xl font-bold leading-none {{ $scoreClass }}">{{ number_format($score, 1) }}%</div>
+                        <div class="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Puntaje Final</div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña</div>
+                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña</div>
                         <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign->name }}</p>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Fecha</div>
+                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Fecha</div>
                         <p class="font-medium text-gray-900 dark:text-white">
                             {{ $evaluation->created_at->format('d/m/Y') }}</p>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Estado</div>
+                        <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado</div>
                         @if($evaluation->status === \App\Models\Evaluation::STATUS_PENDING_MONITOR_REVIEW)
                             <span class="badge badge-warning">Pendiente Revision</span>
                         @elseif($evaluation->status === \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT)
@@ -54,7 +54,7 @@
                             <span class="badge badge-neutral">{{ \App\Models\Evaluation::statusLabel($evaluation->status) }}</span>
                         @endif
                     </div>
-                    <div>
+                    <div class="space-y-2">
                         <a href="{{ route('transcripts.show', $evaluation->interaction) }}"
                             class="btn-secondary btn-sm w-full justify-center text-center">
                             Ver Transcripción
@@ -116,10 +116,10 @@
                             </form>
                         @endif
                         @can('close', $evaluation)
-                            <form method="POST" action="{{ route('evaluations.close', $evaluation) }}" class="mt-3 space-y-2">
+                            <form method="POST" action="{{ route('evaluations.close', $evaluation) }}" class="space-y-2">
                                 @csrf
-                                <textarea name="closure_reason" rows="2" class="form-textarea text-xs"
-                                    placeholder="Motivo de cierre (opcional)"></textarea>
+                                <input type="text" name="closure_reason" class="form-input text-xs"
+                                    placeholder="Motivo de cierre (opcional)">
                                 <button type="submit" class="btn-secondary btn-sm w-full justify-center">
                                     Cerrar Evaluación
                                 </button>
@@ -350,73 +350,125 @@
 
         <!-- Items de Evaluación -->
         <div class="card">
-            <div class="card-header">
-                <h3 class="font-semibold text-gray-900 dark:text-white">Resultados por Criterio</h3>
+            <div class="card-header flex items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Resultados por Criterio</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Evidencia, notas y lectura por criterio en formato compacto.
+                    </p>
+                </div>
             </div>
-            <div class="card-body space-y-6">
-                @foreach($evaluation->formVersion->formAttributes as $attribute)
-                    <div class="border-b border-gray-100 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
-                        <h4 class="font-semibold text-gray-900 dark:text-white mb-4">
-                            {{ $attribute->name }}
-                            <span class="text-indigo-600 dark:text-gray-400">({{ $attribute->weight }}%)</span>
-                        </h4>
+            <div class="card-body space-y-5">
+                @php
+                    $statusLabels = [
+                        'compliant' => 'Cumple',
+                        'non_compliant' => 'No cumple',
+                        'not_found' => 'No encontrado',
+                    ];
+                    $statusClasses = [
+                        'compliant' => 'badge-success',
+                        'non_compliant' => 'badge-danger',
+                        'not_found' => 'badge-warning',
+                    ];
+                    $counterpartEvaluation = $evaluation->type === 'manual'
+                        ? $evaluation->interaction?->aiEvaluation
+                        : null;
+                @endphp
 
-                        <div class="space-y-3">
+                @foreach($evaluation->formVersion->formAttributes as $attribute)
+                    <section class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/50">
+                            <h4 class="font-semibold text-gray-900 dark:text-white">{{ $attribute->name }}</h4>
+                            <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">{{ $attribute->weight }}%</span>
+                        </div>
+
+                        <div class="divide-y divide-gray-200 dark:divide-gray-800">
                             @foreach($attribute->subAttributes as $subAttribute)
                                 @php
                                     $item = $evaluation->items->firstWhere('subattribute_id', $subAttribute->id);
+                                    $referenceItem = $counterpartEvaluation?->items?->firstWhere('subattribute_id', $subAttribute->id);
+                                    $evidenceQuote = $item?->evidence_quote ?: $referenceItem?->evidence_quote;
+                                    $evidenceReference = $item?->evidence_reference ?: $referenceItem?->evidence_reference;
+                                    $primaryNotes = $item?->ai_notes;
+                                    $referenceNotes = $referenceItem?->ai_notes;
+                                    $showReferenceNotes = $referenceNotes && $referenceNotes !== $primaryNotes;
                                 @endphp
 
-                                <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="flex-1">
-                                            <div class="font-medium text-gray-900 dark:text-white">{{ $subAttribute->name }}
+                                <div class="px-4 py-3 transition hover:bg-gray-50/80 dark:hover:bg-gray-900/40">
+                                    <div class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-start">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <div class="font-medium text-gray-900 dark:text-white">{{ $subAttribute->name }}</div>
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">Peso {{ $subAttribute->weight_percent }}%</span>
+                                                @if($referenceItem)
+                                                    <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                                        IA: {{ $statusLabels[$referenceItem->status] ?? 'Sin dato' }}
+                                                    </span>
+                                                @endif
                                             </div>
-                                            <div class="text-xs text-gray-500 dark:text-gray-400">Peso:
-                                                {{ $subAttribute->weight_percent }}%</div>
-                                        </div>
-                                        <div class="text-right">
-                                            @if($item)
-                                                @if($item->status === 'compliant')
-                                                    <span class="badge badge-success">✓ Cumple</span>
-                                                @elseif($item->status === 'non_compliant')
-                                                    <span class="badge badge-danger">✗ No Cumple</span>
-                                                @elseif($item->status === 'not_found')
-                                                    <span class="badge badge-warning">? No Encontrado</span>
-                                                @else
-                                                    <span class="badge badge-neutral">N/A</span>
-                                                @endif
 
-                                                @if($item->confidence)
-                                                    <div class="text-xs text-gray-500 mt-1">Confianza:
-                                                        {{ number_format($item->confidence * 100, 0) }}%</div>
-                                                @endif
+                                            @if($subAttribute->concept || $subAttribute->guidelines)
+                                                <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                                    {{ $subAttribute->concept ?? $subAttribute->guidelines }}
+                                                </p>
+                                            @endif
+                                        </div>
+
+                                        <div class="flex items-center gap-2 xl:justify-end">
+                                            <span class="badge {{ $statusClasses[$item?->status] ?? 'badge-neutral' }}">
+                                                {{ $statusLabels[$item?->status] ?? 'Sin evaluar' }}
+                                            </span>
+                                            @if($item?->confidence)
+                                                <span class="font-mono text-xs text-gray-500 dark:text-gray-400">
+                                                    {{ number_format($item->confidence * 100, 0) }}%
+                                                </span>
                                             @endif
                                         </div>
                                     </div>
 
-                                    @if($item && $item->evidence_quote)
-                                        <div
-                                            class="mt-3 bg-white dark:bg-gray-900 border-l-4 border-indigo-500 dark:border-gray-600 p-3 rounded-r-lg">
-                                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Evidencia:</div>
-                                            <div class="text-sm text-gray-700 dark:text-gray-300 italic">
-                                                "{{ $item->evidence_quote }}"</div>
-                                            @if($item->evidence_reference)
-                                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Referencia:
-                                                    {{ $item->evidence_reference }}</div>
+                                    @if($evidenceQuote || $primaryNotes || $showReferenceNotes)
+                                        <div class="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                            @if($evidenceQuote)
+                                                <div class="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40">
+                                                    <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        Transcripción / Evidencia
+                                                    </div>
+                                                    <p class="text-sm italic leading-relaxed text-gray-700 dark:text-gray-300">
+                                                        "{{ $evidenceQuote }}"
+                                                    </p>
+                                                    @if($evidenceReference)
+                                                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            Referencia: {{ $evidenceReference }}
+                                                        </div>
+                                                    @endif
+                                                </div>
                                             @endif
-                                        </div>
-                                    @endif
 
-                                    @if($item && $item->ai_notes)
-                                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                            <strong>Notas:</strong> {{ $item->ai_notes }}
+                                            @if($primaryNotes || $showReferenceNotes)
+                                                <div class="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40">
+                                                    <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        Notas
+                                                    </div>
+                                                    @if($primaryNotes)
+                                                        <p class="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                                                            <span class="font-semibold">{{ $evaluation->type === 'manual' ? 'Monitor:' : 'IA:' }}</span>
+                                                            {{ $primaryNotes }}
+                                                        </p>
+                                                    @endif
+                                                    @if($showReferenceNotes)
+                                                        <p class="mt-2 border-t border-gray-200 pt-2 text-sm leading-relaxed text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                                                            <span class="font-semibold">IA original:</span>
+                                                            {{ $referenceNotes }}
+                                                        </p>
+                                                    @endif
+                                                </div>
+                                            @endif
                                         </div>
                                     @endif
                                 </div>
                             @endforeach
                         </div>
-                    </div>
+                    </section>
                 @endforeach
             </div>
         </div>

@@ -88,14 +88,20 @@ Alpine.data('dropdown', () => ({
 Alpine.data('audioReview', (config = {}) => ({
     audioUrl: config.audioUrl || '',
     timeline: config.timeline || {},
-    bars: config.timeline?.bars || [],
-    segments: config.timeline?.segments || [],
+    rawBars: config.timeline?.bars || [],
+    rawSegments: config.timeline?.segments || [],
+    visualBars: [],
+    segments: [],
+    timelineDuration: Number(config.timeline?.duration || 0),
+    nativeDuration: 0,
     duration: Number(config.timeline?.duration || 0),
     currentTime: 0,
     playing: false,
     speed: '1',
 
     init() {
+        this.normalizeTimeline();
+
         this.$nextTick(() => {
             if (!this.$refs.audio) {
                 return;
@@ -126,13 +132,7 @@ Alpine.data('audioReview', (config = {}) => ({
             return null;
         }
 
-        const current = this.segments.find((segment) => this.currentTime >= segment.start && this.currentTime < segment.end);
-
-        if (current) {
-            return current;
-        }
-
-        return [...this.segments].reverse().find((segment) => this.currentTime >= segment.start) || this.segments[0];
+        return this.segments.find((segment) => this.currentTime >= segment.start && this.currentTime < segment.end) || null;
     },
 
     get activeTurnId() {
@@ -170,8 +170,16 @@ Alpine.data('audioReview', (config = {}) => ({
     onLoadedMetadata() {
         const nativeDuration = Number(this.$refs.audio?.duration || 0);
 
-        if (Number.isFinite(nativeDuration) && nativeDuration > this.duration) {
-            this.duration = nativeDuration;
+        if (!Number.isFinite(nativeDuration) || nativeDuration <= 0) {
+            return;
+        }
+
+        this.nativeDuration = nativeDuration;
+
+        const nextDuration = Math.max(this.timelineDuration || 0, nativeDuration);
+        if (Math.abs(nextDuration - this.duration) >= 0.5) {
+            this.duration = nextDuration;
+            this.normalizeTimeline();
         }
     },
 
@@ -213,8 +221,66 @@ Alpine.data('audioReview', (config = {}) => ({
         }
 
         const rect = event.currentTarget.getBoundingClientRect();
-        const ratio = (event.clientX - rect.left) / rect.width;
+        const style = window.getComputedStyle(event.currentTarget);
+        const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+        const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+        const innerWidth = Math.max(rect.width - paddingLeft - paddingRight, 1);
+        const x = Math.min(Math.max(event.clientX - rect.left - paddingLeft, 0), innerWidth);
+        const ratio = x / innerWidth;
+
         this.seek(this.duration * ratio);
+    },
+
+    normalizeTimeline() {
+        const duration = this.safeDuration();
+
+        this.segments = this.rawSegments.map((segment) => {
+            const start = Math.max(0, Number(segment.start || 0));
+            const end = Math.max(start + 1, Number(segment.end || start + 1));
+
+            return {
+                ...segment,
+                start,
+                end,
+                left: this.percent(start, duration),
+                width: Math.max(this.percent(end - start, duration), 0.35),
+            };
+        });
+
+        this.visualBars = this.buildVisualBars(duration);
+    },
+
+    buildVisualBars(duration) {
+        const count = this.rawBars.length || 120;
+
+        return Array.from({ length: count }, (_, index) => {
+            const original = this.rawBars[index] || {};
+            const time = duration > 0 ? (duration / count) * (index + 0.5) : Number(original.time || 0);
+            const segment = this.segmentAtSecond(time);
+
+            return {
+                index,
+                time,
+                height: Number(original.height || 30),
+                color: segment?.color || '#64748b',
+                speaker: segment?.speaker || original.speaker || 'system',
+                sentiment: segment?.sentiment || original.sentiment || 'neutro',
+            };
+        });
+    },
+
+    segmentAtSecond(second) {
+        return this.segments.find((segment) => second >= segment.start && second < segment.end) || null;
+    },
+
+    safeDuration() {
+        return Math.max(Number(this.duration || 0), Number(this.timelineDuration || 0), 1);
+    },
+
+    percent(value, duration) {
+        const safeDuration = Math.max(Number(duration || 0), 1);
+
+        return Math.min(100, Math.max(0, (Number(value || 0) / safeDuration) * 100));
     },
 
     setSpeed(value) {

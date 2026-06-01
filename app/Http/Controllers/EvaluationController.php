@@ -13,8 +13,17 @@ class EvaluationController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Evaluation::with(['agent', 'campaign', 'interaction', 'evaluator', 'reviewer', 'publisher', 'dispute'])
-            ->forUser($user);
+        $query = Evaluation::with([
+            'agent',
+            'campaign',
+            'interaction' => function ($query) {
+                $query->select('id', 'campaign_id', 'agent_id', 'channel', 'direction', 'contact_reason', 'outcome', 'product_name', 'queue_name', 'audio_duration', 'occurred_at', 'source_type');
+            },
+            'evaluator',
+            'reviewer',
+            'publisher',
+            'dispute',
+        ])->forUser($user);
 
         $this->applyIndexFilters($query, $request);
 
@@ -94,7 +103,8 @@ class EvaluationController extends Controller
         $this->authorize('view', $evaluation);
 
         $evaluation->load([
-            'interaction',
+            'interaction.aiEvaluation.items.subAttribute',
+            'interaction.manualEvaluation.items.subAttribute',
             'formVersion.attributes.subAttributes',
             'items.subAttribute.attribute', // Ensure relationships are correct in models
             'agentResponse',

@@ -43,7 +43,9 @@
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
                     <div class="text-[11px] font-semibold uppercase text-gray-400">Duración</div>
-                    <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ $summary['duration_label'] ?? $timeline['duration_label'] ?? '00:00' }}</div>
+                    <div class="text-sm font-semibold text-gray-900 dark:text-white" x-text="durationLabel">
+                        {{ $summary['duration_label'] ?? $timeline['duration_label'] ?? '00:00' }}
+                    </div>
                 </div>
                 <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
                     <div class="text-[11px] font-semibold uppercase text-gray-400">Agente</div>
@@ -115,33 +117,36 @@
                     </div>
 
                     <div class="relative flex h-full items-center gap-[3px] pb-4 pt-5">
-                        @foreach($bars as $bar)
+                        <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
                             <button type="button" class="flex h-full flex-1 items-center justify-center rounded-sm transition hover:opacity-100"
-                                title="{{ $bar['time'] ?? 0 }}"
-                                @click.stop="seek({{ (float) ($bar['time'] ?? 0) }})">
+                                :title="formatTime(bar.time)"
+                                @click.stop="seek(bar.time)">
                                 <span class="block min-h-[4px] w-full rounded-full opacity-70 transition"
-                                    :class="{ 'opacity-100': {{ (float) ($bar['time'] ?? 0) }} <= currentTime }"
-                                    style="height: {{ $bar['height'] ?? 30 }}%; background-color: #64748b;"
-                                    :style="`height: {{ $bar['height'] ?? 30 }}%; background-color: ${ {{ (float) ($bar['time'] ?? 0) }} <= currentTime ? '{{ $bar['color'] ?? '#64748b' }}' : '#64748b' };`">
+                                    :class="{ 'opacity-100': bar.time <= currentTime }"
+                                    :style="`height: ${bar.height}%; background-color: ${bar.time <= currentTime ? bar.color : '#64748b'};`">
                                 </span>
                             </button>
-                        @endforeach
+                        </template>
                     </div>
 
-                    @foreach($eventSegments as $segment)
-                        <button type="button"
-                            class="absolute top-1 z-20 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 shadow-sm ring-1 ring-white/20 transition hover:scale-125"
-                            :class="{ 'ring-2 ring-white': activeTurnId === @js($segment['turn_id'] ?? null) }"
-                            style="left: {{ $segment['left'] ?? 0 }}%; background-color: {{ $segment['color'] ?? '#64748b' }};"
-                            title="{{ $segment['start_label'] ?? '00:00' }} · {{ $segment['label'] ?? 'Sistema' }} · {{ $segment['emotion_label'] ?? 'Evento' }}"
-                            @click.stop="seek({{ (int) ($segment['start'] ?? 0) }})">
-                            <span class="h-1.5 w-1.5 rounded-full bg-white/90"></span>
-                        </button>
-                    @endforeach
+                    <div class="absolute inset-x-2 top-1 z-20 h-4">
+                        <template x-for="segment in eventSegments" :key="`event-${segment.id}`">
+                            <button type="button"
+                                class="absolute top-0 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 shadow-sm ring-1 ring-white/20 transition hover:scale-125"
+                                :class="{ 'ring-2 ring-white': activeTurnId === segment.turn_id }"
+                                :style="`left: ${segment.left}%; background-color: ${segment.color || '#64748b'};`"
+                                :title="`${segment.start_label || '00:00'} · ${segment.label || speakerName(segment.speaker)} · ${segment.emotion_label || 'Evento'}`"
+                                @click.stop="seek(segment.start)">
+                                <span class="h-1.5 w-1.5 rounded-full bg-white/90"></span>
+                            </button>
+                        </template>
+                    </div>
 
-                    <div class="absolute bottom-0 top-0 z-20 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
-                        :style="`left: ${progress}%;`">
-                        <div class="-ml-1.5 mt-1 h-3 w-3 rounded-full bg-white"></div>
+                    <div class="pointer-events-none absolute inset-x-2 bottom-0 top-0 z-20">
+                        <div class="absolute bottom-0 top-0 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
+                            :style="`left: ${progress}%;`">
+                            <div class="-ml-1.5 mt-1 h-3 w-3 rounded-full bg-white"></div>
+                        </div>
                     </div>
                 </div>
 
