@@ -91,6 +91,95 @@ class EvaluationAuditTrailTest extends TestCase
         ]);
     }
 
+    public function test_assigned_monitor_can_create_manual_correction_without_campaign_assignment(): void
+    {
+        [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $monitor = $this->userWithRole('qa_monitor');
+
+        Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $agent->id,
+            'type' => 'ai',
+            'evaluator_id' => $monitor->id,
+            'total_score' => 80,
+            'max_possible_score' => 100,
+            'percentage_score' => 80,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+        ]);
+
+        $this->actingAs($monitor)
+            ->get(route('evaluations.create_manual', $interaction))
+            ->assertOk()
+            ->assertSee('Evaluación Manual Final');
+
+        $response = $this->actingAs($monitor)
+            ->post(route('evaluations.store_manual', $interaction), [
+                'form_version_id' => $version->id,
+                'items' => [
+                    [
+                        'subattribute_id' => $subAttribute->id,
+                        'status' => 'compliant',
+                        'notes' => 'Corrección validada por monitor.',
+                    ],
+                ],
+            ]);
+
+        $manualEvaluation = Evaluation::where('interaction_id', $interaction->id)
+            ->where('type', 'manual')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('evaluations.show', $manualEvaluation));
+        $this->assertSame($monitor->id, $manualEvaluation->evaluator_id);
+        $this->assertSame(100.0, (float) $manualEvaluation->percentage_score);
+    }
+
+    public function test_manual_not_found_items_do_not_penalize_score(): void
+    {
+        [$admin, , , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $subAttribute->update(['weight_percent' => 50]);
+
+        $notApplicableSubAttribute = QualitySubAttribute::create([
+            'attribute_id' => $subAttribute->attribute_id,
+            'name' => 'Criterio no aplicable',
+            'weight_percent' => 50,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->post(route('evaluations.store_manual', $interaction), [
+                'form_version_id' => $version->id,
+                'items' => [
+                    [
+                        'subattribute_id' => $subAttribute->id,
+                        'status' => 'compliant',
+                        'notes' => 'Cumple el criterio.',
+                    ],
+                    [
+                        'subattribute_id' => $notApplicableSubAttribute->id,
+                        'status' => 'not_found',
+                        'notes' => 'No aplica para esta llamada.',
+                    ],
+                ],
+            ]);
+
+        $manualEvaluation = Evaluation::where('interaction_id', $interaction->id)
+            ->where('type', 'manual')
+            ->firstOrFail();
+
+        $response->assertRedirect(route('evaluations.show', $manualEvaluation));
+        $this->assertSame(50.0, (float) $manualEvaluation->total_score);
+        $this->assertSame(50.0, (float) $manualEvaluation->max_possible_score);
+        $this->assertSame(100.0, (float) $manualEvaluation->percentage_score);
+
+        $notApplicableItem = $manualEvaluation->items()
+            ->where('subattribute_id', $notApplicableSubAttribute->id)
+            ->firstOrFail();
+
+        $this->assertSame(0.0, (float) $notApplicableItem->max_score);
+        $this->assertSame(0.0, (float) $notApplicableItem->weighted_score);
+    }
+
     private function evaluation(string $status): array
     {
         [$admin, $agent, $supervisor, $version, $interaction] = $this->scorableInteraction();
