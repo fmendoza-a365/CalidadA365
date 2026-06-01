@@ -135,6 +135,45 @@ class EvaluationAuditTrailTest extends TestCase
         $this->assertSame(100.0, (float) $manualEvaluation->percentage_score);
     }
 
+    public function test_manual_correction_view_keeps_ai_notes_out_of_manual_notes_field(): void
+    {
+        [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $monitor = $this->userWithRole('qa_monitor');
+
+        $aiEvaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $agent->id,
+            'type' => 'ai',
+            'evaluator_id' => $monitor->id,
+            'total_score' => 0,
+            'max_possible_score' => 100,
+            'percentage_score' => 0,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+        ]);
+
+        $aiEvaluation->items()->create([
+            'subattribute_id' => $subAttribute->id,
+            'status' => 'non_compliant',
+            'score' => 0,
+            'max_score' => 1,
+            'weighted_score' => 0,
+            'confidence' => 0.9,
+            'ai_notes' => 'La IA detectó incumplimiento, pero el monitor puede corregirlo.',
+        ]);
+
+        $response = $this->actingAs($monitor)
+            ->get(route('evaluations.create_manual', $interaction))
+            ->assertOk()
+            ->assertSee('La IA detectó incumplimiento, pero el monitor puede corregirlo.');
+
+        $this->assertMatchesRegularExpression(
+            '/<textarea[^>]*data-testid="manual-notes-'.$subAttribute->id.'"[^>]*>\s*<\/textarea>/',
+            $response->getContent()
+        );
+    }
+
     public function test_manual_not_found_items_do_not_penalize_score(): void
     {
         [$admin, , , $version, $interaction, $subAttribute] = $this->scorableInteraction();

@@ -29,7 +29,7 @@
         </div>
     </x-slot>
 
-    <div class="max-w-5xl mx-auto space-y-6 md:space-y-8 pb-12 px-4 md:px-0">
+    <div class="max-w-7xl mx-auto space-y-6 pb-24 px-4 md:px-6">
         <!-- Info Card Compact -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -58,7 +58,7 @@
             <input type="hidden" name="form_version_id" value="{{ $formVersion->id }}">
 
             @foreach($formVersion->formAttributes as $attribute)
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
                     <div class="bg-gray-50 dark:bg-gray-700/50 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
                         <h3 class="font-bold text-lg text-gray-900 dark:text-white">
                             {{ $attribute->name }}
@@ -73,13 +73,24 @@
                             @php
                                 $aiItem = $aiEvaluation ? $aiEvaluation->items->firstWhere('subattribute_id', $subAttribute->id) : null;
                                 $aiStatus = $aiItem ? $aiItem->status : null;
+                                $manualStatus = old("items.{$subAttribute->id}.status", $aiStatus);
+                                $aiStatusLabel = match ($aiStatus) {
+                                    'compliant' => 'Cumple',
+                                    'non_compliant' => 'No',
+                                    'not_found' => 'N/A',
+                                    default => 'Sin lectura',
+                                };
+                                $aiStatusClass = match ($aiStatus) {
+                                    'compliant' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+                                    'non_compliant' => 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+                                    'not_found' => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+                                    default => 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                                };
                             @endphp
 
-                            <div class="p-6 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                    
-                                    <!-- Columna Izquierda: Descripción e IA -->
-                                    <div class="lg:col-span-7 space-y-3">
+                            <div class="p-5 hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                                <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_28rem] gap-5">
+                                    <div class="min-w-0 space-y-3">
                                         <div>
                                             <div class="text-base font-semibold text-gray-900 dark:text-white mb-1">
                                                 {{ $subAttribute->name }}
@@ -90,61 +101,64 @@
                                         </div>
 
                                         @if($aiItem)
-                                            <div class="relative mt-4 pl-4 border-l-4 border-indigo-400 dark:border-gray-500 bg-indigo-50/50 dark:bg-gray-800 p-3 rounded-r-lg">
-                                                <div class="absolute -left-1.5 -top-2 bg-indigo-500 dark:bg-gray-600 text-white text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">
-                                                    IA: {{ $aiStatus === 'compliant' ? 'SI' : ($aiStatus === 'non_compliant' ? 'NO' : 'N/A') }}
+                                            <div class="rounded-lg border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-700 dark:bg-gray-900/50">
+                                                <div class="mb-2 flex flex-wrap items-center gap-2">
+                                                    <span class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        Referencia IA
+                                                    </span>
+                                                    <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $aiStatusClass }}">
+                                                        {{ $aiStatusLabel }}
+                                                    </span>
                                                 </div>
                                                 
                                                 @if($aiItem->evidence_quote)
-                                                    <p class="text-sm text-gray-700 dark:text-gray-300 italic mb-2">
+                                                    <p class="mb-2 text-sm italic leading-relaxed text-gray-700 dark:text-gray-300">
                                                         "{{ Str::limit($aiItem->evidence_quote, 150) }}"
                                                     </p>
                                                 @endif
                                                 @if($aiItem->ai_notes)
-                                                    <p class="text-xs text-indigo-600 dark:text-gray-400 font-medium">
-                                                        Note: {{ $aiItem->ai_notes }}
+                                                    <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                                        {{ $aiItem->ai_notes }}
                                                     </p>
                                                 @endif
                                             </div>
                                         @endif
                                     </div>
 
-                                    <!-- Columna Derecha: Controles Manuales -->
-                                    <div class="lg:col-span-5 flex flex-col justify-start space-y-4">
+                                    <div class="min-w-0 space-y-3">
                                         <input type="hidden" name="items[{{ $subAttribute->id }}][subattribute_id]" value="{{ $subAttribute->id }}">
                                         
-                                        <!-- Botones de Acción -->
                                         <div class="grid grid-cols-3 gap-2">
-                                            <label class="cursor-pointer">
-                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="compliant" class="peer sr-only" required {{ $aiStatus === 'compliant' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
-                                                    peer-checked:bg-emerald-500 peer-checked:text-white peer-checked:border-emerald-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
+                                            <label class="relative block h-10 cursor-pointer">
+                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="compliant" class="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" required {{ $manualStatus === 'compliant' ? 'checked' : '' }}>
+                                                <span class="pointer-events-none flex h-full items-center justify-center rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 transition-colors dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300
+                                                    peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/40">
                                                     Cumple
-                                                </div>
+                                                </span>
                                             </label>
                                             
-                                            <label class="cursor-pointer">
-                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="non_compliant" class="peer sr-only" {{ $aiStatus === 'non_compliant' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
-                                                    peer-checked:bg-rose-500 peer-checked:text-white peer-checked:border-rose-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
+                                            <label class="relative block h-10 cursor-pointer">
+                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="non_compliant" class="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" {{ $manualStatus === 'non_compliant' ? 'checked' : '' }}>
+                                                <span class="pointer-events-none flex h-full items-center justify-center rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 transition-colors dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300
+                                                    peer-checked:border-rose-500 peer-checked:bg-rose-500 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-rose-500/40">
                                                     No
-                                                </div>
+                                                </span>
                                             </label>
                                             
-                                            <label class="cursor-pointer">
-                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="not_found" class="peer sr-only" {{ $aiStatus === 'not_found' ? 'checked' : '' }}>
-                                                <div class="h-10 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm transition-all
-                                                    peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500 peer-checked:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500">
+                                            <label class="relative block h-10 cursor-pointer">
+                                                <input type="radio" name="items[{{ $subAttribute->id }}][status]" value="not_found" class="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" {{ $manualStatus === 'not_found' ? 'checked' : '' }}>
+                                                <span class="pointer-events-none flex h-full items-center justify-center rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 transition-colors dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300
+                                                    peer-checked:border-gray-500 peer-checked:bg-gray-500 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-gray-500/40">
                                                     N/A
-                                                </div>
+                                                </span>
                                             </label>
                                         </div>
 
-                                        <!-- Campo de Notas -->
                                         <div>
-                                            <textarea name="items[{{ $subAttribute->id }}][notes]" rows="2" 
-                                                class="w-full rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 text-sm focus:border-indigo-500 dark:focus:border-gray-400 focus:ring-indigo-500 dark:focus:ring-gray-400" 
-                                                placeholder="Observaciones manuales...">{{ $aiItem ? $aiItem->ai_notes : '' }}</textarea>
+                                            <textarea name="items[{{ $subAttribute->id }}][notes]" rows="3"
+                                                data-testid="manual-notes-{{ $subAttribute->id }}"
+                                                class="form-textarea min-h-[76px] max-h-[120px] text-sm"
+                                                placeholder="Observación del monitor si corriges o confirmas este criterio.">{{ old("items.{$subAttribute->id}.notes") }}</textarea>
                                         </div>
                                     </div>
 
@@ -157,7 +171,7 @@
 
             <!-- Action Bar Sticky Bottom -->
             <div class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 md:p-4 shadow-lg z-50">
-                <div class="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 px-4 md:px-6">
                     <div class="text-sm text-gray-500 text-center sm:text-left">
                         <span class="hidden md:inline">Revisa cuidadosamente cada punto antes de guardar.</span>
                         <span class="md:hidden">Revisa cada punto antes de guardar</span>
