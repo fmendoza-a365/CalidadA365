@@ -47,9 +47,9 @@ class EvaluationCalibrationTest extends TestCase
             ->assertSee('Calibración IA vs Monitor')
             ->assertSee('+10.0 pp')
             ->assertSee('50.0%')
-            ->assertSee('Transcripción / Evidencia')
+            ->assertSee('Evidencia:')
             ->assertSee('Cliente confirma que recibió la solución.')
-            ->assertSee('IA original')
+            ->assertSee('Nota IA original')
             ->assertSee('La IA no detectó cierre explícito.');
     }
 

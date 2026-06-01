@@ -54,6 +54,10 @@ class ManualEvaluationController extends Controller
 
         $evaluation = DB::transaction(function () use ($interaction, $validated) {
             $formVersion = QualityFormVersion::findOrFail($validated['form_version_id']);
+            $aiEvaluation = $interaction->aiEvaluation()
+                ->with('items.subAttribute')
+                ->first();
+            $aiItemsBySubAttribute = $aiEvaluation?->items->keyBy('subattribute_id') ?? collect();
 
             if ($formVersion->form->campaign_id !== $interaction->campaign_id) {
                 abort(422, 'La ficha seleccionada no pertenece a la campaña de la interacción.');
@@ -79,6 +83,7 @@ class ManualEvaluationController extends Controller
             $totalScore = 0;
             $hasCriticalFailure = false;
             $itemsData = [];
+            $summaryItems = [];
 
             foreach ($validated['items'] as $itemData) {
                 $subAttribute = $subAttributes->get((int) $itemData['subattribute_id']);
@@ -89,6 +94,8 @@ class ManualEvaluationController extends Controller
 
                 $attribute = $subAttribute->attribute;
                 $effectiveWeight = ($attribute->weight * $subAttribute->weight_percent) / 100;
+                $aiItem = $aiItemsBySubAttribute->get($subAttribute->id);
+                $monitorNote = trim((string) ($itemData['notes'] ?? '')) ?: null;
 
                 $scoreRatio = match ($itemData['status']) {
                     'compliant' => 1.0,
@@ -118,8 +125,18 @@ class ManualEvaluationController extends Controller
                     'score' => $scoreRatio ?? 0,
                     'max_score' => $maxScore,
                     'weighted_score' => $weightedScore,
+                    'evidence_quote' => $aiItem?->evidence_quote,
+                    'evidence_reference' => $aiItem?->evidence_reference,
                     'confidence' => 1.0,
-                    'ai_notes' => $itemData['notes'] ?? null,
+                    'ai_notes' => $monitorNote,
+                ];
+
+                $summaryItems[] = [
+                    'criterion' => $subAttribute->name,
+                    'manual_status' => $itemData['status'],
+                    'ai_status' => $aiItem?->status,
+                    'changed' => $aiItem && $aiItem->status !== $itemData['status'],
+                    'note' => $monitorNote,
                 ];
             }
 
@@ -129,6 +146,13 @@ class ManualEvaluationController extends Controller
             if ($hasCriticalFailure) {
                 $percentage = 0;
             }
+
+            $manualSummary = $this->buildManualSummary(
+                $aiEvaluation,
+                $summaryItems,
+                round($percentage, 2),
+                $hasCriticalFailure
+            );
 
             $evaluation = Evaluation::create([
                 'interaction_id' => $interaction->id,
@@ -146,6 +170,7 @@ class ManualEvaluationController extends Controller
                 'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
                 'visible_to_agent_at' => now(),
                 'finalized_at' => now(),
+                'ai_summary' => $manualSummary,
             ]);
 
             $evaluation->items()->createMany($itemsData);
@@ -191,5 +216,63 @@ class ManualEvaluationController extends Controller
         if (! $canAccessInteraction && ! $canAccessEvaluation && ! $isUploader && ! $isEvaluator) {
             abort(403, 'No tiene permiso para evaluar esta interacción.');
         }
+    }
+
+    private function buildManualSummary(?Evaluation $aiEvaluation, array $items, float $percentage, bool $hasCriticalFailure): string
+    {
+        $statusLabels = [
+            'compliant' => 'Cumple',
+            'non_compliant' => 'No cumple',
+            'not_found' => 'No encontrado',
+        ];
+
+        $items = collect($items);
+        $changedItems = $items->where('changed', true)->values();
+        $monitorNotes = $items
+            ->filter(fn (array $item) => filled($item['note'] ?? null))
+            ->take(8)
+            ->values();
+
+        $summary = "### Resumen de Corrección Manual\n";
+        $summary .= "El monitor ajustó la evaluación final a **".number_format($percentage, 1)."%**.";
+
+        if ($changedItems->isNotEmpty()) {
+            $summary .= " Se modificaron **{$changedItems->count()}** criterio(s) respecto a la evaluación IA.";
+        } else {
+            $summary .= " No hubo cambios de criterio respecto a la evaluación IA.";
+        }
+
+        if ($hasCriticalFailure) {
+            $summary .= " La evaluación quedó en 0% por incumplimiento crítico.";
+        }
+
+        $summary .= "\n\n### Criterios Corregidos\n";
+        if ($changedItems->isEmpty()) {
+            $summary .= "- Sin criterios corregidos.\n";
+        } else {
+            foreach ($changedItems as $item) {
+                $aiStatus = $statusLabels[$item['ai_status']] ?? 'Sin dato';
+                $manualStatus = $statusLabels[$item['manual_status']] ?? 'Sin dato';
+                $summary .= "- **{$item['criterion']}**: IA {$aiStatus} -> Monitor {$manualStatus}";
+                if (filled($item['note'] ?? null)) {
+                    $summary .= ". Nota: {$item['note']}";
+                }
+                $summary .= "\n";
+            }
+        }
+
+        if ($monitorNotes->isNotEmpty()) {
+            $summary .= "\n### Notas del Monitor\n";
+            foreach ($monitorNotes as $item) {
+                $summary .= "- **{$item['criterion']}**: {$item['note']}\n";
+            }
+        }
+
+        if (filled($aiEvaluation?->ai_summary)) {
+            $summary .= "\n### Feedback Original de IA\n";
+            $summary .= $aiEvaluation->ai_summary;
+        }
+
+        return $summary;
     }
 }

@@ -96,7 +96,7 @@ class EvaluationAuditTrailTest extends TestCase
         [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
         $monitor = $this->userWithRole('qa_monitor');
 
-        Evaluation::create([
+        $aiEvaluation = Evaluation::create([
             'interaction_id' => $interaction->id,
             'form_version_id' => $version->id,
             'campaign_id' => $interaction->campaign_id,
@@ -107,6 +107,18 @@ class EvaluationAuditTrailTest extends TestCase
             'max_possible_score' => 100,
             'percentage_score' => 80,
             'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+            'ai_summary' => '### Feedback IA Base',
+        ]);
+
+        $aiEvaluation->items()->create([
+            'subattribute_id' => $subAttribute->id,
+            'status' => 'non_compliant',
+            'score' => 0,
+            'max_score' => 1,
+            'weighted_score' => 0,
+            'confidence' => 0.9,
+            'evidence_quote' => 'El agente valida correctamente al cliente.',
+            'ai_notes' => 'La IA marcó incumplimiento inicial.',
         ]);
 
         $this->actingAs($monitor)
@@ -133,6 +145,12 @@ class EvaluationAuditTrailTest extends TestCase
         $response->assertRedirect(route('evaluations.show', $manualEvaluation));
         $this->assertSame($monitor->id, $manualEvaluation->evaluator_id);
         $this->assertSame(100.0, (float) $manualEvaluation->percentage_score);
+        $this->assertStringContainsString('Resumen de Corrección Manual', $manualEvaluation->ai_summary);
+        $this->assertStringContainsString('Feedback IA Base', $manualEvaluation->ai_summary);
+
+        $manualItem = $manualEvaluation->items()->firstOrFail();
+        $this->assertSame('El agente valida correctamente al cliente.', $manualItem->evidence_quote);
+        $this->assertSame('Corrección validada por monitor.', $manualItem->ai_notes);
     }
 
     public function test_manual_correction_view_keeps_ai_notes_out_of_manual_notes_field(): void
