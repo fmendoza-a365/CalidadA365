@@ -55,6 +55,9 @@ class Evaluation extends Model
         'reviewed_by',
         'reviewed_at',
         'review_notes',
+        'review_claimed_by',
+        'review_claimed_at',
+        'review_claim_expires_at',
         'published_by',
         'visible_to_agent_at',
         'agent_viewed_at',
@@ -74,6 +77,8 @@ class Evaluation extends Model
         'ai_processed_at' => 'datetime',
         'ai_settings_snapshot' => 'array',
         'reviewed_at' => 'datetime',
+        'review_claimed_at' => 'datetime',
+        'review_claim_expires_at' => 'datetime',
         'visible_to_agent_at' => 'datetime',
         'agent_viewed_at' => 'datetime',
         'finalized_at' => 'datetime',
@@ -141,6 +146,11 @@ class Evaluation extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function reviewClaimer()
+    {
+        return $this->belongsTo(User::class, 'review_claimed_by');
     }
 
     public function publisher()
@@ -214,6 +224,21 @@ class Evaluation extends Model
     public function scopeManual($query)
     {
         return $query->where('type', 'manual');
+    }
+
+    public function scopeAvailableForReviewBy($query, User $user)
+    {
+        if ($user->hasRole('admin')) {
+            return $query;
+        }
+
+        return $query->where(function ($query) use ($user) {
+            $query
+                ->whereNull('review_claimed_by')
+                ->orWhere('review_claimed_by', $user->id)
+                ->orWhereNull('review_claim_expires_at')
+                ->orWhere('review_claim_expires_at', '<=', now());
+        });
     }
 
     public function scopeForUser($query, $user)
@@ -301,6 +326,43 @@ class Evaluation extends Model
             self::STATUS_AI_REANALYSIS_REQUESTED,
             'ai_done',
         ], true);
+    }
+
+    public function hasActiveReviewClaim(): bool
+    {
+        return filled($this->review_claimed_by)
+            && $this->review_claim_expires_at
+            && $this->review_claim_expires_at->isFuture();
+    }
+
+    public function isReviewClaimedBy(User $user): bool
+    {
+        return $this->hasActiveReviewClaim()
+            && (int) $this->review_claimed_by === (int) $user->id;
+    }
+
+    public function isReviewClaimedByOther(User $user): bool
+    {
+        return $this->hasActiveReviewClaim()
+            && (int) $this->review_claimed_by !== (int) $user->id;
+    }
+
+    public function claimForReview(User $user, $expiresAt): void
+    {
+        $this->forceFill([
+            'review_claimed_by' => $user->id,
+            'review_claimed_at' => now(),
+            'review_claim_expires_at' => $expiresAt,
+        ])->save();
+    }
+
+    public function releaseReviewClaim(): void
+    {
+        $this->forceFill([
+            'review_claimed_by' => null,
+            'review_claimed_at' => null,
+            'review_claim_expires_at' => null,
+        ])->save();
     }
 
     public function canBePublished(): bool

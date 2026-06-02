@@ -140,6 +140,40 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame('completed', $interaction->transcription_status);
     }
 
+    public function test_audio_transcription_uses_wav_fact_chunk_for_compressed_audio_duration(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/compressed.wav', $this->compressedWavBytesWithFactDuration(4));
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/compressed.wav',
+            'file_name' => 'compressed.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+
+        $this->assertSame(4, $interaction->audio_duration);
+        $this->assertSame('completed', $interaction->transcription_status);
+    }
+
     private function userWithRoleAndPermissions(string $role, array $permissions = []): User
     {
         $roleModel = Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -173,6 +207,26 @@ class TranscriptUploadMetadataTest extends TestCase
             .'WAVE'
             .'fmt '
             .pack('VvvVVvv', 16, 1, $channels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample)
+            .'data'
+            .pack('V', $dataSize)
+            .$data;
+    }
+
+    private function compressedWavBytesWithFactDuration(int $durationSeconds): string
+    {
+        $sampleRate = 8000;
+        $factSampleCount = $sampleRate * $durationSeconds;
+        $data = str_repeat("\xD5", $sampleRate);
+        $dataSize = strlen($data);
+        $fmtChunk = 'fmt '
+            .pack('VvvVVvvv', 18, 6, 1, $sampleRate, $sampleRate, 1, 8, 0);
+        $factChunk = 'fact'.pack('VV', 4, $factSampleCount);
+
+        return 'RIFF'
+            .pack('V', 4 + strlen($fmtChunk) + strlen($factChunk) + 8 + $dataSize)
+            .'WAVE'
+            .$fmtChunk
+            .$factChunk
             .'data'
             .pack('V', $dataSize)
             .$data;

@@ -147,6 +147,18 @@
                     </a>
                 @endif
 
+                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager', 'supervisor']) || auth()->user()->can('view_sampling'))
+                    <a href="{{ route('sampling.index') }}"
+                        class="nav-item {{ request()->routeIs('sampling.*') ? 'nav-item-active' : '' }}"
+                        title="Muestreo QA">
+                        <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 17v-6m4 6V7m4 10v-4M5 19h14M5 5h14M7 5v14m10-14v14" />
+                        </svg>
+                        <span>Muestreo QA</span>
+                    </a>
+                @endif
+
                 <a href="{{ route('evaluations.index') }}"
                     class="nav-item {{ request()->routeIs('evaluations.*') ? 'nav-item-active' : '' }}"
                     title="Evaluaciones">

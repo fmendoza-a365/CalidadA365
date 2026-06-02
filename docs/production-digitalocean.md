@@ -69,12 +69,15 @@ Then set `APP_URL=https://qa365.com.pe` and redeploy.
 
 ## Workers
 
-Supervisor starts two worker groups:
+Supervisor starts three worker groups:
 
 - `qa365-default-worker`: default and notifications.
-- `qa365-ai-worker`: transcription, ai-scoring and insights.
+- `qa365-transcription-worker`: 3 transcription workers for audio.
+- `qa365-ai-scoring-worker`: 5 AI scoring workers for evaluation.
 
 The Redis retry window must be greater than the longest worker timeout. Keep `REDIS_QUEUE_RETRY_AFTER=900` or higher for long audio jobs.
+
+For the current Gemini 2.5 Flash quota shown in Google AI Studio, production starts with `AI_PROVIDER_JOBS_PER_MINUTE=30`. This keeps a stable margin below the provider limit while supporting dozens of monitors uploading audio at the same time.
 
 ## QA evaluation flow
 
@@ -127,7 +130,7 @@ php artisan route:list --name=quality-forms.context.download
 php artisan optimize:clear
 php artisan permission:cache-reset
 sudo systemctl restart php8.3-fpm
-sudo supervisorctl restart qa365-default-worker:* qa365-ai-worker:*
+sudo supervisorctl restart qa365-default-worker:* qa365-transcription-worker:* qa365-ai-scoring-worker:*
 ```
 
 Then confirm you are logged in with a role that has `edit_quality_forms`.

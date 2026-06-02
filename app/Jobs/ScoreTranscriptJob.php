@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\PermanentAiProviderException;
+use App\Exceptions\TransientAiProviderException;
 use App\Models\Evaluation;
 use App\Models\Interaction;
 use App\Services\AIEvaluationService;
@@ -9,6 +11,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
@@ -16,11 +19,28 @@ class ScoreTranscriptJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries = 3;
+    public $tries = 60;
+
+    public $maxExceptions = 3;
 
     public $timeout = 720;
 
     public function __construct(public int $interactionId) {}
+
+    public function middleware(): array
+    {
+        return [new RateLimited('ai-provider')];
+    }
+
+    public function retryUntil(): \DateTimeInterface
+    {
+        return now()->addHours(max(1, (int) config('queue.ai.retry_window_hours', 12)));
+    }
+
+    public function backoff(): array
+    {
+        return [60, 180, 300];
+    }
 
     public function handle(AIEvaluationService $aiService): void
     {
@@ -82,6 +102,17 @@ class ScoreTranscriptJob implements ShouldQueue
                 $interaction->update(['status' => 'scored']);
                 Log::info("Evaluation completed for interaction {$this->interactionId}");
             } else {
+                if ($this->shouldRetryNullResponse()) {
+                    $this->scheduleAiRetry(
+                        $interaction,
+                        $existingAiEvaluation,
+                        'service_returned_null',
+                        'La IA devolvió una respuesta vacía o inválida. Se reintentará automáticamente.'
+                    );
+
+                    return;
+                }
+
                 $interaction->update(['status' => 'uploaded']);
                 $fromStatus = $existingAiEvaluation->status;
                 $existingAiEvaluation->update([
@@ -93,6 +124,32 @@ class ScoreTranscriptJob implements ShouldQueue
                 ], $fromStatus, Evaluation::STATUS_AI_FAILED);
                 Log::error("Failed to evaluate interaction {$this->interactionId}");
             }
+        } catch (TransientAiProviderException $e) {
+            $this->scheduleAiRetry(
+                $interaction,
+                $existingAiEvaluation,
+                'provider_transient',
+                'El proveedor de IA está ocupado o limitó temporalmente la solicitud. Se reintentará automáticamente.',
+                $e
+            );
+
+            return;
+        } catch (PermanentAiProviderException $e) {
+            $interaction->update(['status' => 'uploaded']);
+            $fromStatus = $existingAiEvaluation->status;
+            $existingAiEvaluation->update([
+                'status' => Evaluation::STATUS_AI_FAILED,
+                'ai_summary' => 'La evaluación IA no pudo completarse por configuración del proveedor: '.$e->getMessage(),
+            ]);
+            $existingAiEvaluation->recordAuditEvent('ai_failed', null, [
+                'source' => 'provider_permanent',
+                'exception_class' => get_class($e),
+            ], $fromStatus, Evaluation::STATUS_AI_FAILED);
+
+            Log::error("Permanent AI provider failure for interaction {$this->interactionId}: ".$e->getMessage());
+            $this->fail($e);
+
+            return;
         } catch (\Exception $e) {
             $interaction->update(['status' => 'uploaded']);
             $fromStatus = $existingAiEvaluation->status;
@@ -107,6 +164,45 @@ class ScoreTranscriptJob implements ShouldQueue
             Log::error("Error evaluating interaction {$this->interactionId}: ".$e->getMessage());
             throw $e;
         }
+    }
+
+    private function shouldRetryNullResponse(): bool
+    {
+        return $this->attempts() <= max(0, (int) config('queue.ai.null_response_retries', 2));
+    }
+
+    private function scheduleAiRetry(
+        Interaction $interaction,
+        Evaluation $evaluation,
+        string $source,
+        string $summary,
+        ?\Throwable $exception = null
+    ): void {
+        $delay = $this->transientReleaseDelay();
+        $interaction->update(['status' => 'queued']);
+        $fromStatus = $evaluation->status;
+        $evaluation->update([
+            'status' => Evaluation::STATUS_PENDING_AI,
+            'ai_summary' => $summary,
+        ]);
+        $evaluation->recordAuditEvent('ai_retry_scheduled', null, [
+            'source' => $source,
+            'retry_in_seconds' => $delay,
+            'attempt' => $this->attempts(),
+            'exception_class' => $exception ? get_class($exception) : null,
+        ], $fromStatus, Evaluation::STATUS_PENDING_AI);
+
+        $detail = $exception ? ': '.$exception->getMessage() : '';
+        Log::warning("ScoreTranscriptJob: Retry scheduled for interaction {$this->interactionId} in {$delay}s{$detail}");
+        $this->release($delay);
+    }
+
+    private function transientReleaseDelay(): int
+    {
+        $baseDelay = max(30, (int) config('queue.ai.transient_release_seconds', 120));
+        $maxDelay = max($baseDelay, (int) config('queue.ai.max_transient_release_seconds', 900));
+
+        return min($maxDelay, $baseDelay * max(1, $this->attempts()));
     }
 
     public function failed(\Throwable $exception): void

@@ -126,4 +126,22 @@ return [
         'table' => 'failed_jobs',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | AI Queue Throttling
+    |--------------------------------------------------------------------------
+    |
+    | Audio transcription and AI scoring hit external providers that can reject
+    | bursts. Keep these jobs paced even when many files are uploaded at once.
+    |
+    */
+
+    'ai' => [
+        'provider_per_minute' => (int) env('AI_PROVIDER_JOBS_PER_MINUTE', 2),
+        'transient_release_seconds' => (int) env('AI_TRANSIENT_RELEASE_SECONDS', 120),
+        'max_transient_release_seconds' => (int) env('AI_MAX_TRANSIENT_RELEASE_SECONDS', 900),
+        'retry_window_hours' => (int) env('AI_RETRY_WINDOW_HOURS', 12),
+        'null_response_retries' => (int) env('AI_NULL_RESPONSE_RETRIES', 2),
+    ],
+
 ];

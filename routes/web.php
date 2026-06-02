@@ -8,6 +8,8 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\EvaluationWorkQueueController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SamplingPlanController;
+use App\Http\Controllers\StaffingController;
 use App\Http\Controllers\TranscriptController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +29,19 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard Calidad
     Route::get('/dashboard/quality', [App\Http\Controllers\DashboardQualityController::class, 'index'])->name('dashboard.quality');
     Route::get('/work-queue', [EvaluationWorkQueueController::class, 'index'])->name('work-queue.index');
+
+    // Muestreo aleatorio QA
+    Route::get('/sampling', [SamplingPlanController::class, 'index'])->name('sampling.index');
+    Route::post('/sampling', [SamplingPlanController::class, 'store'])->name('sampling.store');
+    Route::get('/sampling/{samplingPlan}', [SamplingPlanController::class, 'show'])->name('sampling.show');
+    Route::post('/sampling/orders/{samplingOrder}', [SamplingPlanController::class, 'updateOrder'])->name('sampling.orders.update');
+    Route::get('/sampling/{samplingPlan}/orders.csv', [SamplingPlanController::class, 'exportOrders'])->name('sampling.orders.export');
+    Route::get('/sampling/{samplingPlan}/audit.csv', [SamplingPlanController::class, 'exportAudit'])->name('sampling.audit.export');
+
+    // Dotación para muestreo QA
+    Route::post('/sampling/staffing', [StaffingController::class, 'store'])->name('sampling.staffing.store');
+    Route::get('/sampling/staffing/template.csv', [StaffingController::class, 'template'])->name('sampling.staffing.template');
+    Route::get('/sampling/staffing/template.xlsx', [StaffingController::class, 'templateExcel'])->name('sampling.staffing.template.excel');
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -188,7 +203,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Configuración (solo admin)
     Route::group(['middleware' => ['role:admin']], function () {
-        Route::resource('users', \App\Http\Controllers\UserController::class);
+        Route::get('users/import', [\App\Http\Controllers\UserController::class, 'import'])->name('users.import');
+        Route::post('users/import', [\App\Http\Controllers\UserController::class, 'importStore'])->name('users.import.store');
+        Route::get('users/import/template.csv', [\App\Http\Controllers\UserController::class, 'importTemplate'])->name('users.import.template');
+        Route::get('users/import/template.xlsx', [\App\Http\Controllers\UserController::class, 'importTemplateExcel'])->name('users.import.template.excel');
+        Route::resource('users', \App\Http\Controllers\UserController::class)->except(['show']);
         Route::resource('roles', \App\Http\Controllers\RolePermissionController::class);
 
         Route::get('settings/ai', [\App\Http\Controllers\SettingsController::class, 'aiSettings'])

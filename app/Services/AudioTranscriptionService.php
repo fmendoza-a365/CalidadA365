@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AiProviderErrors;
 use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -134,7 +135,7 @@ PROMPT;
             if ($response->failed()) {
                 $error = $response->json('error.message', $response->body());
                 Log::error("AudioTranscriptionService: Gemini API error - {$error}");
-                throw new \Exception("Gemini API error: {$error}");
+                throw AiProviderErrors::exceptionFor('gemini', $response->status(), "Gemini API error: {$error}");
             }
 
             $result = $response->json();
@@ -187,13 +188,13 @@ PROMPT;
             ];
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            $safeMessage = $this->sanitizeProviderError($e->getMessage());
+            $safeMessage = AiProviderErrors::sanitize($e->getMessage());
 
             Log::error('AudioTranscriptionService: Connection error', [
                 'error' => $safeMessage,
             ]);
 
-            throw new \Exception('Could not connect to Gemini API: '.$safeMessage);
+            throw AiProviderErrors::exceptionFor('gemini', null, 'Could not connect to Gemini API: '.$safeMessage);
         }
     }
 
@@ -239,8 +240,11 @@ PROMPT;
         }
 
         $offset = 12;
+        $format = null;
+        $sampleRate = null;
         $byteRate = null;
         $dataSize = null;
+        $factSampleCount = null;
         $length = strlen($audioData);
 
         while ($offset + 8 <= $length) {
@@ -249,19 +253,29 @@ PROMPT;
             $chunkDataOffset = $offset + 8;
 
             if ($chunkId === 'fmt ' && $chunkSize >= 16 && $chunkDataOffset + 16 <= $length) {
-                $fmt = unpack('vformat/vchannels/VsampleRate/VbyteRate', substr($audioData, $chunkDataOffset, 14));
+                $fmt = unpack('vformat/vchannels/VsampleRate/VbyteRate/vblockAlign/vbitsPerSample', substr($audioData, $chunkDataOffset, 16));
+                $format = (int) ($fmt['format'] ?? 0);
+                $sampleRate = (int) ($fmt['sampleRate'] ?? 0);
                 $byteRate = (int) ($fmt['byteRate'] ?? 0);
+            }
+
+            if ($chunkId === 'fact' && $chunkSize >= 4 && $chunkDataOffset + 4 <= $length) {
+                $factSampleCount = (int) (unpack('V', substr($audioData, $chunkDataOffset, 4))[1] ?? 0);
             }
 
             if ($chunkId === 'data') {
                 $dataSize = (int) $chunkSize;
             }
 
-            if ($byteRate && $dataSize) {
+            if ($byteRate && $dataSize && ($format === 1 || $factSampleCount || ! $sampleRate)) {
                 break;
             }
 
             $offset = $chunkDataOffset + $chunkSize + ($chunkSize % 2);
+        }
+
+        if ($format !== null && $format !== 1 && $factSampleCount && $sampleRate) {
+            return max(1, (int) round($factSampleCount / $sampleRate));
         }
 
         if (! $byteRate || ! $dataSize) {
@@ -341,6 +355,14 @@ PROMPT;
             return null;
         }
 
+        if (strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) === 'wav') {
+            $durationFromBytes = $this->durationSecondsFromAudioBytes($disk->get($filePath), $filePath);
+
+            if ($durationFromBytes) {
+                return $durationFromBytes;
+            }
+        }
+
         if (method_exists($disk, 'path')) {
             $durationFromProbe = $this->durationSecondsFromMediaProbe($disk->path($filePath));
 
@@ -397,10 +419,4 @@ PROMPT;
         }
     }
 
-    private function sanitizeProviderError(string $message): string
-    {
-        $message = preg_replace('/([?&]key=)[^&\s"]+/i', '$1[redacted]', $message) ?? $message;
-
-        return preg_replace('/AIza[0-9A-Za-z_\-]{20,}/', '[redacted-api-key]', $message) ?? $message;
-    }
 }

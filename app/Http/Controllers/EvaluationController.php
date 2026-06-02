@@ -134,6 +134,7 @@ class EvaluationController extends Controller
             'dispute.resolvedBy',
             'auditEvents.actor',
             'reviewer',
+            'reviewClaimer',
             'publisher',
             'evaluator',
             'closer',

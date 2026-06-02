@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Exceptions\PermanentAiProviderException;
+use App\Exceptions\TransientAiProviderException;
 use App\Models\Evaluation;
 use App\Models\EvaluationItem;
 use App\Models\Interaction;
 use App\Models\QualityFormVersion;
+use App\Support\AiProviderErrors;
 use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +31,122 @@ class AIEvaluationService
     public function getProvider(): string
     {
         return $this->provider;
+    }
+
+    /**
+     * Analiza un prompt de texto y devuelve un análisis narrativo en texto plano
+     */
+    public function analyze(string $prompt): ?string
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+
+        if (empty($apiKey)) {
+            Log::warning('AIEvaluationService::analyze - No hay API Key configurada para ' . $this->provider);
+            return null;
+        }
+
+        try {
+            $rawContent = null;
+
+            match ($this->provider) {
+                'openai' => $rawContent = $this->callOpenAIText($prompt),
+                'gemini' => $rawContent = $this->callGeminiText($prompt),
+                'claude' => $rawContent = $this->callClaudeText($prompt),
+                default => $rawContent = null,
+            };
+
+            return $rawContent;
+        } catch (\Exception $e) {
+            Log::error('AIEvaluationService::analyze - Error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Llama a OpenAI para obtener texto plano (no JSON)
+     */
+    protected function callOpenAIText(string $prompt): ?string
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+        if (empty($apiKey)) return null;
+
+        $response = Http::withToken($apiKey)
+            ->timeout(120)
+            ->post('https://api.openai.com/v1/chat/completions', [
+                'model' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad de call centers. Responde en texto narrativo profesional, sin formato JSON. Usa párrafos claros y concisos.'],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 1500,
+            ]);
+
+        if ($response->failed()) {
+            Log::error('callOpenAIText - Error: ' . $response->body());
+            return null;
+        }
+
+        return $response->json('choices.0.message.content');
+    }
+
+    /**
+     * Llama a Gemini para obtener texto plano
+     */
+    protected function callGeminiText(string $prompt): ?string
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+        if (empty($apiKey)) return null;
+
+        $model = $this->config['model'] ?? AiSettings::DEFAULTS['gemini_model'];
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+
+        $response = Http::timeout(120)->post($url, [
+            'contents' => [
+                ['parts' => [['text' => $prompt]]],
+            ],
+            'generationConfig' => [
+                'temperature' => 0.7,
+                'maxOutputTokens' => 1500,
+            ],
+        ]);
+
+        if ($response->failed()) {
+            Log::error('callGeminiText - Error: ' . $response->body());
+            return null;
+        }
+
+        return $response->json('candidates.0.content.parts.0.text');
+    }
+
+    /**
+     * Llama a Claude para obtener texto plano
+     */
+    protected function callClaudeText(string $prompt): ?string
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+        if (empty($apiKey)) return null;
+
+        $response = Http::withHeaders([
+            'x-api-key' => $apiKey,
+            'anthropic-version' => '2023-06-01',
+            'content-type' => 'application/json',
+        ])
+            ->timeout(120)
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
+                'max_tokens' => 1500,
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+            ]);
+
+        if ($response->failed()) {
+            Log::error('callClaudeText - Error: ' . $response->body());
+            return null;
+        }
+
+        return $response->json('content.0.text');
     }
 
     /**
@@ -69,6 +188,9 @@ class AIEvaluationService
             $evaluation = $this->processAIResponse($interaction, $formVersion, $parsedResponse, $prompt, $rawResponseContent ?? 'No raw content available', $existingEvaluation);
 
             return $evaluation;
+        } catch (TransientAiProviderException|PermanentAiProviderException $e) {
+            Log::warning("Proveedor IA no disponible para interacción {$interaction->id}: ".$e->getMessage());
+            throw $e;
         } catch (\Exception $e) {
             Log::error("Error en evaluación IA ({$this->provider}): ".$e->getMessage());
 
@@ -224,7 +346,7 @@ PROMPT;
         if (empty($apiKey)) {
             Log::error('API Key de OpenAI no configurada en IA y Modelos.');
 
-            return null;
+            throw new PermanentAiProviderException('API Key de OpenAI no configurada en IA y Modelos.', 'openai');
         }
 
         $response = Http::withToken($apiKey)
@@ -242,7 +364,8 @@ PROMPT;
         if ($response->failed()) {
             Log::error('Error en API OpenAI: '.$response->body());
 
-            return null;
+            $message = $response->json('error.message', $response->body());
+            throw AiProviderErrors::exceptionFor('openai', $response->status(), "OpenAI API error: {$message}");
         }
 
         $rawResponseContent = $response->json('choices.0.message.content');
@@ -260,7 +383,7 @@ PROMPT;
         if (empty($apiKey)) {
             Log::error('API Key de Gemini no configurada en IA y Modelos.');
 
-            return null;
+            throw new PermanentAiProviderException('API Key de Gemini no configurada en IA y Modelos.', 'gemini');
         }
 
         $model = $this->config['model'] ?? AiSettings::DEFAULTS['gemini_model'];
@@ -297,7 +420,8 @@ PROMPT;
         if ($response->failed()) {
             Log::error('Error en API Gemini: '.$response->body());
 
-            return null;
+            $message = $response->json('error.message', $response->body());
+            throw AiProviderErrors::exceptionFor('gemini', $response->status(), "Gemini API error: {$message}");
         }
 
         $rawResponseData = $response->json();
@@ -316,7 +440,7 @@ PROMPT;
         if (empty($apiKey)) {
             Log::error('API Key de Claude no configurada en IA y Modelos.');
 
-            return null;
+            throw new PermanentAiProviderException('API Key de Claude no configurada en IA y Modelos.', 'claude');
         }
 
         $response = Http::withHeaders([
@@ -338,7 +462,8 @@ PROMPT;
         if ($response->failed()) {
             Log::error('Error en API Claude: '.$response->body());
 
-            return null;
+            $message = $response->json('error.message', $response->body());
+            throw AiProviderErrors::exceptionFor('claude', $response->status(), "Claude API error: {$message}");
         }
 
         $rawResponseContent = $response->json('content.0.text');
@@ -632,19 +757,21 @@ PROMPT;
     /**
      * Generar reporte de insights agrupados
      */
-    public function generateInsightReport(\Illuminate\Database\Eloquent\Collection $evaluations, string $type = 'combined'): array
+    public function generateInsightReport(\Illuminate\Database\Eloquent\Collection $evaluations, string $type = 'combined', array $reportSnapshot = []): array
     {
         // Obtener contexto de campaña y ficha de calidad
         $firstEval = $evaluations->first();
         $campaign = $firstEval->campaign;
-        $qualityForm = $firstEval->formVersion;
+        $campaignName = $reportSnapshot['scope']['campaign_name'] ?? $campaign?->name ?? 'Todas las campañas visibles';
+        $campaignDescription = $campaign?->description ?: 'Análisis consolidado sobre evaluaciones reales del periodo seleccionado.';
 
         // Recopilar criterios de la ficha de calidad
         $qualityCriteria = [];
-        if ($qualityForm) {
+        foreach ($evaluations->pluck('formVersion')->filter()->unique('id') as $qualityForm) {
             foreach ($qualityForm->formAttributes as $attr) {
                 foreach ($attr->subAttributes as $sub) {
-                    $qualityCriteria[] = [
+                    $key = $attr->name.'|'.$sub->name;
+                    $qualityCriteria[$key] = [
                         'category' => $attr->name,
                         'criterion' => $sub->name,
                         'is_critical' => $sub->is_critical,
@@ -652,7 +779,9 @@ PROMPT;
                 }
             }
         }
+        $qualityCriteria = array_values($qualityCriteria);
         $criteriaJson = json_encode($qualityCriteria, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $metricsJson = json_encode($reportSnapshot, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
         // Recopilar datos de fallas
         $failedItems = [];
@@ -660,10 +789,14 @@ PROMPT;
             foreach ($eval->items as $item) {
                 if ($item->status === 'non_compliant') {
                     $failedItems[] = [
-                        'criteria' => $item->subAttribute->name ?? 'Unknown',
+                        'evaluation_id' => $eval->id,
+                        'agent' => $eval->agent?->name,
+                        'score' => $eval->percentage_score,
+                        'category' => $item->subAttribute?->attribute?->name ?? 'Unknown',
+                        'criteria' => $item->subAttribute?->name ?? 'Unknown',
                         'evidence' => $item->evidence_quote,
                         'notes' => $item->ai_notes,
-                        'is_critical' => $item->subAttribute->is_critical ?? false,
+                        'is_critical' => $item->subAttribute?->is_critical ?? false,
                     ];
                 }
             }
@@ -671,7 +804,7 @@ PROMPT;
 
         // Si no hay suficiente data
         if (count($failedItems) < 3) {
-            return $this->simulateInsightResponse($type);
+            return $this->simulateInsightResponse($type, $reportSnapshot);
         }
 
         // Limitar para no exceder tokens
@@ -695,8 +828,11 @@ PROMPT;
 {$roleInstruction}
 
 **CONTEXTO DE LA CAMPAÑA:**
-- Nombre: {$campaign->name}
-- Descripción: {$campaign->description}
+- Nombre / alcance: {$campaignName}
+- Descripción: {$campaignDescription}
+
+**MÉTRICAS REALES DEL PERIODO ANALIZADO:**
+{$metricsJson}
 
 **CRITERIOS DE LA FICHA DE CALIDAD:**
 {$criteriaJson}
@@ -708,14 +844,16 @@ PROMPT;
 
 **INSTRUCCIONES CRÍTICAS:**
 1. TODO el análisis debe estar en ESPAÑOL
-2. Basa tu análisis EXCLUSIVAMENTE en los criterios de la ficha de calidad mostrados arriba
+2. Basa tu análisis EXCLUSIVAMENTE en las evaluaciones, métricas reales y criterios de la ficha mostrados arriba
 3. Relaciona cada hallazgo con criterios específicos de la ficha
-4. Menciona qué criterios de la campaña "{$campaign->name}" se están incumpliendo
+4. Menciona qué criterios del alcance "{$campaignName}" se están incumpliendo
 5. Sé ESPECÍFICO y ACCIONABLE
 
 Genera un reporte EXHAUSTIVO en formato JSON (TODO EN ESPAÑOL):
 {
     "executive_summary": "Resumen ejecutivo en Markdown. INCLUYE: contexto de la campaña, criterios más problemáticos, conclusión.",
+    "operations_summary": "Resumen para operaciones: foco en agentes, supervisión, coaching, proceso y seguimiento.",
+    "client_summary": "Resumen para cliente: foco ejecutivo, impacto en experiencia, riesgos y decisiones sin culpar agentes.",
     "improvement_opportunities": [
         {
             "category": "Nombre del criterio de la FICHA DE CALIDAD",
@@ -754,27 +892,152 @@ Genera un reporte EXHAUSTIVO en formato JSON (TODO EN ESPAÑOL):
             "expected_impact": "Impacto esperado en el puntaje",
             "responsible": "Operaciones|Producto|Negocio|Capacitación"
         }
+    ],
+    "presentation_slides": [
+        {
+            "title": "Título de slide",
+            "bullets": ["Mensaje breve basado en datos", "Otro punto clave"],
+            "speaker_note": "Nota corta para explicar en reunión"
+        }
     ]
 }
 
-GENERA MÍNIMO: 3 improvement_opportunities, 2 deficiencies, 3 recommendations.
-RECUERDA: TODO en español, basado en la ficha de calidad de "{$campaign->name}".
+GENERA MÍNIMO: 3 improvement_opportunities, 2 deficiencies, 3 recommendations y 6 presentation_slides.
+RECUERDA: TODO en español, basado en evaluaciones reales y ficha de calidad de "{$campaignName}".
 PROMPT;
 
-        $response = match ($this->provider) {
-            'gemini' => $this->callGemini($prompt),
-            'openai' => $this->callOpenAI($prompt),
-            'claude' => $this->callClaude($prompt),
-            default => $this->simulateInsightResponse($type),
-        };
+        try {
+            $response = match ($this->provider) {
+                'gemini' => $this->callGemini($prompt),
+                'openai' => $this->callOpenAI($prompt),
+                'claude' => $this->callClaude($prompt),
+                default => $this->simulateInsightResponse($type, $reportSnapshot),
+            };
+        } catch (\Throwable $exception) {
+            Log::warning('Insight report AI generation failed; using evaluation snapshot fallback.', [
+                'provider' => $this->provider,
+                'message' => $exception->getMessage(),
+            ]);
 
-        return $response ?? $this->simulateInsightResponse($type);
+            $response = null;
+        }
+
+        return array_replace_recursive(
+            $this->simulateInsightResponse($type, $reportSnapshot),
+            is_array($response) ? $response : []
+        );
     }
 
-    protected function simulateInsightResponse(string $type): array
+    protected function basicInsightResponse(string $type, array $reportSnapshot): array
     {
+        $scope = $reportSnapshot['scope'] ?? [];
+        $metrics = $reportSnapshot['metrics'] ?? [];
+        $topFailedCriteria = array_values($reportSnapshot['top_failed_criteria'] ?? []);
+        $agentPerformance = array_values($reportSnapshot['agent_performance'] ?? []);
+        $campaignName = $scope['campaign_name'] ?? 'Todas las campañas visibles';
+        $totalEvaluations = (int) ($metrics['total_evaluations'] ?? 0);
+        $averageScore = (float) ($metrics['average_score'] ?? 0);
+        $complianceRate = (float) ($metrics['compliance_rate'] ?? 0);
+        $criticalFailures = (int) ($metrics['critical_failures'] ?? 0);
+        $mainCriteria = $topFailedCriteria[0]['criteria'] ?? 'sin criterio dominante';
+        $mainCriteriaCount = (int) ($topFailedCriteria[0]['count'] ?? 0);
+        $lowestAgent = $agentPerformance[0]['agent'] ?? 'sin asesor crítico';
+
+        $priorityFromCount = fn (int $count, bool $critical = false): string => $critical || $count >= 5 ? 'High' : ($count >= 2 ? 'Medium' : 'Low');
+
+        $opportunities = collect($topFailedCriteria)
+            ->take(5)
+            ->map(fn (array $criteria) => [
+                'category' => $criteria['criteria'] ?? 'Criterio de calidad',
+                'description' => 'Se detectaron incumplimientos recurrentes en '.$criteria['criteria'].' dentro del periodo analizado.',
+                'affected_count' => (int) ($criteria['count'] ?? 0),
+                'priority' => $priorityFromCount((int) ($criteria['count'] ?? 0), (bool) ($criteria['critical'] ?? false)),
+                'coaching_actions' => 'Revisar casos reales del criterio, reforzar pauta de evaluación y ejecutar calibración con supervisores.',
+            ])
+            ->values()
+            ->all();
+
+        if (empty($opportunities)) {
+            $opportunities[] = [
+                'category' => 'Seguimiento preventivo',
+                'description' => 'No se detectó una falla dominante, pero el periodo requiere seguimiento por variación de resultados.',
+                'affected_count' => 0,
+                'priority' => 'Low',
+                'coaching_actions' => 'Mantener calibraciones y revisar muestras con puntajes bajo el objetivo.',
+            ];
+        }
+
         return [
-            'executive_summary' => "### 📊 Reporte Simulado ({$type})\n\nEste es un análisis generado automáticamente para pruebas. En producción, esto usaría IA real para analizar tendencias y patrones en las evaluaciones.\n\n**Nota:** Configure un proveedor de IA (Gemini/OpenAI) para obtener insights reales.",
+            'executive_summary' => "### Resumen ejecutivo\n\nSe analizaron {$totalEvaluations} evaluaciones de {$campaignName}. El promedio fue {$averageScore}% y el cumplimiento fue {$complianceRate}%. Se detectaron {$criticalFailures} fallas críticas. El criterio con mayor recurrencia fue **{$mainCriteria}** con {$mainCriteriaCount} caso(s).",
+            'operations_summary' => "Operaciones debe priorizar coaching sobre {$mainCriteria}, revisar a {$lowestAgent} y reforzar calibración con supervisores. La meta inmediata es reducir fallas críticas y elevar consistencia sobre el umbral de 80%.",
+            'client_summary' => "El periodo muestra un nivel promedio de {$averageScore}% en calidad para {$campaignName}. Los principales riesgos se concentran en criterios operativos específicos y deben gestionarse con un plan de mejora medible.",
+            'improvement_opportunities' => $opportunities,
+            'deficiencies' => collect($topFailedCriteria)->take(3)->map(fn (array $criteria) => [
+                'title' => $criteria['criteria'] ?? 'Criterio con desviación',
+                'description' => 'El criterio aparece entre las principales causas de incumplimiento en el periodo.',
+                'frequency' => ((int) ($criteria['count'] ?? 0)) >= 5 ? 'Frecuente' : 'Ocasional',
+                'root_cause' => 'Posible brecha de ejecución, entendimiento del procedimiento o calibración del criterio.',
+                'recommendation' => 'Revisar evidencias, alinear supervisores y medir recuperación en el siguiente corte.',
+            ])->values()->all(),
+            'product_issues' => [],
+            'trends' => [
+                'overall_direction' => 'stable',
+                'key_observations' => 'La tendencia debe interpretarse con el detalle diario y la distribución de puntajes del reporte.',
+                'critical_changes' => $criticalFailures > 0 ? 'Existen fallas críticas que requieren seguimiento.' : 'No se detectaron fallas críticas en el resumen consolidado.',
+            ],
+            'recommendations' => [
+                [
+                    'priority' => 1,
+                    'action' => 'Ejecutar coaching focalizado sobre '.$mainCriteria,
+                    'expected_impact' => 'Reducir reincidencia del criterio y mejorar el promedio de calidad.',
+                    'responsible' => 'Operaciones',
+                ],
+                [
+                    'priority' => 2,
+                    'action' => 'Calibrar la pauta con supervisores y monitores',
+                    'expected_impact' => 'Homologar criterios y reducir variabilidad entre evaluaciones.',
+                    'responsible' => 'Calidad',
+                ],
+                [
+                    'priority' => 3,
+                    'action' => 'Revisar semanalmente agentes con menor promedio',
+                    'expected_impact' => 'Detectar brechas individuales antes de que se acumulen fallas.',
+                    'responsible' => 'Supervisión',
+                ],
+            ],
+            'presentation_slides' => [
+                [
+                    'title' => 'Resultado general del periodo',
+                    'bullets' => ["{$totalEvaluations} evaluaciones analizadas", "Promedio de calidad: {$averageScore}%", "Cumplimiento: {$complianceRate}%"],
+                    'speaker_note' => 'Abrir con el alcance del análisis y los indicadores base.',
+                ],
+                [
+                    'title' => 'Principal foco de mejora',
+                    'bullets' => ["Criterio principal: {$mainCriteria}", "{$mainCriteriaCount} incumplimiento(s) detectado(s)", "Prioridad basada en recurrencia y criticidad"],
+                    'speaker_note' => 'Explicar por qué este criterio debe priorizarse.',
+                ],
+                [
+                    'title' => 'Riesgos para la operación',
+                    'bullets' => ["Fallas críticas: {$criticalFailures}", 'Riesgo de variabilidad entre agentes', 'Necesidad de seguimiento semanal'],
+                    'speaker_note' => 'Conectar fallas con acciones operativas concretas.',
+                ],
+                [
+                    'title' => 'Plan de acción',
+                    'bullets' => ['Coaching focalizado', 'Calibración de criterios', 'Seguimiento de asesores con menor promedio'],
+                    'speaker_note' => 'Cerrar con responsables y próximo corte.',
+                ],
+            ],
+        ];
+    }
+
+    protected function simulateInsightResponse(string $type, array $reportSnapshot = []): array
+    {
+        if (! empty($reportSnapshot)) {
+            return $this->basicInsightResponse($type, $reportSnapshot);
+        }
+
+        return [
+            'executive_summary' => "### Reporte simulado ({$type})\n\nEste es un análisis generado automáticamente para pruebas. En producción, esto usaría IA real para analizar tendencias y patrones en las evaluaciones.\n\n**Nota:** Configure un proveedor de IA (Gemini/OpenAI) para obtener insights reales.",
             'improvement_opportunities' => [
                 [
                     'category' => 'Script Adherence',

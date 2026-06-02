@@ -123,7 +123,8 @@ cp deployment/digitalocean/supervisor-workers.conf /etc/supervisor/conf.d/qa365-
 supervisorctl reread
 supervisorctl update
 supervisorctl restart qa365-default-worker:* || true
-supervisorctl restart qa365-ai-worker:* || true
+supervisorctl restart qa365-transcription-worker:* || true
+supervisorctl restart qa365-ai-scoring-worker:* || true
 
 systemctl reload nginx
 systemctl restart "${PHP_FPM_SERVICE}"

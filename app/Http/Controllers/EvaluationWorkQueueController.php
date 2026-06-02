@@ -19,8 +19,9 @@ class EvaluationWorkQueueController extends Controller
             abort(403);
         }
 
-        $pendingReviewQuery = Evaluation::with(['agent', 'campaign', 'interaction'])
+        $pendingReviewQuery = Evaluation::with(['agent', 'campaign', 'interaction', 'reviewClaimer'])
             ->forUser($user)
+            ->availableForReviewBy($user)
             ->whereIn('status', [
                 Evaluation::STATUS_PENDING_MONITOR_REVIEW,
                 Evaluation::STATUS_AI_REANALYSIS_REQUESTED,

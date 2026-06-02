@@ -153,6 +153,140 @@ class EvaluationAuditTrailTest extends TestCase
         $this->assertSame('Corrección validada por monitor.', $manualItem->ai_notes);
     }
 
+    public function test_opening_manual_correction_claims_ai_review_for_monitor(): void
+    {
+        [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $monitor = $this->userWithRole('qa_monitor');
+
+        $aiEvaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $agent->id,
+            'type' => 'ai',
+            'evaluator_id' => $monitor->id,
+            'total_score' => 80,
+            'max_possible_score' => 100,
+            'percentage_score' => 80,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+        ]);
+
+        $aiEvaluation->items()->create([
+            'subattribute_id' => $subAttribute->id,
+            'status' => 'non_compliant',
+            'score' => 0,
+            'max_score' => 1,
+            'weighted_score' => 0,
+            'confidence' => 0.9,
+        ]);
+
+        $this->actingAs($monitor)
+            ->get(route('evaluations.create_manual', $interaction))
+            ->assertOk()
+            ->assertSee('Caso reservado para ti');
+
+        $aiEvaluation->refresh();
+
+        $this->assertSame($monitor->id, $aiEvaluation->review_claimed_by);
+        $this->assertNotNull($aiEvaluation->review_claimed_at);
+        $this->assertNotNull($aiEvaluation->review_claim_expires_at);
+        $this->assertDatabaseHas('evaluation_audit_events', [
+            'evaluation_id' => $aiEvaluation->id,
+            'actor_id' => $monitor->id,
+            'event' => 'manual_review_claimed',
+        ]);
+    }
+
+    public function test_second_monitor_cannot_open_actively_claimed_manual_correction(): void
+    {
+        [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $firstMonitor = $this->userWithRole('qa_monitor');
+        $secondMonitor = $this->userWithRole('qa_monitor');
+        $secondMonitor->managedCampaigns()->attach($interaction->campaign_id);
+
+        $aiEvaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $agent->id,
+            'type' => 'ai',
+            'evaluator_id' => $firstMonitor->id,
+            'total_score' => 80,
+            'max_possible_score' => 100,
+            'percentage_score' => 80,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+        ]);
+
+        $aiEvaluation->items()->create([
+            'subattribute_id' => $subAttribute->id,
+            'status' => 'non_compliant',
+            'score' => 0,
+            'max_score' => 1,
+            'weighted_score' => 0,
+            'confidence' => 0.9,
+        ]);
+
+        $this->actingAs($firstMonitor)
+            ->get(route('evaluations.create_manual', $interaction))
+            ->assertOk();
+
+        $this->actingAs($secondMonitor)
+            ->get(route('evaluations.create_manual', $interaction))
+            ->assertRedirect(route('work-queue.index'))
+            ->assertSessionHas('warning');
+
+        $this->assertDatabaseMissing('evaluations', [
+            'interaction_id' => $interaction->id,
+            'type' => 'manual',
+        ]);
+    }
+
+    public function test_second_monitor_cannot_store_actively_claimed_manual_correction(): void
+    {
+        [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();
+        $firstMonitor = $this->userWithRole('qa_monitor');
+        $secondMonitor = $this->userWithRole('qa_monitor');
+        $secondMonitor->managedCampaigns()->attach($interaction->campaign_id);
+
+        $aiEvaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $agent->id,
+            'type' => 'ai',
+            'evaluator_id' => $firstMonitor->id,
+            'total_score' => 80,
+            'max_possible_score' => 100,
+            'percentage_score' => 80,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+            'review_claimed_by' => $firstMonitor->id,
+            'review_claimed_at' => now(),
+            'review_claim_expires_at' => now()->addMinutes(30),
+        ]);
+
+        $response = $this->actingAs($secondMonitor)
+            ->post(route('evaluations.store_manual', $interaction), [
+                'form_version_id' => $version->id,
+                'items' => [
+                    [
+                        'subattribute_id' => $subAttribute->id,
+                        'status' => 'compliant',
+                        'notes' => 'Intento de corrección.',
+                    ],
+                ],
+            ]);
+
+        $response
+            ->assertRedirect(route('work-queue.index'))
+            ->assertSessionHas('warning');
+
+        $this->assertDatabaseMissing('evaluations', [
+            'interaction_id' => $interaction->id,
+            'type' => 'manual',
+        ]);
+        $this->assertSame($firstMonitor->id, $aiEvaluation->fresh()->review_claimed_by);
+    }
+
     public function test_manual_correction_view_keeps_ai_notes_out_of_manual_notes_field(): void
     {
         [, $agent, , $version, $interaction, $subAttribute] = $this->scorableInteraction();

@@ -53,6 +53,15 @@
             </div>
         </div>
 
+        @if($aiEvaluation?->isReviewClaimedBy(auth()->user()))
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200">
+                <span class="font-semibold">Caso reservado para ti.</span>
+                @if($aiEvaluation->review_claim_expires_at)
+                    La reserva vence en {{ $aiEvaluation->review_claim_expires_at->diffForHumans(null, true) }} si no guardas la evaluación.
+                @endif
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('evaluations.store_manual', $interaction) }}" class="space-y-8">
             @csrf
             <input type="hidden" name="form_version_id" value="{{ $formVersion->id }}">

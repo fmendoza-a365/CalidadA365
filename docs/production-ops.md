@@ -27,10 +27,12 @@ Run workers for at least these queues:
 Recommended command shape:
 
 ```bash
-php artisan queue:work redis --queue=transcription,ai-scoring,default --tries=3 --timeout=900
+php artisan queue:work redis --queue=transcription --sleep=3 --tries=60 --timeout=900
+php artisan queue:work redis --queue=ai-scoring --sleep=3 --tries=60 --timeout=900
+php artisan queue:work redis --queue=default,notifications --sleep=3 --tries=3 --timeout=300
 ```
 
-Local development can use `database` as the queue driver, but production should use Redis and Supervisor.
+Production should run 3 `transcription` worker processes and 5 `ai-scoring` worker processes under Supervisor. Local development can use `database` as the queue driver, but production should use Redis and Supervisor.
 
 ## Scheduler
 

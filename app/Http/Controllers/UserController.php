@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\CsvImport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -39,9 +42,14 @@ class UserController extends Controller
         return view('users.index', compact('users', 'roles'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    public function import()
+    {
+        $roles = Role::orderBy('name')->get();
+        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+
+        return view('users.import', compact('roles', 'campaigns'));
+    }
+
     public function create()
     {
         $roles = Role::all();
@@ -49,9 +57,86 @@ class UserController extends Controller
         return view('users.create', compact('roles', 'campaigns'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    public function importStore(Request $request)
+    {
+        $validated = $request->validate([
+            'csv_file' => 'required|file|max:10240|mimes:csv,txt,xlsx,xls,ods',
+            'default_role' => 'nullable|string|exists:roles,name',
+            'default_password' => 'nullable|string|min:8',
+            'update_existing' => 'nullable|boolean',
+            'sync_campaigns' => 'nullable|boolean',
+        ]);
+
+        try {
+            $contents = CsvImport::contentsFromRequest($request);
+        } catch (InvalidArgumentException $exception) {
+            return back()->withInput()->with('error', $exception->getMessage());
+        }
+
+        if (blank($contents)) {
+            return back()->withInput()->with('error', 'Carga un archivo CSV o Excel con usuarios.');
+        }
+
+        $rows = CsvImport::rows($contents);
+        if (empty($rows)) {
+            return back()->withInput()->with('error', 'No se encontraron filas válidas en el archivo.');
+        }
+
+        $stats = DB::transaction(function () use ($rows, $validated, $request) {
+            return $this->importUsersFromRows(
+                rows: $rows,
+                defaultRole: $validated['default_role'] ?? null,
+                defaultPassword: $validated['default_password'] ?? null,
+                updateExisting: $request->boolean('update_existing', true),
+                syncCampaigns: $request->boolean('sync_campaigns', true)
+            );
+        });
+
+        return redirect()
+            ->route('users.index')
+            ->with('success', "Importación completa: {$stats['created']} creados, {$stats['updated']} actualizados, {$stats['skipped']} omitidos.");
+    }
+
+    public function importTemplate()
+    {
+        $rows = [[
+            'username' => 'a001',
+            'name' => 'Ana Pérez',
+            'paternal_surname' => 'Pérez',
+            'maternal_surname' => '',
+            'email' => 'ana.perez@empresa.com',
+            'role' => 'agent',
+            'password' => '',
+            'company_phone' => '999000000',
+            'department' => 'Lima',
+            'province' => 'Lima',
+            'district' => 'Miraflores',
+            'campaigns' => 'Atención;Ventas',
+        ]];
+
+        return CsvImport::download('plantilla_usuarios.csv', $rows);
+    }
+
+    public function importTemplateExcel()
+    {
+        $rows = [[
+            'username' => 'a001',
+            'name' => 'Ana Pérez',
+            'paternal_surname' => 'Pérez',
+            'maternal_surname' => '',
+            'email' => 'ana.perez@empresa.com',
+            'role' => 'agent',
+            'password' => '',
+            'company_phone' => '999000000',
+            'department' => 'Lima',
+            'province' => 'Lima',
+            'district' => 'Miraflores',
+            'campaigns' => 'Atención;Ventas',
+        ]];
+
+        return CsvImport::downloadSpreadsheet('plantilla_usuarios.xlsx', $rows);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -159,4 +244,137 @@ class UserController extends Controller
         return redirect()->route('users.index')
             ->with('success', 'Usuario eliminado exitosamente.');
     }
+
+    private function importUsersFromRows(array $rows, ?string $defaultRole, ?string $defaultPassword, bool $updateExisting, bool $syncCampaigns): array
+    {
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            $name = CsvImport::value($row, ['name', 'nombre', 'nombres']);
+            $email = CsvImport::value($row, ['email', 'correo', 'correo_empresa']);
+            $username = CsvImport::value($row, ['username', 'usuario', 'login', 'codigo']);
+            $role = CsvImport::value($row, ['role', 'rol'], $defaultRole);
+            $password = CsvImport::value($row, ['password', 'contrasena', 'contraseña'], $defaultPassword);
+
+            if (blank($name) || blank($role) || ! Role::where('name', $role)->exists()) {
+                $skipped++;
+                continue;
+            }
+
+            $username = $username ?: $this->makeUsername($email ?: $name);
+            $email = $email ?: $username.'@qa365.local';
+
+            $existing = User::query()
+                ->where('username', $username)
+                ->orWhere('email', $email)
+                ->first();
+
+            if ($existing && ! $updateExisting) {
+                $skipped++;
+                continue;
+            }
+
+            if (! $existing && blank($password)) {
+                $skipped++;
+                continue;
+            }
+
+            $userData = [
+                'username' => $this->uniqueUsername($username, $existing?->id),
+                'name' => $name,
+                'paternal_surname' => CsvImport::value($row, ['paternal_surname', 'apellido_paterno']),
+                'maternal_surname' => CsvImport::value($row, ['maternal_surname', 'apellido_materno']),
+                'email' => $this->uniqueEmail($email, $existing?->id),
+                'personal_email' => CsvImport::value($row, ['personal_email', 'correo_personal']),
+                'personal_phone' => CsvImport::value($row, ['personal_phone', 'telefono_personal']),
+                'company_phone' => CsvImport::value($row, ['company_phone', 'telefono_empresa', 'telefono']),
+                'department' => CsvImport::value($row, ['department', 'departamento']),
+                'province' => CsvImport::value($row, ['province', 'provincia']),
+                'district' => CsvImport::value($row, ['district', 'distrito']),
+                'address' => CsvImport::value($row, ['address', 'direccion']),
+            ];
+
+            if (filled($password)) {
+                $userData['password'] = Hash::make($password);
+            }
+
+            $user = $existing
+                ? tap($existing)->update($userData)
+                : User::create($userData);
+
+            $user->syncRoles([$role]);
+
+            if ($syncCampaigns && in_array($role, ['qa_monitor', 'qa_coordinator', 'manager'], true)) {
+                $campaignIds = $this->campaignIdsFromCsvValue(CsvImport::value($row, ['campaigns', 'campanias', 'campañas', 'campaign_ids']));
+                if (! empty($campaignIds)) {
+                    $user->managedCampaigns()->sync($campaignIds);
+                }
+            }
+
+            $existing ? $updated++ : $created++;
+        }
+
+        return compact('created', 'updated', 'skipped');
+    }
+
+    private function makeUsername(string $value): string
+    {
+        return Str::of($value)
+            ->before('@')
+            ->ascii()
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '.')
+            ->trim('.')
+            ->toString() ?: 'usuario';
+    }
+
+    private function uniqueUsername(string $username, ?int $ignoreId = null): string
+    {
+        $base = $this->makeUsername($username);
+        $candidate = $base;
+        $counter = 1;
+
+        while (User::query()->where('username', $candidate)->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))->exists()) {
+            $candidate = $base.$counter++;
+        }
+
+        return $candidate;
+    }
+
+    private function uniqueEmail(string $email, ?int $ignoreId = null): string
+    {
+        [$local, $domain] = array_pad(explode('@', $email, 2), 2, 'qa365.local');
+        $base = $local;
+        $candidate = $email;
+        $counter = 1;
+
+        while (User::query()->where('email', $candidate)->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))->exists()) {
+            $candidate = $base.$counter++.'@'.$domain;
+        }
+
+        return $candidate;
+    }
+
+    private function campaignIdsFromCsvValue(?string $value): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $tokens = collect(preg_split('/[;|]+/', $value))
+            ->map(fn ($token) => trim((string) $token))
+            ->filter()
+            ->values();
+
+        return \App\Models\Campaign::query()
+            ->whereIn('id', $tokens->filter(fn ($token) => ctype_digit($token))->map(fn ($token) => (int) $token))
+            ->orWhereIn('name', $tokens)
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
 }

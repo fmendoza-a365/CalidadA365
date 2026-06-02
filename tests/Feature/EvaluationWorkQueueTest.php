@@ -70,6 +70,53 @@ class EvaluationWorkQueueTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_work_queue_hides_reviews_claimed_by_another_monitor(): void
+    {
+        [, , $evaluation] = $this->pendingEvaluation('Claimed Agent');
+        $claimingMonitor = $this->userWithRole('qa_monitor');
+        $otherMonitor = $this->userWithRole('qa_monitor');
+        $claimingMonitor->managedCampaigns()->attach($evaluation->campaign_id);
+        $otherMonitor->managedCampaigns()->attach($evaluation->campaign_id);
+
+        $evaluation->forceFill([
+            'review_claimed_by' => $claimingMonitor->id,
+            'review_claimed_at' => now(),
+            'review_claim_expires_at' => now()->addMinutes(30),
+        ])->save();
+
+        $this->actingAs($otherMonitor)
+            ->get(route('work-queue.index'))
+            ->assertOk()
+            ->assertDontSee('Claimed Agent');
+
+        $this->actingAs($claimingMonitor)
+            ->get(route('work-queue.index'))
+            ->assertOk()
+            ->assertSee('Claimed Agent')
+            ->assertSee('Reservado por ti');
+    }
+
+    public function test_expired_review_claim_is_available_to_another_monitor(): void
+    {
+        [, , $evaluation] = $this->pendingEvaluation('Expired Claim Agent');
+        $claimingMonitor = $this->userWithRole('qa_monitor');
+        $otherMonitor = $this->userWithRole('qa_monitor');
+        $claimingMonitor->managedCampaigns()->attach($evaluation->campaign_id);
+        $otherMonitor->managedCampaigns()->attach($evaluation->campaign_id);
+
+        $evaluation->forceFill([
+            'review_claimed_by' => $claimingMonitor->id,
+            'review_claimed_at' => now()->subHour(),
+            'review_claim_expires_at' => now()->subMinute(),
+        ])->save();
+
+        $this->actingAs($otherMonitor)
+            ->get(route('work-queue.index'))
+            ->assertOk()
+            ->assertSee('Expired Claim Agent')
+            ->assertDontSee('Reservado por ti');
+    }
+
     private function pendingEvaluation(string $agentName = 'Agent'): array
     {
         $admin = $this->userWithRole('admin');

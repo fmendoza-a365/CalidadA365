@@ -176,25 +176,27 @@
                     <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    <h3 class="font-semibold text-gray-900 dark:text-white">Generar Nuevo Análisis IA</h3>
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Generar reporte ejecutivo con IA</h3>
                 </div>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">El reporte se arma con evaluaciones reales del periodo seleccionado y queda listo para presentar.</p>
             </div>
             <div class="card-body">
                 <form action="{{ route('insights.generate') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     @csrf
                     <div class="form-group">
-                        <label class="form-label">Campaña</label>
-                        <select name="campaign_id" class="form-select" required>
+                        <label class="form-label">Alcance</label>
+                        <select name="campaign_id" class="form-select">
+                            <option value="">Todas las campañas visibles</option>
                             @foreach($campaigns as $campaign)
                                 <option value="{{ $campaign->id }}">{{ $campaign->name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Tipo de Análisis</label>
+                        <label class="form-label">Enfoque</label>
                         <select name="type" class="form-select" required>
-                            <option value="operational">Operacional (Para Supervisores)</option>
-                            <option value="strategic">Estratégico (Cliente)</option>
+                            <option value="operational">Operaciones</option>
+                            <option value="strategic">Cliente</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -210,7 +212,7 @@
                             <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
-                            Analizar con IA
+                            Generar reporte
                         </button>
                     </div>
                 </form>

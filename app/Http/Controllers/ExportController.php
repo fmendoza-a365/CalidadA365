@@ -14,7 +14,14 @@ class ExportController extends Controller
             abort(403);
         }
 
-        $query = Evaluation::with(['campaign', 'agent', 'evaluator'])
+        $query = Evaluation::with([
+            'campaign',
+            'agent',
+            'evaluator',
+            'interaction' => function ($query) {
+                $query->select('id', 'channel', 'direction', 'contact_reason', 'outcome', 'product_name', 'audio_duration', 'occurred_at');
+            },
+        ])
             ->forUser(auth()->user())
             ->when($request->filled('campaign_id'), fn ($query) => $query->where('campaign_id', $request->integer('campaign_id')))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
@@ -42,9 +49,17 @@ class ExportController extends Controller
             'evaluator',
             'score',
             'status',
+            'channel',
+            'direction',
+            'contact_reason',
+            'duration_seconds',
+            'product',
+            'outcome',
+            'agent_viewed',
         ], function ($handle) use ($query) {
             $query->chunk(200, function ($evaluations) use ($handle) {
                 foreach ($evaluations as $evaluation) {
+                    $interaction = $evaluation->interaction;
                     $this->putCsv($handle, [
                         $evaluation->id,
                         $evaluation->created_at?->toDateTimeString(),
@@ -54,6 +69,13 @@ class ExportController extends Controller
                         $evaluation->evaluator?->name,
                         $evaluation->percentage_score,
                         Evaluation::statusLabel($evaluation->status),
+                        $interaction?->channel,
+                        $interaction?->direction,
+                        $interaction?->contact_reason,
+                        $interaction?->audio_duration,
+                        $interaction?->product_name,
+                        $interaction?->outcome,
+                        $evaluation->agent_viewed_at?->toDateTimeString() ?? 'No',
                     ]);
                 }
             });

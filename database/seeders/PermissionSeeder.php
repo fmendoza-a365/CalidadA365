@@ -26,6 +26,10 @@ class PermissionSeeder extends Seeder
             'export_calibration',
             'export_evaluation_audit',
             'view_work_queue',
+            'view_sampling',
+            'manage_sampling',
+            'view_staffing',
+            'manage_staffing',
 
             // Campaigns
             'view_campaigns',
@@ -97,6 +101,10 @@ class PermissionSeeder extends Seeder
                 'export_calibration',
                 'export_evaluation_audit',
                 'view_work_queue',
+                'view_sampling',
+                'manage_sampling',
+                'view_staffing',
+                'manage_staffing',
                 'view_campaigns',
                 'create_campaigns',
                 'edit_campaigns',
@@ -117,7 +125,7 @@ class PermissionSeeder extends Seeder
         // Assign Insights View to Supervisor
         $supervisor = \Spatie\Permission\Models\Role::where('name', 'supervisor')->first();
         if ($supervisor) {
-            $supervisor->givePermissionTo(['view_insights']);
+            $supervisor->givePermissionTo(['view_insights', 'view_sampling', 'view_staffing']);
         }
 
         // Assign Agent Permissions
@@ -144,6 +152,8 @@ class PermissionSeeder extends Seeder
                 'export_calibration',
                 'export_evaluation_audit',
                 'view_work_queue',
+                'view_sampling',
+                'view_staffing',
             ]);
         }
 
@@ -159,6 +169,8 @@ class PermissionSeeder extends Seeder
                 'view_insights',
                 'export_evaluations',
                 'view_work_queue',
+                'view_sampling',
+                'view_staffing',
             ]);
         }
 
@@ -177,6 +189,7 @@ class PermissionSeeder extends Seeder
                 'export_calibration',
                 'export_evaluation_audit',
                 'view_work_queue',
+                'view_sampling',
             ]);
         }
 
@@ -201,6 +214,10 @@ class PermissionSeeder extends Seeder
                 'export_calibration',
                 'export_evaluation_audit',
                 'view_work_queue',
+                'view_sampling',
+                'manage_sampling',
+                'view_staffing',
+                'manage_staffing',
             ]);
         }
     }

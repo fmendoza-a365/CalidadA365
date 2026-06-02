@@ -71,6 +71,61 @@
             'start_date',
             'end_date',
         ]))->filter(fn ($value) => filled($value))->count();
+
+        // Helper para canal
+        $channelData = function (?string $channel): array {
+            $ch = strtolower($channel ?? '');
+            return match($ch) {
+                'phone', 'tel', 'voip', 'llamada' => [
+                    'label' => 'Teléfono',
+                    'icon' => '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>',
+                    'color' => 'text-indigo-500',
+                ],
+                'chat', 'whatsapp', 'sms' => [
+                    'label' => 'Chat',
+                    'icon' => '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>',
+                    'color' => 'text-emerald-500',
+                ],
+                'email', 'correo' => [
+                    'label' => 'Email',
+                    'icon' => '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>',
+                    'color' => 'text-blue-500',
+                ],
+                default => [
+                    'label' => ucfirst($channel ?? 'N/A'),
+                    'icon' => '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>',
+                    'color' => 'text-gray-500',
+                ],
+            };
+        };
+
+        $directionData = function (?string $direction): array {
+            $dir = strtolower($direction ?? '');
+            return match($dir) {
+                'inbound', 'incoming', 'entrante' => [
+                    'label' => 'Entrante',
+                    'icon' => '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16l-4-4m0 0l4-4m-4 4h18" /></svg>',
+                    'tone' => 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
+                ],
+                'outbound', 'outgoing', 'saliente' => [
+                    'label' => 'Saliente',
+                    'icon' => '<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>',
+                    'tone' => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20',
+                ],
+                default => [
+                    'label' => ucfirst($direction ?? ''),
+                    'icon' => '',
+                    'tone' => '',
+                ],
+            };
+        };
+
+        $formatDuration = function (?int $seconds): string {
+            if ($seconds === null) return null;
+            $minutes = floor($seconds / 60);
+            $secs = $seconds % 60;
+            return $minutes > 0 ? sprintf('%dm %ds', $minutes, $secs) : sprintf('%ds', $secs);
+        };
     @endphp
 
     <div class="space-y-5">
@@ -155,7 +210,7 @@
                             <option value="excellent" {{ request('score_band') === 'excellent' ? 'selected' : '' }}>90%+</option>
                             <option value="good" {{ request('score_band') === 'good' ? 'selected' : '' }}>80% - 89%</option>
                             <option value="watch" {{ request('score_band') === 'watch' ? 'selected' : '' }}>70% - 79%</option>
-                            <option value="critical" {{ request('score_band') === 'critical' ? 'selected' : '' }}>&lt; 70%</option>
+                            <option value="critical" {{ request('score_band') === 'critical' ? 'selected' : '' }}>< 70%</option>
                             <option value="unscored" {{ request('score_band') === 'unscored' ? 'selected' : '' }}>Sin score</option>
                         </select>
                     </div>
@@ -178,15 +233,22 @@
                 </form>
             </div>
 
+            {{-- Vista de escritorio --}}
             <div class="hidden overflow-x-auto xl:block">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Evaluación</th>
-                            <th class="w-44">Score</th>
-                            <th class="w-56">Estado</th>
-                            <th class="w-56">Responsable</th>
-                            <th class="w-32 text-right">Acción</th>
+                            <th class="w-12">#</th>
+                            <th class="min-w-[150px]">Agente</th>
+                            <th class="w-16 text-center">Tipo</th>
+                            <th class="min-w-[140px]">Campaña</th>
+                            <th class="w-28">Score</th>
+                            <th class="w-36">Canal</th>
+                            <th class="w-10 text-center">Gold</th>
+                            <th class="w-32">Fecha</th>
+                            <th class="w-40">Estado</th>
+                            <th class="w-36">Responsable</th>
+                            <th class="w-24 text-right">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -195,74 +257,138 @@
                                 $score = $evaluation->percentage_score;
                                 $hasScore = $score !== null;
                                 $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
+                                $interaction = $evaluation->interaction;
+                                $ch = $channelData($interaction->channel ?? null);
+                                $dir = $directionData($interaction->direction ?? null);
                             @endphp
                             <tr>
-                                <td class="wrap-text">
-                                    <div class="flex items-start gap-3">
-                                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                            #{{ $evaluation->id }}
-                                        </div>
-                                        <div class="min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
-                                                <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $typeTone($evaluation->type) }}">
-                                                    {{ $evaluation->type === 'ai' ? 'IA' : 'Manual' }}
-                                                </span>
-                                                @if($evaluation->is_gold)
-                                                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">Gold</span>
-                                                @endif
-                                            </div>
-                                            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->name ?? 'Sin campaña' }}</div>
-                                            <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                                {{ $evaluation->interaction?->occurred_at?->format('d/m/Y H:i') ?? 'Sin fecha' }}
-                                                @if($evaluation->ai_provider)
-                                                    · {{ strtoupper($evaluation->ai_provider) }} {{ $evaluation->ai_model ? '/ '.$evaluation->ai_model : '' }}
-                                                @endif
-                                            </div>
-                                        </div>
+                                {{-- Columna ID --}}
+                                <td>
+                                    <div class="flex h-6 w-6 items-center justify-center rounded bg-gray-100 text-[10px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                        {{ $evaluation->id }}
                                     </div>
                                 </td>
 
+                                {{-- Columna Agente --}}
                                 <td>
-                                    <div class="w-36">
-                                        <div class="flex items-baseline justify-between gap-2">
-                                            <span class="text-lg font-semibold {{ $scoreTone($score) }}">{{ $hasScore ? number_format((float) $score, 1).'%' : '--' }}</span>
-                                            <span class="text-xs text-gray-400">{{ $evaluation->total_score !== null ? number_format((float) $evaluation->total_score, 0) : '--' }}/{{ number_format((float) $evaluation->max_possible_score, 0) }}</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="font-semibold text-gray-900 dark:text-white text-sm">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
+                                        @if($evaluation->agent_viewed_at)
+                                            <span class="inline-flex items-center text-emerald-600 dark:text-emerald-400" title="Visto por asesor el {{ $evaluation->agent_viewed_at->format('d/m/Y H:i') }}">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                            </span>
+                                        @endif
+                                    </div>
+                                    @if($evaluation->ai_provider)
+                                        <div class="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[120px]" title="{{ $evaluation->ai_provider }} / {{ $evaluation->ai_model }}">
+                                            {{ strtoupper($evaluation->ai_provider) }}{{ $evaluation->ai_model ? ' / '.$evaluation->ai_model : '' }}
                                         </div>
-                                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                                    @endif
+                                </td>
+
+                                {{-- Columna Tipo --}}
+                                <td class="text-center">
+                                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-tight {{ $typeTone($evaluation->type) }}">
+                                        {{ $evaluation->type === 'ai' ? 'IA' : 'Manual' }}
+                                    </span>
+                                </td>
+
+                                {{-- Columna Campaña --}}
+                                <td>
+                                    <div class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="{{ $evaluation->campaign?->name }}">
+                                        {{ $evaluation->campaign?->name ?? 'Sin campaña' }}
+                                    </div>
+                                </td>
+
+                                {{-- Columna Score --}}
+                                <td>
+                                    <div class="w-24">
+                                        <div class="flex items-baseline justify-between">
+                                            <span class="text-base font-bold {{ $scoreTone($score) }}">{{ $hasScore ? number_format((float) $score, 1).'%' : '--' }}</span>
+                                            <span class="text-[9px] text-gray-400">{{ $evaluation->total_score !== null ? number_format((float) $evaluation->total_score, 0) : '--' }}/{{ number_format((float) $evaluation->max_possible_score, 0) }}</span>
+                                        </div>
+                                        <div class="mt-1 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                                             <div class="h-full rounded-full {{ $scoreBar($score) }}" style="width: {{ $scoreWidth }}%"></div>
                                         </div>
                                     </div>
                                 </td>
 
+                                {{-- Columna Canal --}}
                                 <td>
-                                    <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold {{ $statusTone($evaluation->status) }}">
-                                        {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
-                                    </span>
-                                    <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ $evaluation->created_at->diffForHumans() }}</div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="{{ $ch['color'] }}">{!! $ch['icon'] !!}</span>
+                                        <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ $ch['label'] }}</span>
+                                        @if($dir['label'])
+                                            <span class="inline-flex items-center gap-0.5 rounded border px-1 py-0.5 text-[8px] font-semibold {{ $dir['tone'] }}">
+                                                {!! $dir['icon'] !!}{{ $dir['label'] }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    @if($interaction->audio_duration)
+                                        <div class="mt-0.5 flex items-center gap-1 text-[9px] text-gray-400 dark:text-gray-500">
+                                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            {{ $formatDuration($interaction->audio_duration) }}
+                                        </div>
+                                    @endif
                                 </td>
 
+                                {{-- Columna Gold --}}
+                                <td class="text-center">
+                                    @if($evaluation->is_gold)
+                                        <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                            <svg class="w-2.5 h-2.5 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                            Gold
+                                        </span>
+                                    @else
+                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                    @endif
+                                </td>
+
+                                {{-- Columna Fecha --}}
                                 <td>
-                                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $evaluation->evaluator?->name ?? $evaluation->reviewer?->name ?? 'Pendiente' }}</div>
-                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        {{ $evaluation->visible_to_agent_at ? 'Publicado '.$evaluation->visible_to_agent_at->format('d/m/Y') : 'Sin publicación' }}
+                                    <div class="text-[11px] text-gray-700 dark:text-gray-300">{{ $interaction?->occurred_at?->format('d/m/Y') ?? 'N/A' }}</div>
+                                    <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $interaction?->occurred_at?->format('H:i') ?? '' }}</div>
+                                    <div class="text-[9px] text-gray-400 dark:text-gray-500">{{ $evaluation->created_at->diffForHumans() }}</div>
+                                </td>
+
+                                {{-- Columna Estado --}}
+                                <td>
+                                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ $statusTone($evaluation->status) }}">
+                                        {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
+                                    </span>
+                                </td>
+
+                                {{-- Columna Responsable --}}
+                                <td>
+                                    <div class="flex items-center gap-1">
+                                        <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                        <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ $evaluation->evaluator?->name ?? $evaluation->reviewer?->name ?? 'Pendiente' }}</span>
+                                    </div>
+                                    <div class="mt-0.5 text-[9px] text-gray-400 dark:text-gray-500">
+                                        @if($evaluation->visible_to_agent_at)
+                                            <span class="flex items-center gap-1">
+                                                <svg class="w-2.5 h-2.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                {{ $evaluation->visible_to_agent_at->format('d/m/Y') }}
+                                            </span>
+                                        @else
+                                            Sin publicar
+                                        @endif
                                     </div>
                                 </td>
 
+                                {{-- Columna Acción --}}
                                 <td class="text-right">
-                                    <a href="{{ route('evaluations.show', $evaluation) }}" class="btn-secondary btn-sm">
+                                    <a href="{{ route('evaluations.show', $evaluation) }}" class="btn-secondary btn-sm text-[11px]">
                                         {{ $actionLabel($evaluation) }}
                                     </a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5">
+                                <td colspan="11">
                                     <div class="empty-state py-12">
                                         <div class="empty-state-icon">
-                                            <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
+                                            <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                         </div>
                                         <p class="font-medium text-gray-900 dark:text-white">No hay evaluaciones con estos filtros.</p>
                                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ajusta la búsqueda o limpia los filtros.</p>
@@ -274,32 +400,51 @@
                 </table>
             </div>
 
+            {{-- Vista móvil --}}
             <div class="space-y-3 p-4 xl:hidden">
                 @forelse($evaluations as $evaluation)
                     @php
                         $score = $evaluation->percentage_score;
                         $hasScore = $score !== null;
                         $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
+                        $interaction = $evaluation->interaction;
+                        $ch = $channelData($interaction->channel ?? null);
                     @endphp
                     <a href="{{ route('evaluations.show', $evaluation) }}" class="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
+                                    <span class="rounded-full border px-1.5 py-0.5 text-[10px] font-semibold {{ $typeTone($evaluation->type) }}">{{ $evaluation->type === 'ai' ? 'IA' : 'MNL' }}</span>
+                                    @if($evaluation->agent_viewed_at)
+                                        <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    @endif
+                                </div>
                                 <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->name ?? 'Sin campaña' }}</div>
+                                @if($interaction)
+                                    <div class="mt-1 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                                        <span class="flex items-center gap-1">
+                                            <span class="{{ $ch['color'] }}">{!! $ch['icon'] !!}</span>
+                                            {{ $ch['label'] }}
+                                        </span>
+                                        @if($interaction->contact_reason)
+                                            <span class="truncate max-w-[150px]">· {{ Str::limit($interaction->contact_reason, 20) }}</span>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
-                            <div class="text-right">
-                                <div class="text-2xl font-semibold {{ $scoreTone($score) }}">{{ $hasScore ? number_format((float) $score, 1).'%' : '--' }}</div>
-                                <div class="text-xs text-gray-400">{{ $evaluation->type === 'ai' ? 'IA' : 'Manual' }}</div>
+                            <div class="text-right flex-shrink-0">
+                                <div class="text-2xl font-bold {{ $scoreTone($score) }}">{{ $hasScore ? number_format((float) $score, 1).'%' : '--' }}</div>
                             </div>
                         </div>
-                        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                             <div class="h-full rounded-full {{ $scoreBar($score) }}" style="width: {{ $scoreWidth }}%"></div>
                         </div>
-                        <div class="mt-3 flex flex-wrap items-center gap-2">
-                            <span class="rounded-full border px-2.5 py-1 text-xs font-semibold {{ $statusTone($evaluation->status) }}">
+                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                            <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ $statusTone($evaluation->status) }}">
                                 {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                             </span>
-                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $evaluation->created_at->format('d/m/Y H:i') }}</span>
+                            <span class="text-[10px] text-gray-400">{{ $evaluation->created_at->format('d/m/Y H:i') }}</span>
                         </div>
                     </a>
                 @empty

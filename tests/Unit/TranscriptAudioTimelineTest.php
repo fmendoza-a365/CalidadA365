@@ -25,4 +25,43 @@ class TranscriptAudioTimelineTest extends TestCase
         $this->assertSame('00:20', $timeline['summary']['duration_label']);
         $this->assertGreaterThan(0, $timeline['summary']['handoffs']);
     }
+
+    public function test_it_extends_emotional_timeline_to_full_audio_duration_when_timestamps_are_sparse(): void
+    {
+        $turns = (new TranscriptConversationParser)->parse("[00:00] Agente: Hola\nCliente: Tengo un problema\nAgente: Lo reviso\nCliente: Gracias");
+        $timeline = (new TranscriptAudioTimeline)->build($turns, 120, [
+            'sentiment' => ['overall' => 'mixto'],
+        ]);
+
+        $this->assertCount(4, $timeline['segments']);
+        $this->assertSame(120, $timeline['segments'][3]['end']);
+        $this->assertSame('02:00', $timeline['summary']['duration_label']);
+        $this->assertGreaterThan(100, $this->coveredSeconds($timeline['segments']));
+        $this->assertGreaterThan(0, $timeline['summary']['agent_talk_percent']);
+        $this->assertGreaterThan(0, $timeline['summary']['client_talk_percent']);
+    }
+
+    public function test_it_scales_compressed_timestamps_across_real_audio_duration(): void
+    {
+        $turns = (new TranscriptConversationParser)->parse("[00:00] Agente: Hola\n[00:05] Cliente: Tengo un problema\n[00:10] Agente: Lo reviso\n[00:15] Cliente: Gracias");
+        $timeline = (new TranscriptAudioTimeline)->build($turns, 120, [
+            'sentiment' => ['overall' => 'mixto'],
+        ]);
+
+        $this->assertSame(120, $timeline['segments'][3]['end']);
+        $this->assertGreaterThan(45, $timeline['segments'][2]['start']);
+        $this->assertLessThan(70, $timeline['summary']['agent_talk_percent']);
+        $this->assertGreaterThan(25, $timeline['summary']['client_talk_percent']);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $segments
+     */
+    private function coveredSeconds(array $segments): int
+    {
+        return array_sum(array_map(
+            fn (array $segment): int => max(0, (int) $segment['end'] - (int) $segment['start']),
+            $segments
+        ));
+    }
 }

@@ -77,10 +77,19 @@
 
                         @if ($evaluation->type === 'ai' && ! $evaluation->interaction->manualEvaluation)
                             @can('publish', $evaluation)
-                                <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
-                                    class="btn-primary btn-sm w-full justify-center">
-                                    Corregir Manualmente
-                                </a>
+                                @if($evaluation->isReviewClaimedByOther(auth()->user()) && ! auth()->user()->hasRole('admin'))
+                                    <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200">
+                                        Reservado por {{ $evaluation->reviewClaimer?->name ?? 'otro monitor' }}
+                                        @if($evaluation->review_claim_expires_at)
+                                            durante {{ $evaluation->review_claim_expires_at->diffForHumans(null, true) }} más
+                                        @endif
+                                    </div>
+                                @else
+                                    <a href="{{ route('evaluations.create_manual', $evaluation->interaction) }}"
+                                        class="btn-primary btn-sm w-full justify-center">
+                                        {{ $evaluation->isReviewClaimedBy(auth()->user()) ? 'Continuar Corrección' : 'Corregir Manualmente' }}
+                                    </a>
+                                @endif
                             @endcan
                         @endif
 

@@ -52,9 +52,7 @@ class TranscriptAudioTimeline
      */
     private function segments(array $turns, int $duration, array $metadata): array
     {
-        $timedTurns = collect($turns)
-            ->filter(fn (array $turn): bool => is_numeric($turn['timestamp_seconds'] ?? null))
-            ->values();
+        $timedTurns = collect($this->turnsWithTimelineStarts($turns, $duration));
 
         $metadataSegments = collect($metadata['sentiment_segments'] ?? $metadata['emotion_segments'] ?? []);
         $segments = [];
@@ -62,7 +60,7 @@ class TranscriptAudioTimeline
         foreach ($timedTurns as $index => $turn) {
             $start = (int) $turn['timestamp_seconds'];
             $nextStart = $timedTurns[$index + 1]['timestamp_seconds'] ?? null;
-            $end = is_numeric($nextStart) ? (int) $nextStart : min($duration, $start + 8);
+            $end = is_numeric($nextStart) ? (int) $nextStart : $duration;
 
             if ($end <= $start) {
                 $end = min($duration, $start + 3);
@@ -89,6 +87,140 @@ class TranscriptAudioTimeline
         }
 
         return $segments;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $turns
+     * @return array<int, array<string, mixed>>
+     */
+    private function turnsWithTimelineStarts(array $turns, int $duration): array
+    {
+        $turns = array_values(array_filter($turns, fn (array $turn): bool => ($turn['message'] ?? '') !== ''));
+
+        if ($turns === []) {
+            return [];
+        }
+
+        $lastSecond = max($duration - 1, 0);
+        $explicitStarts = [];
+
+        foreach ($turns as $index => $turn) {
+            if (is_numeric($turn['timestamp_seconds'] ?? null)) {
+                $explicitStarts[$index] = max(0, min($lastSecond, (int) $turn['timestamp_seconds']));
+            }
+        }
+
+        if ($explicitStarts === []) {
+            $step = max($duration / max(count($turns), 1), 1);
+
+            foreach ($turns as $index => $turn) {
+                $turns[$index]['timestamp_seconds'] = min($lastSecond, (int) floor($index * $step));
+            }
+
+            return $turns;
+        }
+
+        $starts = [];
+        $anchors = $explicitStarts;
+        ksort($anchors);
+        $previousAnchorIndex = null;
+        $previousAnchorStart = null;
+
+        foreach ($anchors as $anchorIndex => $anchorStart) {
+            if ($previousAnchorIndex === null) {
+                if ($anchorIndex > 0) {
+                    $step = max($anchorStart / ($anchorIndex + 1), 1);
+
+                    for ($index = 0; $index < $anchorIndex; $index++) {
+                        $starts[$index] = min($lastSecond, (int) floor($index * $step));
+                    }
+                }
+            } else {
+                $missingCount = $anchorIndex - $previousAnchorIndex - 1;
+
+                if ($missingCount > 0) {
+                    $gap = max($anchorStart - $previousAnchorStart, $missingCount + 1);
+
+                    for ($offset = 1; $offset <= $missingCount; $offset++) {
+                        $starts[$previousAnchorIndex + $offset] = min(
+                            $lastSecond,
+                            $previousAnchorStart + (int) floor(($gap * $offset) / ($missingCount + 1))
+                        );
+                    }
+                }
+            }
+
+            $starts[$anchorIndex] = $anchorStart;
+            $previousAnchorIndex = $anchorIndex;
+            $previousAnchorStart = $anchorStart;
+        }
+
+        if ($previousAnchorIndex !== null && $previousAnchorIndex < count($turns) - 1) {
+            $missingCount = count($turns) - $previousAnchorIndex - 1;
+            $gap = max($lastSecond - $previousAnchorStart, $missingCount + 1);
+
+            for ($offset = 1; $offset <= $missingCount; $offset++) {
+                $starts[$previousAnchorIndex + $offset] = min(
+                    $lastSecond,
+                    $previousAnchorStart + (int) floor(($gap * $offset) / ($missingCount + 1))
+                );
+            }
+        }
+
+        if (count($explicitStarts) >= 2 && count($explicitStarts) === count($turns)) {
+            $maxStart = max($starts);
+
+            if ($maxStart > 0 && $maxStart < ($duration * 0.7)) {
+                $tail = max(8, min(30, $this->medianPositiveGap($starts)));
+                $scale = $lastSecond / max($maxStart + $tail, 1);
+
+                foreach ($starts as $index => $start) {
+                    $starts[$index] = min($lastSecond, (int) round($start * $scale));
+                }
+            }
+        }
+
+        $previous = -1;
+
+        foreach ($turns as $index => $turn) {
+            $start = $starts[$index] ?? min($lastSecond, $previous + 1);
+
+            if ($start <= $previous && $previous < $lastSecond) {
+                $start = $previous + 1;
+            }
+
+            $turns[$index]['timestamp_seconds'] = max(0, min($lastSecond, $start));
+            $previous = (int) $turns[$index]['timestamp_seconds'];
+        }
+
+        return $turns;
+    }
+
+    /**
+     * @param  array<int, int>  $starts
+     */
+    private function medianPositiveGap(array $starts): int
+    {
+        sort($starts);
+        $gaps = [];
+        $previous = null;
+
+        foreach ($starts as $start) {
+            if ($previous !== null && $start > $previous) {
+                $gaps[] = $start - $previous;
+            }
+
+            $previous = $start;
+        }
+
+        if ($gaps === []) {
+            return 8;
+        }
+
+        sort($gaps);
+        $middle = intdiv(count($gaps), 2);
+
+        return $gaps[$middle];
     }
 
     /**

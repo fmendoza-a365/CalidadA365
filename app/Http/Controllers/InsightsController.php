@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Campaign;
 use App\Models\Evaluation;
+use App\Models\EvaluationItem;
 use App\Models\InsightReport;
 use App\Services\AIEvaluationService;
 use Illuminate\Http\Request;
@@ -24,9 +25,11 @@ class InsightsController extends Controller
         $user = auth()->user();
         $reports = InsightReport::with('campaign', 'creator')
             ->where(function ($query) use ($user) {
-                $query->whereHas('campaign', function ($campaignQuery) use ($user) {
-                    $campaignQuery->forUser($user);
-                });
+                $query
+                    ->where('generated_by', $user->id)
+                    ->orWhereHas('campaign', function ($campaignQuery) use ($user) {
+                        $campaignQuery->forUser($user);
+                    });
 
                 if ($user->hasAnyRole(['admin', 'qa_manager'])) {
                     $query->orWhereNull('campaign_id');
@@ -109,12 +112,17 @@ class InsightsController extends Controller
     {
         $user = auth()->user();
         $validated = $request->validate([
-            'campaign_id' => 'required|exists:campaigns,id',
+            'campaign_id' => 'nullable|exists:campaigns,id',
             'type' => 'required|in:operational,strategic',
             'days' => 'required|integer|min:1|max:90',
         ]);
 
-        if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
+        $campaign = null;
+        if (! empty($validated['campaign_id'])) {
+            $campaign = Campaign::forUser($user)->whereKey($validated['campaign_id'])->first();
+        }
+
+        if (! empty($validated['campaign_id']) && ! $campaign) {
             abort(403, 'No tiene permiso para generar insights en esta campaña.');
         }
 
@@ -123,14 +131,14 @@ class InsightsController extends Controller
 
         // Fetch evaluations with comprehensive eager loading to prevent N+1 queries
         $evaluations = Evaluation::forUser($user)
-            ->where('campaign_id', $validated['campaign_id'])
+            ->when($campaign, fn ($query) => $query->where('campaign_id', $campaign->id))
             ->whereBetween('created_at', [$startDate, $endDate])
             ->with([
-                'items.subAttribute:id,name,attribute_id,is_critical', // Eager load sub-attributes
-                'items.subAttribute.attribute:id,name', // Eager load parent attributes
-                'campaign:id,name,description', // Only needed columns
-                'formVersion.formAttributes.subAttributes', // Form criteria for analysis
-                'agent:id,name', // Agent info for analysis
+                'items.subAttribute:id,name,attribute_id,is_critical',
+                'items.subAttribute.attribute:id,name',
+                'campaign:id,name,description',
+                'formVersion.formAttributes.subAttributes',
+                'agent:id,name',
             ])
             ->get();
 
@@ -138,27 +146,31 @@ class InsightsController extends Controller
             return back()->with('error', 'No se encontraron evaluaciones en el periodo seleccionado.');
         }
 
-        // Generate Report
-        $aiResult = $this->aiService->generateInsightReport($evaluations, $validated['type']);
+        $reportSnapshot = $this->buildReportSnapshot($evaluations, $campaign, $startDate, $endDate, $validated['type']);
+        $aiResult = $this->aiService->generateInsightReport($evaluations, $validated['type'], $reportSnapshot);
+        $aiResult['report_snapshot'] = $reportSnapshot;
 
-        InsightReport::create([
-            'campaign_id' => $validated['campaign_id'],
+        $report = InsightReport::create([
+            'campaign_id' => $campaign?->id,
             'type' => $validated['type'],
             'date_range_start' => $startDate,
             'date_range_end' => $endDate,
             'summary_content' => $aiResult['executive_summary'] ?? $aiResult['summary'] ?? 'Sin resumen',
-            'key_findings' => $aiResult, // Store entire result as JSON
+            'key_findings' => $aiResult,
             'generated_by' => auth()->id(),
         ]);
 
-        return redirect()->route('insights.index')->with('success', 'Reporte de Insights generado exitosamente.');
+        return redirect()->route('insights.show', $report)->with('success', 'Reporte de Insights generado exitosamente.');
     }
 
     public function show(InsightReport $insight)
     {
         $this->ensureReportAccess($insight);
 
-        return view('insights.show', compact('insight'));
+        $findings = $insight->key_findings ?? [];
+        $snapshot = $findings['report_snapshot'] ?? [];
+
+        return view('insights.show', compact('insight', 'findings', 'snapshot'));
     }
 
     public function destroy(InsightReport $insight)
@@ -185,5 +197,147 @@ class InsightsController extends Controller
         if (! Campaign::forUser($user)->whereKey($insight->campaign_id)->exists()) {
             abort(403, 'No tiene permiso para ver este reporte.');
         }
+    }
+
+    private function buildReportSnapshot($evaluations, ?Campaign $campaign, Carbon $startDate, Carbon $endDate, string $type): array
+    {
+        $scoredEvaluations = $evaluations->filter(fn (Evaluation $evaluation) => $evaluation->percentage_score !== null);
+        $items = $evaluations->flatMap(fn (Evaluation $evaluation) => $evaluation->items);
+        $failedItems = $items->filter(fn (EvaluationItem $item) => $item->status === 'non_compliant');
+        $criticalFailures = $failedItems->filter(fn (EvaluationItem $item) => (bool) ($item->subAttribute?->is_critical))->count();
+        $averageScore = $scoredEvaluations->avg(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score);
+        $complianceCount = $scoredEvaluations->filter(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score >= 80)->count();
+
+        return [
+            'scope' => [
+                'campaign_id' => $campaign?->id,
+                'campaign_name' => $campaign?->name ?? 'Todas las campañas visibles',
+                'type' => $type,
+                'date_range_start' => $startDate->toDateString(),
+                'date_range_end' => $endDate->toDateString(),
+            ],
+            'metrics' => [
+                'total_evaluations' => $evaluations->count(),
+                'scored_evaluations' => $scoredEvaluations->count(),
+                'average_score' => round((float) ($averageScore ?? 0), 1),
+                'compliance_rate' => $scoredEvaluations->isNotEmpty() ? round(($complianceCount / $scoredEvaluations->count()) * 100, 1) : 0,
+                'critical_failures' => $criticalFailures,
+                'non_compliant_items' => $failedItems->count(),
+                'manual_evaluations' => $evaluations->where('type', 'manual')->count(),
+                'ai_evaluations' => $evaluations->where('type', 'ai')->count(),
+            ],
+            'score_distribution' => $this->scoreDistribution($scoredEvaluations),
+            'top_failed_criteria' => $this->topFailedCriteria($failedItems),
+            'agent_performance' => $this->agentPerformance($evaluations),
+            'campaign_breakdown' => $this->campaignBreakdown($evaluations),
+            'score_trend' => $this->scoreTrend($scoredEvaluations),
+        ];
+    }
+
+    private function scoreDistribution($evaluations): array
+    {
+        $bands = [
+            'excellent' => ['label' => '90%+', 'count' => 0],
+            'good' => ['label' => '80%-89%', 'count' => 0],
+            'watch' => ['label' => '70%-79%', 'count' => 0],
+            'critical' => ['label' => '<70%', 'count' => 0],
+        ];
+
+        foreach ($evaluations as $evaluation) {
+            $score = (float) $evaluation->percentage_score;
+            if ($score >= 90) {
+                $bands['excellent']['count']++;
+            } elseif ($score >= 80) {
+                $bands['good']['count']++;
+            } elseif ($score >= 70) {
+                $bands['watch']['count']++;
+            } else {
+                $bands['critical']['count']++;
+            }
+        }
+
+        return array_values($bands);
+    }
+
+    private function topFailedCriteria($failedItems): array
+    {
+        return $failedItems
+            ->groupBy(fn (EvaluationItem $item) => $item->subAttribute?->name ?? 'Criterio no identificado')
+            ->map(function ($items, string $criteria) {
+                $first = $items->first();
+
+                return [
+                    'criteria' => $criteria,
+                    'category' => $first->subAttribute?->attribute?->name ?? 'Sin categoría',
+                    'count' => $items->count(),
+                    'critical' => (bool) ($first->subAttribute?->is_critical),
+                    'examples' => $items
+                        ->pluck('evidence_quote')
+                        ->filter()
+                        ->take(2)
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->sortByDesc('count')
+            ->take(8)
+            ->values()
+            ->all();
+    }
+
+    private function agentPerformance($evaluations): array
+    {
+        return $evaluations
+            ->groupBy(fn (Evaluation $evaluation) => $evaluation->agent?->id ?? 'sin-agente')
+            ->map(function ($agentEvaluations) {
+                $first = $agentEvaluations->first();
+                $scored = $agentEvaluations->filter(fn (Evaluation $evaluation) => $evaluation->percentage_score !== null);
+
+                return [
+                    'agent' => $first->agent?->name ?? 'Sin asesor',
+                    'evaluations' => $agentEvaluations->count(),
+                    'average_score' => round((float) ($scored->avg(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score) ?? 0), 1),
+                    'critical_failures' => $agentEvaluations
+                        ->flatMap(fn (Evaluation $evaluation) => $evaluation->items)
+                        ->filter(fn (EvaluationItem $item) => $item->status === 'non_compliant' && (bool) ($item->subAttribute?->is_critical))
+                        ->count(),
+                ];
+            })
+            ->sortBy('average_score')
+            ->take(6)
+            ->values()
+            ->all();
+    }
+
+    private function campaignBreakdown($evaluations): array
+    {
+        return $evaluations
+            ->groupBy(fn (Evaluation $evaluation) => $evaluation->campaign?->name ?? 'Sin campaña')
+            ->map(function ($campaignEvaluations, string $campaignName) {
+                $scored = $campaignEvaluations->filter(fn (Evaluation $evaluation) => $evaluation->percentage_score !== null);
+
+                return [
+                    'campaign' => $campaignName,
+                    'evaluations' => $campaignEvaluations->count(),
+                    'average_score' => round((float) ($scored->avg(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score) ?? 0), 1),
+                ];
+            })
+            ->sortByDesc('evaluations')
+            ->values()
+            ->all();
+    }
+
+    private function scoreTrend($evaluations): array
+    {
+        return $evaluations
+            ->groupBy(fn (Evaluation $evaluation) => $evaluation->created_at->toDateString())
+            ->map(fn ($dayEvaluations, string $date) => [
+                'date' => $date,
+                'evaluations' => $dayEvaluations->count(),
+                'average_score' => round((float) ($dayEvaluations->avg(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score) ?? 0), 1),
+            ])
+            ->sortBy('date')
+            ->values()
+            ->all();
     }
 }

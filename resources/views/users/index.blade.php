@@ -41,12 +41,21 @@
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Administración de accesos, roles y datos de contacto.</p>
                 </div>
 
-                <a href="{{ route('users.create') }}" class="btn-primary btn-md w-fit">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Nuevo Usuario
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('users.create') }}" class="btn-primary btn-md w-fit">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Nuevo Usuario
+                    </a>
+
+                    <a href="{{ route('users.import') }}" class="btn-secondary btn-md w-fit">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 4v10m0-10l4 4m-4-4L8 8" />
+                        </svg>
+                        Importar usuarios
+                    </a>
+                </div>
             </div>
         </div>
 

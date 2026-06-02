@@ -47,6 +47,15 @@
                             <span>·</span>
                             <span>Interacción {{ $evaluation->interaction->occurred_at->format('d/m/Y') }}</span>
                         @endif
+                        @if($evaluation->hasActiveReviewClaim())
+                            <span>·</span>
+                            <span class="font-semibold text-indigo-600 dark:text-indigo-300">
+                                {{ $evaluation->isReviewClaimedBy(auth()->user()) ? 'Reservado por ti' : 'Reservado' }}
+                                @if($evaluation->review_claim_expires_at)
+                                    (vence en {{ $evaluation->review_claim_expires_at->diffForHumans(null, true) }})
+                                @endif
+                            </span>
+                        @endif
                     </div>
                 </div>
                 <div class="flex-shrink-0 text-right">
