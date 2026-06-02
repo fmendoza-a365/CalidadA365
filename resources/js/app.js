@@ -146,7 +146,7 @@ Alpine.data('audioReview', (config = {}) => ({
             return 'Sin segmento activo';
         }
 
-        return `${this.activeSegment.start_label} · ${this.activeSegment.label} · ${this.activeSegment.emotion_label}`;
+        return `${this.activeSegment.label} · ${this.activeSegment.emotion_label} · tramo ${this.activeSegment.start_label}-${this.activeSegment.end_label}`;
     },
 
     get eventSegments() {

@@ -141,17 +141,21 @@
             </div>
 
             <div class="rounded-xl border border-white/10 bg-black/25 p-3">
-                <button type="button" class="relative block h-3 w-full rounded-full bg-white/10"
-                    @click="seekFromTrack($event)" aria-label="Cambiar posición del audio">
-                    <template x-for="segment in segments" :key="`track-${segment.id}`">
-                        <span class="absolute top-0 h-full opacity-45"
-                            :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
-                    </template>
-                    <span class="absolute left-0 top-0 h-full rounded-full bg-white"
-                        :style="`width: ${progress}%;`"></span>
-                    <span class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-gray-950 bg-white shadow"
-                        :style="`left: ${progress}%;`"></span>
-                </button>
+                <div class="mb-3">
+                    <div class="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <span>Progreso</span>
+                        <span class="font-mono normal-case tracking-normal text-gray-300">
+                            <span x-text="currentLabel">00:00</span> / <span x-text="durationLabel">{{ $timeline['duration_label'] ?? '00:00' }}</span>
+                        </span>
+                    </div>
+                    <button type="button" class="relative block h-2 w-full rounded-full bg-white/15"
+                        @click="seekFromTrack($event)" aria-label="Cambiar posición del audio">
+                        <span class="absolute left-0 top-0 h-full rounded-full bg-emerald-400"
+                            :style="`width: ${progress}%;`"></span>
+                        <span class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-gray-950 bg-white shadow"
+                            :style="`left: ${progress}%;`"></span>
+                    </button>
+                </div>
 
                 <div class="relative mt-4">
                     <div class="relative h-32 cursor-pointer overflow-hidden rounded-lg bg-white/5 px-2"
@@ -176,8 +180,6 @@
                                 <span class="absolute top-0 h-full"
                                     :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
                             </template>
-                            <span class="absolute left-0 top-0 h-full bg-white/90"
-                                :style="`width: ${progress}%;`"></span>
                         </div>
 
                         @if($eventSegments->isNotEmpty())
