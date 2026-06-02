@@ -13,6 +13,19 @@ class TranscriptAudioTimeline
         'mixto' => ['score' => 0.2, 'color' => '#f59e0b', 'label' => 'Mixto'],
     ];
 
+    private const EMOTIONS = [
+        'calma' => ['label' => 'Calma', 'icon' => 'minus', 'tone' => 'neutral'],
+        'confianza' => ['label' => 'Confianza', 'icon' => 'check', 'tone' => 'positive'],
+        'satisfaccion' => ['label' => 'Satisfacción', 'icon' => 'check', 'tone' => 'positive'],
+        'alegria' => ['label' => 'Alegría', 'icon' => 'check', 'tone' => 'positive'],
+        'preocupacion' => ['label' => 'Preocupación', 'icon' => 'question', 'tone' => 'warning'],
+        'tension_controlada' => ['label' => 'Tensión controlada', 'icon' => 'wave', 'tone' => 'warning'],
+        'frustracion' => ['label' => 'Frustración', 'icon' => 'alert', 'tone' => 'negative'],
+        'molestia' => ['label' => 'Molestia', 'icon' => 'alert', 'tone' => 'negative'],
+        'enojo' => ['label' => 'Enojo', 'icon' => 'alert', 'tone' => 'negative'],
+        'tristeza' => ['label' => 'Tristeza', 'icon' => 'alert', 'tone' => 'negative'],
+    ];
+
     /**
      * @param  array<int, array<string, mixed>>  $turns
      * @param  array<string, mixed>  $metadata
@@ -260,7 +273,8 @@ class TranscriptAudioTimeline
     {
         $sentiment = (string) ($metadataSegment['sentiment'] ?? $this->inferSentiment($turn, $metadata));
         $sentiment = array_key_exists($sentiment, self::SENTIMENTS) ? $sentiment : 'neutro';
-        $emotion = (string) ($metadataSegment['emotion'] ?? $this->inferEmotion($turn, $sentiment));
+        $emotion = $this->normalizeKey((string) ($metadataSegment['emotion'] ?? $this->inferEmotion($turn, $sentiment)));
+        $emotionMeta = $this->emotionMeta($emotion);
         $score = (float) ($metadataSegment['score'] ?? self::SENTIMENTS[$sentiment]['score']);
         $intensity = (int) ($metadataSegment['intensity'] ?? $this->intensityFromMessage($turn['message'] ?? ''));
 
@@ -268,7 +282,9 @@ class TranscriptAudioTimeline
             'sentiment' => $sentiment,
             'sentiment_label' => self::SENTIMENTS[$sentiment]['label'],
             'emotion' => $emotion,
-            'emotion_label' => str($emotion)->replace('_', ' ')->title()->toString(),
+            'emotion_label' => $emotionMeta['label'],
+            'emotion_icon' => $emotionMeta['icon'],
+            'emotion_tone' => $emotionMeta['tone'],
             'score' => max(min($score, 1), -1),
             'intensity' => max(min($intensity, 100), 20),
             'color' => self::SENTIMENTS[$sentiment]['color'],
@@ -345,6 +361,8 @@ class TranscriptAudioTimeline
                     'sentiment' => $segment['sentiment'],
                     'emotion' => $segment['emotion'],
                     'emotion_label' => $segment['emotion_label'],
+                    'emotion_icon' => $segment['emotion_icon'],
+                    'emotion_tone' => $segment['emotion_tone'],
                     'sentiment_color' => $segment['color'],
                 ]);
             })
@@ -374,6 +392,7 @@ class TranscriptAudioTimeline
                 'color' => $segment['color'] ?? '#64748b',
                 'speaker' => $segment['speaker'] ?? 'system',
                 'sentiment' => $segment['sentiment'] ?? 'neutro',
+                'emotion' => $segment['emotion'] ?? 'calma',
             ];
         }
 
@@ -403,10 +422,15 @@ class TranscriptAudioTimeline
     {
         $agentSeconds = $this->speakerSeconds($segments, 'agent');
         $clientSeconds = $this->speakerSeconds($segments, 'client');
-        $emotions = collect($segments)->countBy('emotion')->sortDesc();
+        $emotions = collect($segments)
+            ->groupBy('emotion')
+            ->map(fn ($items): int => (int) collect($items)->sum(fn (array $segment): int => max(0, (int) $segment['end'] - (int) $segment['start'])))
+            ->sortDesc();
         $sentiments = collect($segments)->countBy('sentiment')->all();
         $firstScore = (float) ($segments[0]['score'] ?? 0);
         $lastScore = (float) ($segments[array_key_last($segments)]['score'] ?? 0);
+        $dominantEmotion = (string) ($emotions->keys()->first() ?: 'calma');
+        $dominantEmotionMeta = $this->emotionMeta($dominantEmotion);
 
         return [
             'duration_label' => $this->formatSeconds($duration),
@@ -415,8 +439,9 @@ class TranscriptAudioTimeline
             'agent_talk_percent' => $duration > 0 ? round(($agentSeconds / $duration) * 100) : 0,
             'client_talk_percent' => $duration > 0 ? round(($clientSeconds / $duration) * 100) : 0,
             'handoffs' => $this->handoffs($segments),
-            'dominant_emotion' => $emotions->keys()->first() ?: 'calma',
-            'dominant_emotion_label' => str($emotions->keys()->first() ?: 'calma')->replace('_', ' ')->title()->toString(),
+            'dominant_emotion' => $dominantEmotion,
+            'dominant_emotion_label' => $dominantEmotionMeta['label'],
+            'dominant_emotion_icon' => $dominantEmotionMeta['icon'],
             'trend' => $lastScore >= $firstScore ? 'Mejora emocional' : 'Deterioro emocional',
             'overall_sentiment' => Arr::get($metadata, 'sentiment.overall', 'neutro'),
             'sentiments' => $sentiments,
@@ -470,5 +495,39 @@ class TranscriptAudioTimeline
         }
 
         return sprintf('%02d:%02d', $minutes, $remainingSeconds);
+    }
+
+    /**
+     * @return array{label: string, icon: string, tone: string}
+     */
+    private function emotionMeta(string $emotion): array
+    {
+        if (isset(self::EMOTIONS[$emotion])) {
+            return self::EMOTIONS[$emotion];
+        }
+
+        return [
+            'label' => str($emotion)->replace('_', ' ')->title()->toString(),
+            'icon' => 'wave',
+            'tone' => 'neutral',
+        ];
+    }
+
+    private function normalizeKey(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+        $value = strtr($value, [
+            'á' => 'a',
+            'é' => 'e',
+            'í' => 'i',
+            'ó' => 'o',
+            'ú' => 'u',
+            'ü' => 'u',
+            'ñ' => 'n',
+        ]);
+        $value = preg_replace('/[^a-z0-9]+/u', '_', $value) ?? $value;
+        $value = trim($value, '_');
+
+        return $value !== '' ? $value : 'calma';
     }
 }

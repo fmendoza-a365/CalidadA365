@@ -73,6 +73,10 @@ class TranscriptConversationParser
                 continue;
             }
 
+            if ($this->looksLikeTechnicalPayload($chunk)) {
+                continue;
+            }
+
             $turns[] = $this->makeTurn('system', 'Contexto', $chunk);
         }
 
@@ -107,23 +111,61 @@ class TranscriptConversationParser
         return trim($text);
     }
 
-    private function extractTranscriptFromJson(string $text): ?string
+    /**
+     * @return array<string, mixed>|array<int, mixed>|null
+     */
+    public function extractStructuredPayload(?string $rawTranscript): ?array
     {
-        $trimmed = trim($text);
+        $text = $this->stripJsonFence(trim((string) $rawTranscript));
 
-        if (! str_starts_with($trimmed, '{') && ! str_starts_with($trimmed, '[')) {
+        if ($text === '') {
             return null;
         }
 
-        $decoded = json_decode($trimmed, true);
+        $decoded = json_decode($text, true);
+
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+
+        foreach ($this->jsonObjectCandidates($text) as $candidate) {
+            $decoded = json_decode($candidate, true);
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractTranscriptFromJson(string $text): ?string
+    {
+        $trimmed = $this->stripJsonFence(trim($text));
+
+        if (! str_starts_with($trimmed, '{') && ! str_starts_with($trimmed, '[')) {
+            if (! str_contains($trimmed, '"transcript"') && ! str_contains($trimmed, "'transcript'")) {
+                return null;
+            }
+        }
+
+        $decoded = $this->extractStructuredPayload($trimmed);
 
         if (! is_array($decoded)) {
-            return null;
+            return $this->extractTranscriptField($trimmed);
         }
 
         foreach (['transcript', 'transcription', 'text', 'content'] as $key) {
             if (isset($decoded[$key]) && is_string($decoded[$key])) {
                 return $decoded[$key];
+            }
+        }
+
+        if (array_is_list($decoded)) {
+            $segments = $this->transcriptFromSegments($decoded);
+
+            if ($segments !== '') {
+                return $segments;
             }
         }
 
@@ -136,6 +178,101 @@ class TranscriptConversationParser
         }
 
         return null;
+    }
+
+    private function stripJsonFence(string $text): string
+    {
+        $text = trim($text);
+
+        if (preg_match('/^```(?:json)?\s*(.*?)\s*```$/isu', $text, $matches)) {
+            return trim($matches[1]);
+        }
+
+        $text = preg_replace('/^```(?:json)?\s*/iu', '', $text) ?? $text;
+        $text = preg_replace('/\s*```$/u', '', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function jsonObjectCandidates(string $text): array
+    {
+        $candidates = [];
+        $depth = 0;
+        $start = null;
+        $inString = false;
+        $escaped = false;
+        $length = strlen($text);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $text[$index];
+
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escaped = true;
+
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+
+                continue;
+            }
+
+            if ($char === '{') {
+                if ($depth === 0) {
+                    $start = $index;
+                }
+
+                $depth++;
+
+                continue;
+            }
+
+            if ($char === '}' && $depth > 0) {
+                $depth--;
+
+                if ($depth === 0 && $start !== null) {
+                    $candidates[] = substr($text, $start, $index - $start + 1);
+                    $start = null;
+                }
+            }
+        }
+
+        return $candidates;
+    }
+
+    private function extractTranscriptField(string $text): ?string
+    {
+        if (! preg_match('/["\']transcript["\']\s*:\s*"((?:\\\\.|[^"\\\\])*)"/su', $text, $matches)) {
+            return null;
+        }
+
+        $decoded = json_decode('"'.$matches[1].'"');
+
+        if (is_string($decoded) && trim($decoded) !== '') {
+            return $decoded;
+        }
+
+        $fallback = str_replace(['\\r\\n', '\\n', '\\r', '\\t'], ["\n", "\n", "\n", "\t"], $matches[1]);
+
+        return trim($fallback) !== '' ? $fallback : null;
     }
 
     /**
@@ -240,7 +377,27 @@ class TranscriptConversationParser
 
         $type = $this->speakerType($rawSpeaker);
 
+        if ($type === 'system' && $this->looksLikeTechnicalPayload($message)) {
+            return null;
+        }
+
         return $this->makeTurn($type, $this->speakerLabel($type, $rawSpeaker), $message, $timestamp, $rawSpeaker);
+    }
+
+    private function looksLikeTechnicalPayload(string $text): bool
+    {
+        $trimmed = $this->stripJsonFence(trim($text));
+
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if ($this->extractStructuredPayload($trimmed) !== null) {
+            return true;
+        }
+
+        return (str_starts_with($trimmed, '{') || str_contains($trimmed, '"transcript"'))
+            && (str_contains($trimmed, '"sentiment"') || str_contains($trimmed, '"transcript"'));
     }
 
     private function makeTurn(

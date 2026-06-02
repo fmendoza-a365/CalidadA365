@@ -33,7 +33,11 @@
                             @endif>
                             <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-white" style="overflow-wrap: anywhere;">{{ $message }}</p>
                             @if(!empty($turn['emotion_label']))
-                                <div class="mt-2 inline-flex rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white/90">
+                                <div class="mt-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white/90">
+                                    @include('transcripts.partials.emotion-icon', [
+                                        'icon' => $turn['emotion_icon'] ?? 'wave',
+                                        'class' => 'h-3 w-3',
+                                    ])
                                     {{ $turn['emotion_label'] }}
                                 </div>
                             @endif
@@ -62,7 +66,11 @@
                             @endif>
                             <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-100" style="overflow-wrap: anywhere;">{{ $message }}</p>
                             @if(!empty($turn['emotion_label']))
-                                <div class="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                <div class="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                    @include('transcripts.partials.emotion-icon', [
+                                        'icon' => $turn['emotion_icon'] ?? 'wave',
+                                        'class' => 'h-3 w-3',
+                                    ])
                                     {{ $turn['emotion_label'] }}
                                 </div>
                             @endif

@@ -101,6 +101,7 @@ Alpine.data('audioReview', (config = {}) => ({
 
     init() {
         this.normalizeTimeline();
+        this.loadAudioWaveform();
 
         this.$nextTick(() => {
             if (!this.$refs.audio) {
@@ -156,15 +157,21 @@ Alpine.data('audioReview', (config = {}) => ({
             .filter((segment, index, items) => {
                 const previous = items[index - 1];
                 const score = Math.abs(Number(segment.score || 0));
+                const isNeutral = (segment.sentiment || 'neutro') === 'neutro'
+                    && ['calma', 'neutro', 'neutral'].includes(segment.emotion || 'calma')
+                    && score < 0.35;
+
+                if (isNeutral) {
+                    return false;
+                }
 
                 return index === 0
                     || index === items.length - 1
                     || score >= 0.35
                     || segment.sentiment !== previous?.sentiment
-                    || segment.emotion !== previous?.emotion
-                    || segment.speaker !== previous?.speaker;
+                    || segment.emotion !== previous?.emotion;
             })
-            .slice(0, 80);
+            .slice(0, 48);
     },
 
     onLoadedMetadata() {
@@ -231,6 +238,17 @@ Alpine.data('audioReview', (config = {}) => ({
         this.seek(this.duration * ratio);
     },
 
+    seekFromTrack(event) {
+        if (!this.duration) {
+            return;
+        }
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const ratio = Math.min(Math.max((event.clientX - rect.left) / Math.max(rect.width, 1), 0), 1);
+
+        this.seek(this.duration * ratio);
+    },
+
     normalizeTimeline() {
         const duration = this.safeDuration();
 
@@ -265,8 +283,77 @@ Alpine.data('audioReview', (config = {}) => ({
                 color: segment?.color || '#64748b',
                 speaker: segment?.speaker || original.speaker || 'system',
                 sentiment: segment?.sentiment || original.sentiment || 'neutro',
+                emotion: segment?.emotion || original.emotion || 'calma',
             };
         });
+    },
+
+    async loadAudioWaveform() {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+        if (!this.audioUrl || !AudioContextClass || typeof fetch !== 'function') {
+            return;
+        }
+
+        try {
+            const response = await fetch(this.audioUrl, { credentials: 'same-origin' });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const audioData = await response.arrayBuffer();
+            const audioContext = new AudioContextClass();
+            const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
+            const waveformBars = this.waveformBarsFromBuffer(audioBuffer, this.rawBars.length || 120);
+
+            if (waveformBars.length) {
+                this.rawBars = waveformBars;
+                this.visualBars = this.buildVisualBars(this.safeDuration());
+            }
+
+            if (typeof audioContext.close === 'function') {
+                await audioContext.close();
+            }
+        } catch (error) {
+            // The server-generated timeline stays visible if the browser cannot decode the file.
+        }
+    },
+
+    waveformBarsFromBuffer(audioBuffer, count) {
+        const channel = audioBuffer.getChannelData(0);
+
+        if (!channel.length || !count) {
+            return [];
+        }
+
+        const samplesPerBar = Math.max(Math.floor(channel.length / count), 1);
+        const levels = [];
+
+        for (let index = 0; index < count; index += 1) {
+            const start = index * samplesPerBar;
+            const end = Math.min(start + samplesPerBar, channel.length);
+            const step = Math.max(Math.floor((end - start) / 240), 1);
+            let sum = 0;
+            let reads = 0;
+
+            for (let sample = start; sample < end; sample += step) {
+                const value = channel[sample] || 0;
+                sum += value * value;
+                reads += 1;
+            }
+
+            levels.push(reads ? Math.sqrt(sum / reads) : 0);
+        }
+
+        const maxLevel = Math.max(...levels, 0.001);
+        const duration = this.safeDuration();
+
+        return levels.map((level, index) => ({
+            index,
+            time: duration > 0 ? (duration / count) * (index + 0.5) : 0,
+            height: 16 + Math.min(78, (level / maxLevel) * 78),
+        }));
     },
 
     segmentAtSecond(second) {

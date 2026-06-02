@@ -33,10 +33,10 @@ class TranscriptConversationParserTest extends TestCase
 
     public function test_it_extracts_transcript_from_json_payloads(): void
     {
-        $payload = json_encode([
+        $payload = "Respuesta IA:\n```json\n".json_encode([
             'transcript' => '[00:00] Agente: Hola\\n[00:04] Cliente: Listo',
             'sentiment' => ['overall' => 'positivo'],
-        ]);
+        ])."\n```";
 
         $turns = $this->parser()->parse($payload);
 
@@ -44,6 +44,17 @@ class TranscriptConversationParserTest extends TestCase
         $this->assertSame('agent', $turns[0]['speaker']);
         $this->assertSame('client', $turns[1]['speaker']);
         $this->assertSame('Listo', $turns[1]['message']);
+    }
+
+    public function test_it_does_not_render_embedded_ai_json_as_context_turn(): void
+    {
+        $payload = 'Contexto: {"transcript":"[00:00] Agente: Hola\n[00:04] Cliente: Listo","sentiment":{"overall":"positivo"}}';
+
+        $turns = $this->parser()->parse($payload);
+
+        $this->assertCount(2, $turns);
+        $this->assertNotContains('Contexto', array_column($turns, 'label'));
+        $this->assertSame('Hola', $turns[0]['message']);
     }
 
     public function test_it_keeps_unstructured_text_as_context(): void

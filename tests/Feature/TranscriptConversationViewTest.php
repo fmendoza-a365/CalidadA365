@@ -78,7 +78,7 @@ class TranscriptConversationViewTest extends TestCase
             ->assertSee('Audio de la interacción')
             ->assertSee('Resumen emocional')
             ->assertSee('Lectura rápida')
-            ->assertSee('Preocupacion')
+            ->assertSee('Preocupación')
             ->assertSee('Cliente mejora al cierre.');
     }
 

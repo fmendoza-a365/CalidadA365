@@ -8,20 +8,34 @@
         ->filter(function ($segment, $index) use ($segments) {
             $previous = $segments[$index - 1] ?? null;
             $score = abs((float) ($segment['score'] ?? 0));
+            $sentiment = $segment['sentiment'] ?? 'neutro';
+            $emotion = $segment['emotion'] ?? 'calma';
+            $isNeutral = $sentiment === 'neutro'
+                && in_array($emotion, ['calma', 'neutro', 'neutral'], true)
+                && $score < 0.35;
+
+            if ($isNeutral) {
+                return false;
+            }
 
             return $index === 0
-                || $index === array_key_last($segments)
                 || $score >= 0.35
                 || ($segment['sentiment'] ?? null) !== ($previous['sentiment'] ?? null)
-                || ($segment['emotion'] ?? null) !== ($previous['emotion'] ?? null)
-                || ($segment['speaker'] ?? null) !== ($previous['speaker'] ?? null);
+                || ($segment['emotion'] ?? null) !== ($previous['emotion'] ?? null);
         })
-        ->take(80)
+        ->take(48)
         ->values();
-    $emotionLegend = $eventSegments
+    $emotionLegend = collect($segments)
         ->unique(fn ($segment) => $segment['emotion'] ?? $segment['emotion_label'] ?? '')
         ->take(6)
         ->values();
+    $overallSentiment = $sentiment['overall'] ?? $summary['overall_sentiment'] ?? 'neutro';
+    $overallBadgeClass = match ($overallSentiment) {
+        'positivo' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+        'negativo' => 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+        'mixto' => 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+        default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    };
 @endphp
 
 <div class="card overflow-hidden">
@@ -104,48 +118,67 @@
                 </div>
             </div>
 
-            <div class="relative">
-                <div class="absolute inset-x-0 top-0 z-0 h-32 rounded-lg bg-white/5"></div>
+            <div class="rounded-xl border border-white/10 bg-black/25 p-3">
+                <button type="button" class="relative block h-3 w-full rounded-full bg-white/10"
+                    @click="seekFromTrack($event)" aria-label="Cambiar posición del audio">
+                    <template x-for="segment in segments" :key="`track-${segment.id}`">
+                        <span class="absolute top-0 h-full opacity-45"
+                            :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
+                    </template>
+                    <span class="absolute left-0 top-0 h-full rounded-full bg-white"
+                        :style="`width: ${progress}%;`"></span>
+                    <span class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-gray-950 bg-white shadow"
+                        :style="`left: ${progress}%;`"></span>
+                </button>
 
-                <div class="relative z-10 h-32 cursor-pointer overflow-hidden rounded-lg px-2" @click="seekFromWaveform($event)">
-                    <div class="pointer-events-none absolute inset-x-2 top-3 h-px bg-white/10"></div>
-                    <div class="pointer-events-none absolute inset-x-2 bottom-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                        <template x-for="segment in segments" :key="`sentiment-${segment.id}`">
-                            <span class="absolute top-0 h-full"
-                                :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
-                        </template>
-                    </div>
+                <div class="relative mt-4">
+                    <div class="relative h-32 cursor-pointer overflow-hidden rounded-lg bg-white/5 px-2"
+                        @click="seekFromWaveform($event)">
+                        <div class="pointer-events-none absolute inset-x-2 top-1/2 h-px bg-white/10"></div>
 
-                    <div class="relative flex h-full items-center gap-[3px] pb-4 pt-5">
-                        <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
-                            <button type="button" class="flex h-full flex-1 items-center justify-center rounded-sm transition hover:opacity-100"
-                                :title="formatTime(bar.time)"
-                                @click.stop="seek(bar.time)">
-                                <span class="block min-h-[4px] w-full rounded-full opacity-70 transition"
-                                    :class="{ 'opacity-100': bar.time <= currentTime }"
-                                    :style="`height: ${bar.height}%; background-color: ${bar.time <= currentTime ? bar.color : '#64748b'};`">
-                                </span>
-                            </button>
-                        </template>
-                    </div>
+                        <div class="relative flex h-full items-center gap-[3px] pb-4 pt-7">
+                            <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
+                                <button type="button" class="flex h-full flex-1 items-center justify-center rounded-sm transition hover:opacity-100"
+                                    :title="formatTime(bar.time)"
+                                    @click.stop="seek(bar.time)">
+                                    <span class="block min-h-[4px] w-full rounded-full opacity-65 transition"
+                                        :class="{ 'opacity-100': bar.time <= currentTime }"
+                                        :style="`height: ${bar.height}%; background-color: ${bar.time <= currentTime ? bar.color : '#5f6b7c'};`">
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
 
-                    <div class="absolute inset-x-2 top-1 z-20 h-4">
-                        <template x-for="segment in eventSegments" :key="`event-${segment.id}`">
-                            <button type="button"
-                                class="absolute top-0 flex h-4 w-4 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 shadow-sm ring-1 ring-white/20 transition hover:scale-125"
-                                :class="{ 'ring-2 ring-white': activeTurnId === segment.turn_id }"
-                                :style="`left: ${segment.left}%; background-color: ${segment.color || '#64748b'};`"
-                                :title="`${segment.start_label || '00:00'} · ${segment.label || speakerName(segment.speaker)} · ${segment.emotion_label || 'Evento'}`"
-                                @click.stop="seek(segment.start)">
-                                <span class="h-1.5 w-1.5 rounded-full bg-white/90"></span>
-                            </button>
-                        </template>
-                    </div>
+                        <div class="pointer-events-none absolute inset-x-2 bottom-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <template x-for="segment in segments" :key="`sentiment-${segment.id}`">
+                                <span class="absolute top-0 h-full"
+                                    :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
+                            </template>
+                            <span class="absolute left-0 top-0 h-full bg-white/90"
+                                :style="`width: ${progress}%;`"></span>
+                        </div>
 
-                    <div class="pointer-events-none absolute inset-x-2 bottom-0 top-0 z-20">
-                        <div class="absolute bottom-0 top-0 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
-                            :style="`left: ${progress}%;`">
-                            <div class="-ml-1.5 mt-1 h-3 w-3 rounded-full bg-white"></div>
+                        @if($eventSegments->isNotEmpty())
+                            <div class="absolute inset-x-2 top-2 z-20 h-7">
+                                @foreach($eventSegments as $segment)
+                                    <button type="button"
+                                        class="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 text-white shadow ring-1 ring-white/20 transition hover:scale-110 hover:ring-white"
+                                        :class="activeTurnId === '{{ $segment['turn_id'] ?? '' }}' ? 'ring-2 ring-white' : ''"
+                                        style="left: {{ $segment['left'] ?? 0 }}%; background-color: {{ $segment['color'] ?? '#64748b' }};"
+                                        title="{{ ($segment['start_label'] ?? '00:00').' · '.($segment['label'] ?? 'Evento').' · '.($segment['emotion_label'] ?? 'Evento') }}"
+                                        @click.stop="seek({{ (int) ($segment['start'] ?? 0) }})">
+                                        @include('transcripts.partials.emotion-icon', [
+                                            'icon' => $segment['emotion_icon'] ?? 'wave',
+                                            'class' => 'h-3.5 w-3.5',
+                                        ])
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        <div class="pointer-events-none absolute inset-x-2 bottom-0 top-0 z-10">
+                            <div class="absolute bottom-0 top-0 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
+                                :style="`left: ${progress}%;`"></div>
                         </div>
                     </div>
                 </div>
@@ -172,18 +205,24 @@
                         </template>
                     </div>
                 </div>
-            </div>
 
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-400">
-                <span class="font-semibold uppercase tracking-wide text-gray-500">Marcadores emocionales</span>
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-300">
+                    <span class="font-semibold uppercase tracking-wide text-gray-500">Emociones</span>
                 @forelse($emotionLegend as $segment)
-                    <span class="inline-flex items-center gap-2">
-                        <span class="h-2.5 w-2.5 rounded-full" style="background-color: {{ $segment['color'] ?? '#64748b' }};"></span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                        <span class="flex h-5 w-5 items-center justify-center rounded-full text-white"
+                            style="background-color: {{ $segment['color'] ?? '#64748b' }};">
+                            @include('transcripts.partials.emotion-icon', [
+                                'icon' => $segment['emotion_icon'] ?? 'wave',
+                                'class' => 'h-3 w-3',
+                            ])
+                        </span>
                         {{ $segment['emotion_label'] ?? 'Evento' }}
                     </span>
                 @empty
                     <span>Sin eventos detectados</span>
                 @endforelse
+                </div>
             </div>
         </div>
 
@@ -195,8 +234,8 @@
                             <h4 class="font-semibold text-gray-900 dark:text-white">Resumen emocional</h4>
                             <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sentiment['summary'] ?? 'Análisis por tramo de la llamada.' }}</p>
                         </div>
-                        <span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-                            {{ ucfirst($sentiment['overall'] ?? 'neutro') }}
+                        <span class="rounded-full px-3 py-1 text-sm font-semibold {{ $overallBadgeClass }}">
+                            {{ ucfirst($overallSentiment) }}
                         </span>
                     </div>
 
@@ -228,7 +267,13 @@
                     <div class="space-y-3 text-sm">
                         <div class="flex items-center justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Emoción dominante</span>
-                            <span class="font-semibold text-gray-900 dark:text-white">{{ $summary['dominant_emotion_label'] ?? 'Calma' }}</span>
+                            <span class="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white">
+                                @include('transcripts.partials.emotion-icon', [
+                                    'icon' => $summary['dominant_emotion_icon'] ?? 'minus',
+                                    'class' => 'h-3.5 w-3.5',
+                                ])
+                                {{ $summary['dominant_emotion_label'] ?? 'Calma' }}
+                            </span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-gray-500 dark:text-gray-400">Cambios de turno</span>

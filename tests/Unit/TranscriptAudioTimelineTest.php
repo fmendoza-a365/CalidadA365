@@ -21,6 +21,8 @@ class TranscriptAudioTimelineTest extends TestCase
         $this->assertCount(3, $timeline['segments']);
         $this->assertCount(120, $timeline['bars']);
         $this->assertSame('preocupacion', $timeline['segments'][1]['emotion']);
+        $this->assertSame('Preocupación', $timeline['segments'][1]['emotion_label']);
+        $this->assertSame('question', $timeline['segments'][1]['emotion_icon']);
         $this->assertSame('mixto', $timeline['turns'][1]['sentiment']);
         $this->assertSame('00:20', $timeline['summary']['duration_label']);
         $this->assertGreaterThan(0, $timeline['summary']['handoffs']);

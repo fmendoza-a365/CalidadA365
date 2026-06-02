@@ -374,7 +374,7 @@ class TranscriptController extends Controller
             $audioTimeline = $audioTimelineBuilder->build(
                 $conversationTurns,
                 $interaction->audio_duration,
-                $this->audioMetadata($interaction)
+                $this->audioMetadata($interaction, $conversationParser)
             );
             $conversationTurns = $audioTimeline['turns'];
         }
@@ -614,15 +614,15 @@ class TranscriptController extends Controller
         return config('filesystems.default', 'local');
     }
 
-    private function audioMetadata(Interaction $interaction): array
+    private function audioMetadata(Interaction $interaction, TranscriptConversationParser $conversationParser): array
     {
         $metadata = $interaction->metadata ?? [];
 
-        if (! empty($metadata['sentiment']) || ! str_starts_with(trim((string) $interaction->transcript_text), '{')) {
+        if (! empty($metadata['sentiment'])) {
             return $metadata;
         }
 
-        $parsed = json_decode((string) $interaction->transcript_text, true);
+        $parsed = $conversationParser->extractStructuredPayload($interaction->transcript_text);
 
         if (is_array($parsed) && isset($parsed['sentiment'])) {
             $metadata['sentiment'] = $parsed['sentiment'];
