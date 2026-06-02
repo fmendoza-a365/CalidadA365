@@ -78,10 +78,20 @@ class TranscribeAudioJob implements ShouldQueue
                 $updateData['audio_duration'] = (int) $result['duration_seconds'];
             }
 
-            // Store sentiment analysis in metadata
-            if (! empty($result['sentiment'])) {
+            // Store audio analysis in metadata so playback, emotion review, and QA scoring use the same source.
+            if (! empty($result['sentiment'])
+                || ! empty($result['sentiment_segments'])
+                || ! empty($result['acoustic_analysis'])
+                || ! empty($result['quality_signals'])) {
                 $metadata = $interaction->metadata ?? [];
-                $metadata['sentiment'] = $result['sentiment'];
+
+                foreach (['sentiment', 'sentiment_segments', 'acoustic_analysis', 'quality_signals'] as $key) {
+                    if (! empty($result[$key])) {
+                        $metadata[$key] = $result[$key];
+                    }
+                }
+
+                $metadata['audio_analysis_version'] = 2;
                 $updateData['metadata'] = $metadata;
             }
 

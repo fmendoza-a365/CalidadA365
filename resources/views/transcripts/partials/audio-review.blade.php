@@ -4,6 +4,8 @@
     $sentiment = $timeline['sentiment'] ?? null;
     $segments = $timeline['segments'] ?? [];
     $bars = $timeline['bars'] ?? [];
+    $voice = $summary['voice'] ?? [];
+    $qualitySignals = $summary['quality_signals'] ?? [];
     $eventSegments = collect($segments)
         ->filter(function ($segment, $index) use ($segments) {
             $previous = $segments[$index - 1] ?? null;
@@ -35,6 +37,26 @@
         'negativo' => 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
         'mixto' => 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
         default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    };
+    $signalLabel = fn ($value) => match ($value) {
+        'fortaleza' => 'Fortaleza',
+        'riesgo' => 'Riesgo',
+        'alto' => 'Alto',
+        'medio', 'media' => 'Medio',
+        'bajo', 'baja' => 'Bajo',
+        'normal' => 'Normal',
+        'rapido' => 'Rápido',
+        'pausado' => 'Pausado',
+        'variable' => 'Variable',
+        'claro' => 'Claro',
+        'regular' => 'Regular',
+        default => filled($value) ? str($value)->replace('_', ' ')->title()->toString() : 'No detectado',
+    };
+    $signalClass = fn ($value) => match ($value) {
+        'fortaleza', 'bajo', 'claro' => 'text-emerald-600 dark:text-emerald-300',
+        'riesgo', 'alto', 'bajo_claridad' => 'text-rose-600 dark:text-rose-300',
+        'medio', 'regular', 'variable' => 'text-amber-600 dark:text-amber-300',
+        default => 'text-gray-900 dark:text-white',
     };
 @endphp
 
@@ -166,7 +188,7 @@
                                         :class="activeTurnId === '{{ $segment['turn_id'] ?? '' }}' ? 'ring-2 ring-white' : ''"
                                         style="left: {{ $segment['left'] ?? 0 }}%; background-color: {{ $segment['color'] ?? '#64748b' }};"
                                         title="{{ ($segment['start_label'] ?? '00:00').' · '.($segment['label'] ?? 'Evento').' · '.($segment['emotion_label'] ?? 'Evento') }}"
-                                        @click.stop="seek({{ (int) ($segment['start'] ?? 0) }})">
+                                        @click.stop="selectTurn({{ (int) ($segment['start'] ?? 0) }}, @js($segment['turn_id'] ?? null))">
                                         @include('transcripts.partials.emotion-icon', [
                                             'icon' => $segment['emotion_icon'] ?? 'wave',
                                             'class' => 'h-3.5 w-3.5',
@@ -189,7 +211,7 @@
                         <template x-for="segment in segments.filter((item) => item.speaker === 'agent')" :key="segment.id">
                             <button type="button" class="absolute top-1 h-3 rounded-full bg-emerald-400/80"
                                 :style="`left: ${segment.left}%; width: ${segment.width}%;`"
-                                @click="seek(segment.start)"
+                                @click="selectSegment(segment)"
                                 :title="`${segment.start_label} · ${segment.emotion_label}`">
                             </button>
                         </template>
@@ -199,7 +221,7 @@
                         <template x-for="segment in segments.filter((item) => item.speaker === 'client')" :key="segment.id">
                             <button type="button" class="absolute top-1 h-3 rounded-full bg-indigo-400/80"
                                 :style="`left: ${segment.left}%; width: ${segment.width}%;`"
-                                @click="seek(segment.start)"
+                                @click="selectSegment(segment)"
                                 :title="`${segment.start_label} · ${segment.emotion_label}`">
                             </button>
                         </template>
@@ -288,6 +310,81 @@
                             <span class="font-semibold text-indigo-600">{{ $summary['client_talk_percent'] ?? 0 }}%</span>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                    <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Señales de voz</h4>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Ritmo general</span>
+                            <span class="font-semibold {{ $signalClass($voice['overall_pace'] ?? null) }}">{{ $voice['overall_pace_label'] ?? 'No detectado' }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Velocidad agente</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['agent_speech_rate_wpm'] ?? 0 }} ppm</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Velocidad cliente</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['client_speech_rate_wpm'] ?? 0 }} ppm</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Claridad</span>
+                            <span class="font-semibold {{ $signalClass($voice['clarity'] ?? null) }}">{{ $signalLabel($voice['clarity'] ?? null) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Interrupciones</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['interruptions'] ?? 0 }}</span>
+                        </div>
+                    </div>
+                    @if(!empty($voice['notes']))
+                        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ $voice['notes'] }}</p>
+                    @endif
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                    <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Impacto en calidad</h4>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Empatía</span>
+                            <span class="font-semibold {{ $signalClass($qualitySignals['empathy'] ?? null) }}">{{ $signalLabel($qualitySignals['empathy'] ?? null) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Objeciones</span>
+                            <span class="font-semibold {{ $signalClass($qualitySignals['objection_handling'] ?? null) }}">{{ $signalLabel($qualitySignals['objection_handling'] ?? null) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Riesgo experiencia</span>
+                            <span class="font-semibold {{ $signalClass($qualitySignals['customer_experience_risk'] ?? null) }}">{{ $signalLabel($qualitySignals['customer_experience_risk'] ?? null) }}</span>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ $qualitySignals['summary'] ?? 'Señales listas para apoyar la evaluación de calidad.' }}</p>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                    <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Tramo activo</h4>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Tiempo</span>
+                            <span class="font-mono font-semibold text-gray-900 dark:text-white" x-text="activeSegment?.start_label || '00:00'">00:00</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Emoción</span>
+                            <span class="font-semibold text-gray-900 dark:text-white" x-text="activeSegment?.emotion_label || 'Sin tramo'">Sin tramo</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Ritmo</span>
+                            <span class="font-semibold text-gray-900 dark:text-white" x-text="activeSegment?.pace_label || 'No detectado'">No detectado</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Velocidad</span>
+                            <span class="font-semibold text-gray-900 dark:text-white" x-text="activeSegment?.speech_rate_wpm ? `${activeSegment.speech_rate_wpm} ppm` : 'No detectado'">No detectado</span>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400" x-text="activeSegment?.evidence || activeSegment?.voice_tone || 'Selecciona un tramo del audio para ver su lectura emocional.'">
+                        Selecciona un tramo del audio para ver su lectura emocional.
+                    </p>
                 </div>
             </div>
         @endif

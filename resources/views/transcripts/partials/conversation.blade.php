@@ -9,16 +9,16 @@
             @php
                 $type = $turn['speaker'] ?? 'system';
                 $label = $turn['label'] ?? 'Sistema';
-                $timestamp = $turn['timestamp'] ?? null;
-                $timestampSeconds = $turn['timestamp_seconds'] ?? null;
+                $timestamp = $isAudio ? ($turn['start_label'] ?? $turn['timestamp'] ?? null) : ($turn['timestamp'] ?? null);
+                $seekSeconds = $turn['start_seconds'] ?? $turn['timestamp_seconds'] ?? null;
                 $message = $turn['message'] ?? '';
                 $turnId = $turn['id'] ?? null;
-                $canSeek = $isAudio && is_numeric($timestampSeconds);
+                $canSeek = $isAudio && is_numeric($seekSeconds);
                 $activeClasses = 'ring-2 ring-indigo-400/70 ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-950';
             @endphp
 
             @if($type === 'client')
-                <div @if($turnId) id="{{ $turnId }}" @endif class="flex items-start justify-end gap-3">
+                <div @if($turnId) id="{{ $turnId }}" data-turn-id="{{ $turnId }}" @endif class="flex scroll-mt-28 items-start justify-end gap-3">
                     <div class="min-w-0 max-w-[84%] sm:max-w-[72%]">
                         <div class="mb-1 flex items-center justify-end gap-2 pr-1">
                             @if($timestamp)
@@ -28,7 +28,7 @@
                         </div>
                         <div class="rounded-2xl rounded-tr-sm bg-indigo-600 px-4 py-3 shadow-sm transition dark:bg-indigo-500 {{ $canSeek ? 'cursor-pointer hover:bg-indigo-700 dark:hover:bg-indigo-600' : '' }}"
                             @if($canSeek)
-                                @click="seek({{ (int) $timestampSeconds }})"
+                                @click="selectTurn({{ (int) $seekSeconds }}, @js($turnId))"
                                 :class="activeTurnId === '{{ $turnId }}' ? '{{ $activeClasses }}' : ''"
                             @endif>
                             <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-white" style="overflow-wrap: anywhere;">{{ $message }}</p>
@@ -39,6 +39,9 @@
                                         'class' => 'h-3 w-3',
                                     ])
                                     {{ $turn['emotion_label'] }}
+                                    @if(!empty($turn['pace_label']) && $turn['pace_label'] !== 'No detectado')
+                                        <span class="text-white/60">· {{ $turn['pace_label'] }}</span>
+                                    @endif
                                 </div>
                             @endif
                         </div>
@@ -48,7 +51,7 @@
                     </div>
                 </div>
             @elseif($type === 'agent')
-                <div @if($turnId) id="{{ $turnId }}" @endif class="flex items-start gap-3">
+                <div @if($turnId) id="{{ $turnId }}" data-turn-id="{{ $turnId }}" @endif class="flex scroll-mt-28 items-start gap-3">
                     <div class="mt-5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                         A
                     </div>
@@ -61,7 +64,7 @@
                         </div>
                         <div class="rounded-2xl rounded-tl-sm border border-gray-200 bg-white px-4 py-3 shadow-sm transition dark:border-gray-700 dark:bg-gray-900 {{ $canSeek ? 'cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700' : '' }}"
                             @if($canSeek)
-                                @click="seek({{ (int) $timestampSeconds }})"
+                                @click="selectTurn({{ (int) $seekSeconds }}, @js($turnId))"
                                 :class="activeTurnId === '{{ $turnId }}' ? '{{ $activeClasses }}' : ''"
                             @endif>
                             <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-100" style="overflow-wrap: anywhere;">{{ $message }}</p>
@@ -72,6 +75,9 @@
                                         'class' => 'h-3 w-3',
                                     ])
                                     {{ $turn['emotion_label'] }}
+                                    @if(!empty($turn['pace_label']) && $turn['pace_label'] !== 'No detectado')
+                                        <span class="text-gray-400">· {{ $turn['pace_label'] }}</span>
+                                    @endif
                                 </div>
                             @endif
                         </div>

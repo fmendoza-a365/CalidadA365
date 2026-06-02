@@ -6,7 +6,9 @@ use App\Jobs\ScoreTranscriptJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Models\Interaction;
+use App\Models\QualityAttribute;
 use App\Models\QualityForm;
+use App\Models\QualitySubAttribute;
 use App\Models\QualityFormVersion;
 use App\Models\User;
 use App\Services\AIEvaluationService;
@@ -84,6 +86,61 @@ class AiEvaluationQueueTest extends TestCase
         ]);
         $this->assertNotNull($evaluation->fresh()->ai_prompt_hash);
         $this->assertArrayNotHasKey('api_key', $evaluation->fresh()->ai_settings_snapshot['config']);
+    }
+
+    public function test_audio_quality_prompt_includes_voice_and_emotion_signals(): void
+    {
+        [$admin, $interaction, $version] = $this->scorableInteraction();
+        $interaction->update([
+            'source_type' => 'audio',
+            'audio_duration' => 120,
+            'metadata' => [
+                'sentiment' => ['overall' => 'mixto', 'summary' => 'Cliente inicia tenso.'],
+                'sentiment_segments' => [
+                    ['index' => 1, 'start' => 30, 'speaker' => 'client', 'sentiment' => 'negativo', 'emotion' => 'frustracion', 'score' => -0.7, 'tone' => 'molesto', 'pace' => 'rápido'],
+                ],
+                'acoustic_analysis' => [
+                    'agent_speech_rate_wpm' => 138,
+                    'client_speech_rate_wpm' => 170,
+                    'overall_pace' => 'variable',
+                    'interruptions' => 1,
+                ],
+                'quality_signals' => [
+                    'empathy' => 'riesgo',
+                    'objection_handling' => 'riesgo',
+                    'customer_experience_risk' => 'alto',
+                    'summary' => 'Tensión alta requiere validar empatía.',
+                ],
+            ],
+        ]);
+
+        $attribute = QualityAttribute::create([
+            'form_version_id' => $version->id,
+            'name' => 'Empatía',
+            'weight' => 100,
+            'sort_order' => 1,
+        ]);
+        QualitySubAttribute::create([
+            'attribute_id' => $attribute->id,
+            'name' => 'Maneja emociones del cliente',
+            'weight_percent' => 100,
+            'concept' => 'Evalúa tono y empatía.',
+            'sort_order' => 1,
+        ]);
+
+        $service = new class extends AIEvaluationService {
+            public function promptForTest(Interaction $interaction, QualityFormVersion $version): string
+            {
+                return $this->buildEvaluationPrompt($interaction, $version);
+            }
+        };
+
+        $prompt = $service->promptForTest($interaction->fresh(), $version->fresh());
+
+        $this->assertStringContainsString('SEÑALES DE AUDIO Y EMOCIÓN', $prompt);
+        $this->assertStringContainsString('agent_speech_rate_wpm', $prompt);
+        $this->assertStringContainsString('customer_experience_risk', $prompt);
+        $this->assertStringContainsString('Tensión alta requiere validar empatía.', $prompt);
     }
 
     private function scorableInteraction(): array

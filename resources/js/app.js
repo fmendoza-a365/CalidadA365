@@ -98,6 +98,7 @@ Alpine.data('audioReview', (config = {}) => ({
     currentTime: 0,
     playing: false,
     speed: '1',
+    selectedTurnId: null,
 
     init() {
         this.normalizeTimeline();
@@ -137,7 +138,7 @@ Alpine.data('audioReview', (config = {}) => ({
     },
 
     get activeTurnId() {
-        return this.activeSegment?.turn_id || null;
+        return this.activeSegment?.turn_id || this.selectedTurnId || null;
     },
 
     get activeSegmentLabel() {
@@ -220,6 +221,35 @@ Alpine.data('audioReview', (config = {}) => ({
         if (this.$refs.audio) {
             this.$refs.audio.currentTime = nextTime;
         }
+    },
+
+    selectTurn(seconds, turnId = null) {
+        this.selectedTurnId = turnId;
+        this.seek(seconds);
+
+        if (turnId) {
+            this.scrollToTurn(turnId);
+        }
+    },
+
+    selectSegment(segment) {
+        if (!segment) {
+            return;
+        }
+
+        this.selectTurn(segment.start, segment.turn_id || null);
+    },
+
+    scrollToTurn(turnId) {
+        this.$nextTick(() => {
+            const target = document.getElementById(turnId);
+
+            if (!target) {
+                return;
+            }
+
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
     },
 
     seekFromWaveform(event) {

@@ -25,11 +25,11 @@ class AudioTranscriptionService
     }
 
     /**
-     * Transcribe an audio file and analyze sentiment using Google Gemini API.
+     * Transcribe an audio file and analyze sentiment/voice signals using Google Gemini API.
      *
      * @param  string  $filePath  Path relative to the storage disk
      * @param  string  $language  Language hint (default: Spanish)
-     * @return array{transcript: string, sentiment: array} Transcript text and sentiment analysis
+     * @return array<string, mixed> Transcript text and audio analysis
      *
      * @throws \Exception If transcription fails
      */
@@ -67,8 +67,13 @@ TAREA 1 - TRANSCRIPCIÓN:
 - Si hay pausas largas, indica [pausa]. Si algo es ininteligible, indica [inaudible].
 - El idioma principal es español latinoamericano.
 
-TAREA 2 - ANÁLISIS DE SENTIMIENTO:
-Analiza el sentimiento general de la llamada y de cada participante.
+TAREA 2 - ANÁLISIS EMOCIONAL Y ACÚSTICO:
+Analiza la llamada por tramos usando lo que se escucha en el audio y lo que se dice en la transcripción.
+- Considera sentimiento, emoción, tono de voz, ritmo/velocidad, volumen aparente, claridad, pausas relevantes, tensión, interrupciones y manejo emocional.
+- Genera tramos alineados con la transcripción. Usa "index" empezando en 0 según cada intervención transcrita.
+- Usa "start" cuando puedas estimar el segundo real del tramo; si no, usa el timestamp de la intervención.
+- No inventes datos imposibles. Si una señal acústica no se aprecia, marca "no_detectado" o usa un score conservador.
+- El análisis emocional es señal de apoyo para calidad; no reemplaza la evidencia textual.
 
 RESPONDE EXCLUSIVAMENTE con el siguiente JSON válido.
 IMPORTANTE: El campo "transcript" debe ser un solo string con saltos de línea (\n) separando cada intervención.
@@ -81,19 +86,58 @@ IMPORTANTE: El campo "transcript" debe ser un solo string con saltos de línea (
     "agent": {
       "sentiment": "positivo|neutro|negativo",
       "score": 0.0,
-      "tone": "descripción breve del tono del agente"
+      "tone": "descripción breve del tono del agente",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "energy": "baja|media|alta|variable|no_detectado"
     },
     "client": {
       "sentiment": "positivo|neutro|negativo",
       "score": 0.0,
       "tone": "descripción breve del tono del cliente",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "energy": "baja|media|alta|variable|no_detectado",
       "satisfaction": "satisfecho|insatisfecho|neutro"
     },
     "summary": "Resumen breve del sentimiento general de la llamada en 1-2 oraciones."
+  },
+  "sentiment_segments": [
+    {
+      "index": 0,
+      "start": 0,
+      "speaker": "agent|client|system",
+      "sentiment": "positivo|neutro|negativo|mixto",
+      "emotion": "calma|confianza|satisfaccion|preocupacion|frustracion|tension_controlada|enojo|tristeza|molestia",
+      "score": 0.0,
+      "intensity": 0,
+      "tone": "tono percibido en pocas palabras",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "volume": "bajo|medio|alto|variable|no_detectado",
+      "clarity": "claro|regular|bajo|no_detectado",
+      "evidence": "frase corta o señal que justifica el tramo"
+    }
+  ],
+  "acoustic_analysis": {
+    "agent_speech_rate_wpm": 0,
+    "client_speech_rate_wpm": 0,
+    "overall_pace": "pausado|normal|rápido|variable|no_detectado",
+    "agent_energy": "baja|media|alta|variable|no_detectado",
+    "client_energy": "baja|media|alta|variable|no_detectado",
+    "clarity": "claro|regular|bajo|no_detectado",
+    "interruptions": 0,
+    "long_pauses": 0,
+    "silence_ratio": 0.0,
+    "notes": "observaciones acústicas relevantes"
+  },
+  "quality_signals": {
+    "empathy": "fortaleza|neutral|riesgo",
+    "objection_handling": "fortaleza|neutral|riesgo",
+    "customer_experience_risk": "bajo|medio|alto",
+    "summary": "cómo estas señales podrían influir en calidad"
   }
 }
 
 NOTAS sobre sentiment scores: Usa una escala de -1.0 (muy negativo) a 1.0 (muy positivo), donde 0.0 es neutro.
+NOTAS sobre intensity: Usa 0 a 100, donde 0 es sin carga emocional y 100 es carga muy alta.
 PROMPT;
 
             $systemInstruction = 'Eres un transcriptor profesional de audio y analista de sentimiento para un centro de contacto (call center). Tu tarea requiere EXTREMA PRECISIÓN y ESTRICTO APEGO a las instrucciones de formato. DEBES devolver UNICAMENTE un objeto JSON válido.';
@@ -172,6 +216,9 @@ PROMPT;
                 return [
                     'transcript' => $cleanTranscript,
                     'sentiment' => null,
+                    'sentiment_segments' => [],
+                    'acoustic_analysis' => null,
+                    'quality_signals' => null,
                     'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
                 ];
             }
@@ -184,6 +231,9 @@ PROMPT;
             return [
                 'transcript' => $cleanTranscript,
                 'sentiment' => $parsed['sentiment'] ?? null,
+                'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
+                'acoustic_analysis' => $parsed['acoustic_analysis'] ?? null,
+                'quality_signals' => $parsed['quality_signals'] ?? null,
                 'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
             ];
 
@@ -335,14 +385,42 @@ PROMPT;
                     'sentiment' => 'positivo',
                     'score' => 0.8,
                     'tone' => 'Profesional, empático y resolutivo',
+                    'pace' => 'normal',
+                    'energy' => 'media',
                 ],
                 'client' => [
                     'sentiment' => 'positivo',
                     'score' => 0.6,
                     'tone' => 'Inicialmente preocupado, luego satisfecho con la resolución',
+                    'pace' => 'normal',
+                    'energy' => 'media',
                     'satisfaction' => 'satisfecho',
                 ],
                 'summary' => 'Llamada positiva donde el agente resolvió de manera eficiente un problema de cobro duplicado. El cliente pasó de preocupado a satisfecho.',
+            ],
+            'sentiment_segments' => [
+                ['index' => 0, 'start' => 0, 'speaker' => 'agent', 'sentiment' => 'positivo', 'emotion' => 'confianza', 'score' => 0.6, 'intensity' => 45, 'tone' => 'cordial y claro', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'saludo inicial amable'],
+                ['index' => 1, 'start' => 4, 'speaker' => 'client', 'sentiment' => 'mixto', 'emotion' => 'preocupacion', 'score' => -0.2, 'intensity' => 62, 'tone' => 'preocupado pero colaborativo', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'problema con factura'],
+                ['index' => 2, 'start' => 10, 'speaker' => 'agent', 'sentiment' => 'positivo', 'emotion' => 'tension_controlada', 'score' => 0.5, 'intensity' => 58, 'tone' => 'empático y de contención', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'lamenta el inconveniente y verifica cuenta'],
+                ['index' => 7, 'start' => 45, 'speaker' => 'client', 'sentiment' => 'positivo', 'emotion' => 'satisfaccion', 'score' => 0.7, 'intensity' => 50, 'tone' => 'agradecido', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'agradece la rápida solución'],
+            ],
+            'acoustic_analysis' => [
+                'agent_speech_rate_wpm' => 132,
+                'client_speech_rate_wpm' => 118,
+                'overall_pace' => 'normal',
+                'agent_energy' => 'media',
+                'client_energy' => 'media',
+                'clarity' => 'claro',
+                'interruptions' => 0,
+                'long_pauses' => 0,
+                'silence_ratio' => 0.04,
+                'notes' => 'Ritmo estable, buena claridad y cierre sin tensión audible.',
+            ],
+            'quality_signals' => [
+                'empathy' => 'fortaleza',
+                'objection_handling' => 'fortaleza',
+                'customer_experience_risk' => 'bajo',
+                'summary' => 'El tono empático y la resolución reducen el riesgo de experiencia negativa.',
             ],
         ];
     }

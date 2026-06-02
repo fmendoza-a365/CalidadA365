@@ -284,12 +284,24 @@ Usa esta información como fuente de verdad operativa para evaluar la llamada. P
 
 CONTEXT
             : '';
+        $audioContext = $this->audioContextForPrompt($interaction);
+        $audioContextBlock = $audioContext
+            ? <<<AUDIO
+## SEÑALES DE AUDIO Y EMOCIÓN
+Usa estas señales como apoyo para evaluar criterios relacionados con empatía, manejo emocional, interrupciones, claridad, ritmo y experiencia del cliente. No reemplazan la evidencia textual: si una señal acústica contradice la transcripción, explica la duda en notas y baja la confianza.
+
+{$audioContext}
+
+AUDIO
+            : '';
 
         return <<<PROMPT
 Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar la siguiente transcripción de una llamada telefónica.
 
 ## TRANSCRIPCIÓN
 {$interaction->transcript_text}
+
+{$audioContextBlock}
 
 ## CRITERIOS DE EVALUACIÓN
 {$criteriaJson}
@@ -334,6 +346,32 @@ Responde ÚNICAMENTE con el siguiente JSON estructurado:
     "general_feedback": "Texto en formato MARKDOWN limpio. Estructura requerida:\n\n### 🤖 Resumen del Desempeño\n[Resumen]\n\n### 🧠 Conocimiento del Producto\n[Análisis sobre dominio del tema]\n\n### ❤️ Manejo de Emociones y Empatía\n[Análisis sobre tono y empatía]\n\n### ✅ Fortalezas\n- [Fortaleza 1]: [Detalle]\n\n### ⚠️ Oportunidades de Mejora\n- [Oportunidad 1]: [Detalle]"
 }
 PROMPT;
+    }
+
+    protected function audioContextForPrompt(Interaction $interaction): string
+    {
+        if (! $interaction->isAudio()) {
+            return '';
+        }
+
+        $metadata = $interaction->metadata ?? [];
+        $payload = array_filter([
+            'duration_seconds' => $interaction->audio_duration,
+            'sentiment' => $metadata['sentiment'] ?? null,
+            'acoustic_analysis' => $metadata['acoustic_analysis'] ?? null,
+            'quality_signals' => $metadata['quality_signals'] ?? null,
+            'emotion_segments' => collect($metadata['sentiment_segments'] ?? $metadata['emotion_segments'] ?? [])
+                ->filter(fn ($segment): bool => is_array($segment))
+                ->take(12)
+                ->values()
+                ->all(),
+        ], fn ($value): bool => ! empty($value));
+
+        if ($payload === []) {
+            return '';
+        }
+
+        return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**

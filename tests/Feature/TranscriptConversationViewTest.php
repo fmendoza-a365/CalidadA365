@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\Interaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -79,7 +80,53 @@ class TranscriptConversationViewTest extends TestCase
             ->assertSee('Resumen emocional')
             ->assertSee('Lectura rápida')
             ->assertSee('Preocupación')
+            ->assertSee('Señales de voz')
+            ->assertSee('Impacto en calidad')
+            ->assertSee('selectTurn(0, \'turn-0\')', false)
             ->assertSee('Cliente mejora al cierre.');
+    }
+
+    public function test_audio_endpoint_supports_range_requests_for_browser_seek(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->userWithRole('admin');
+        $campaign = Campaign::create(['name' => 'Soporte']);
+        $bytes = '0123456789abcdef';
+        Storage::disk('local')->put('demo/range.wav', $bytes);
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'demo/range.wav',
+            'file_name' => 'range.wav',
+            'source_type' => 'audio',
+            'audio_duration' => 10,
+            'transcription_status' => 'completed',
+            'transcript_text' => '[00:00] Agente: Hola',
+            'status' => 'uploaded',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->withHeaders(['Range' => 'bytes=2-5'])
+            ->get(route('transcripts.audio', $interaction));
+
+        $response
+            ->assertStatus(206)
+            ->assertHeader('Accept-Ranges', 'bytes')
+            ->assertHeader('Content-Range', 'bytes 2-5/16')
+            ->assertHeader('Content-Length', '4');
+
+        $this->assertSame('2345', $response->streamedContent());
+
+        $this->actingAs($admin)
+            ->withHeaders(['Range' => 'bytes=99-120'])
+            ->get(route('transcripts.audio', $interaction))
+            ->assertStatus(416)
+            ->assertHeader('Content-Range', 'bytes */16');
     }
 
     private function userWithRole(string $role): User

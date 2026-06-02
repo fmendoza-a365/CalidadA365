@@ -80,18 +80,19 @@ class TranscriptAudioTimeline
             }
 
             $metadataSegment = $this->matchingMetadataSegment($metadataSegments->all(), $turn, $index, $start);
-            $mood = $this->segmentMood($turn, $metadataSegment, $metadata);
+            $segmentEnd = max($end, $start + 1);
+            $mood = $this->segmentMood($turn, $metadataSegment, $metadata, $start, $segmentEnd);
 
             $segments[] = [
                 'id' => 'segment-'.$index,
                 'turn_id' => $turn['id'] ?? "turn-{$index}",
                 'index' => $index,
                 'start' => $start,
-                'end' => max($end, $start + 1),
+                'end' => $segmentEnd,
                 'start_label' => $this->formatSeconds($start),
-                'end_label' => $this->formatSeconds(max($end, $start + 1)),
+                'end_label' => $this->formatSeconds($segmentEnd),
                 'left' => round(($start / $duration) * 100, 4),
-                'width' => max(round(((max($end, $start + 1) - $start) / $duration) * 100, 4), 0.8),
+                'width' => max(round((($segmentEnd - $start) / $duration) * 100, 4), 0.8),
                 'speaker' => $turn['speaker'] ?? 'system',
                 'label' => $turn['label'] ?? 'Sistema',
                 'message' => $turn['message'] ?? '',
@@ -269,7 +270,7 @@ class TranscriptAudioTimeline
      * @param  array<string, mixed>  $metadata
      * @return array<string, mixed>
      */
-    private function segmentMood(array $turn, ?array $metadataSegment, array $metadata): array
+    private function segmentMood(array $turn, ?array $metadataSegment, array $metadata, int $start, int $end): array
     {
         $sentiment = (string) ($metadataSegment['sentiment'] ?? $this->inferSentiment($turn, $metadata));
         $sentiment = array_key_exists($sentiment, self::SENTIMENTS) ? $sentiment : 'neutro';
@@ -277,6 +278,12 @@ class TranscriptAudioTimeline
         $emotionMeta = $this->emotionMeta($emotion);
         $score = (float) ($metadataSegment['score'] ?? self::SENTIMENTS[$sentiment]['score']);
         $intensity = (int) ($metadataSegment['intensity'] ?? $this->intensityFromMessage($turn['message'] ?? ''));
+        $speechRate = (int) ($metadataSegment['speech_rate_wpm'] ?? $this->speechRateWordsPerMinute($turn['message'] ?? '', max($end - $start, 1)));
+        $pace = $this->normalizePace((string) ($metadataSegment['pace'] ?? $this->paceFromSpeechRate($speechRate)));
+        $volume = $this->normalizeSimpleLabel((string) ($metadataSegment['volume'] ?? $metadataSegment['energy'] ?? 'no_detectado'));
+        $clarity = $this->normalizeSimpleLabel((string) ($metadataSegment['clarity'] ?? 'no_detectado'));
+        $voiceTone = trim((string) ($metadataSegment['tone'] ?? $metadataSegment['voice_tone'] ?? $emotionMeta['label']));
+        $evidence = trim((string) ($metadataSegment['evidence'] ?? ''));
 
         return [
             'sentiment' => $sentiment,
@@ -287,6 +294,13 @@ class TranscriptAudioTimeline
             'emotion_tone' => $emotionMeta['tone'],
             'score' => max(min($score, 1), -1),
             'intensity' => max(min($intensity, 100), 20),
+            'voice_tone' => $voiceTone !== '' ? $voiceTone : $emotionMeta['label'],
+            'pace' => $pace,
+            'pace_label' => $this->paceLabel($pace),
+            'volume' => $volume,
+            'clarity' => $clarity,
+            'speech_rate_wpm' => max(0, $speechRate),
+            'evidence' => $evidence,
             'color' => self::SENTIMENTS[$sentiment]['color'],
         ];
     }
@@ -358,11 +372,17 @@ class TranscriptAudioTimeline
                 return array_merge($turn, [
                     'start_seconds' => $segment['start'],
                     'end_seconds' => $segment['end'],
+                    'start_label' => $segment['start_label'],
+                    'end_label' => $segment['end_label'],
                     'sentiment' => $segment['sentiment'],
                     'emotion' => $segment['emotion'],
                     'emotion_label' => $segment['emotion_label'],
                     'emotion_icon' => $segment['emotion_icon'],
                     'emotion_tone' => $segment['emotion_tone'],
+                    'voice_tone' => $segment['voice_tone'],
+                    'pace_label' => $segment['pace_label'],
+                    'speech_rate_wpm' => $segment['speech_rate_wpm'],
+                    'evidence' => $segment['evidence'],
                     'sentiment_color' => $segment['color'],
                 ]);
             })
@@ -431,6 +451,7 @@ class TranscriptAudioTimeline
         $lastScore = (float) ($segments[array_key_last($segments)]['score'] ?? 0);
         $dominantEmotion = (string) ($emotions->keys()->first() ?: 'calma');
         $dominantEmotionMeta = $this->emotionMeta($dominantEmotion);
+        $voice = $this->voiceSummary($segments, $metadata);
 
         return [
             'duration_label' => $this->formatSeconds($duration),
@@ -445,6 +466,8 @@ class TranscriptAudioTimeline
             'trend' => $lastScore >= $firstScore ? 'Mejora emocional' : 'Deterioro emocional',
             'overall_sentiment' => Arr::get($metadata, 'sentiment.overall', 'neutro'),
             'sentiments' => $sentiments,
+            'voice' => $voice,
+            'quality_signals' => $this->qualitySignals($segments, $metadata),
         ];
     }
 
@@ -495,6 +518,136 @@ class TranscriptAudioTimeline
         }
 
         return sprintf('%02d:%02d', $minutes, $remainingSeconds);
+    }
+
+    private function speechRateWordsPerMinute(string $message, int $durationSeconds): int
+    {
+        $words = str_word_count(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $message));
+
+        if ($words === 0 || $durationSeconds <= 0) {
+            return 0;
+        }
+
+        return (int) round($words / ($durationSeconds / 60));
+    }
+
+    private function paceFromSpeechRate(int $speechRate): string
+    {
+        return match (true) {
+            $speechRate === 0 => 'no_detectado',
+            $speechRate < 105 => 'pausado',
+            $speechRate > 165 => 'rapido',
+            default => 'normal',
+        };
+    }
+
+    private function normalizePace(string $pace): string
+    {
+        $pace = $this->normalizeKey($pace);
+
+        return match ($pace) {
+            'rapido', 'rapida' => 'rapido',
+            'pausado', 'pausada', 'lento', 'lenta' => 'pausado',
+            'variable', 'irregular' => 'variable',
+            'normal', 'medio', 'media' => 'normal',
+            default => 'no_detectado',
+        };
+    }
+
+    private function paceLabel(string $pace): string
+    {
+        return match ($pace) {
+            'rapido' => 'Rápido',
+            'pausado' => 'Pausado',
+            'variable' => 'Variable',
+            'normal' => 'Normal',
+            default => 'No detectado',
+        };
+    }
+
+    private function normalizeSimpleLabel(string $value): string
+    {
+        $value = $this->normalizeKey($value);
+
+        return $value !== '' ? $value : 'no_detectado';
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $segments
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function voiceSummary(array $segments, array $metadata): array
+    {
+        $acoustic = is_array($metadata['acoustic_analysis'] ?? null) ? $metadata['acoustic_analysis'] : [];
+        $agentRate = (int) ($acoustic['agent_speech_rate_wpm'] ?? $this->averageSpeechRate($segments, 'agent'));
+        $clientRate = (int) ($acoustic['client_speech_rate_wpm'] ?? $this->averageSpeechRate($segments, 'client'));
+        $overallPace = $this->normalizePace((string) ($acoustic['overall_pace'] ?? $this->paceFromSpeechRate((int) round(($agentRate + $clientRate) / 2))));
+        $averageIntensity = collect($segments)->avg(fn (array $segment): int => (int) ($segment['intensity'] ?? 0)) ?: 0;
+
+        return [
+            'agent_speech_rate_wpm' => $agentRate,
+            'client_speech_rate_wpm' => $clientRate,
+            'overall_pace' => $overallPace,
+            'overall_pace_label' => $this->paceLabel($overallPace),
+            'agent_energy' => $acoustic['agent_energy'] ?? $this->energyFromIntensity($averageIntensity),
+            'client_energy' => $acoustic['client_energy'] ?? $this->energyFromIntensity($averageIntensity),
+            'clarity' => $acoustic['clarity'] ?? 'no_detectado',
+            'interruptions' => (int) ($acoustic['interruptions'] ?? 0),
+            'long_pauses' => (int) ($acoustic['long_pauses'] ?? 0),
+            'silence_ratio' => (float) ($acoustic['silence_ratio'] ?? 0),
+            'notes' => $acoustic['notes'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $segments
+     */
+    private function averageSpeechRate(array $segments, string $speaker): int
+    {
+        $rates = collect($segments)
+            ->filter(fn (array $segment): bool => ($segment['speaker'] ?? null) === $speaker && (int) ($segment['speech_rate_wpm'] ?? 0) > 0)
+            ->pluck('speech_rate_wpm');
+
+        return $rates->isNotEmpty() ? (int) round($rates->avg()) : 0;
+    }
+
+    private function energyFromIntensity(float $intensity): string
+    {
+        return match (true) {
+            $intensity >= 70 => 'alta',
+            $intensity >= 40 => 'media',
+            $intensity > 0 => 'baja',
+            default => 'no_detectado',
+        };
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $segments
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function qualitySignals(array $segments, array $metadata): array
+    {
+        if (is_array($metadata['quality_signals'] ?? null)) {
+            return $metadata['quality_signals'];
+        }
+
+        $agentScore = collect($segments)
+            ->filter(fn (array $segment): bool => ($segment['speaker'] ?? null) === 'agent')
+            ->avg(fn (array $segment): float => (float) ($segment['score'] ?? 0)) ?? 0;
+        $negativeClientSegments = collect($segments)
+            ->filter(fn (array $segment): bool => ($segment['speaker'] ?? null) === 'client' && ($segment['sentiment'] ?? null) === 'negativo')
+            ->count();
+
+        return [
+            'empathy' => $agentScore >= 0.25 ? 'fortaleza' : ($agentScore <= -0.25 ? 'riesgo' : 'neutral'),
+            'objection_handling' => $negativeClientSegments > 0 ? 'riesgo' : 'neutral',
+            'customer_experience_risk' => $negativeClientSegments > 1 ? 'alto' : ($negativeClientSegments === 1 ? 'medio' : 'bajo'),
+            'summary' => $negativeClientSegments > 0
+                ? 'Existen tramos negativos del cliente que deben revisarse contra la gestión emocional del agente.'
+                : 'No se observan señales emocionales críticas en los tramos analizados.',
+        ];
     }
 
     /**

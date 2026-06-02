@@ -138,6 +138,10 @@ class TranscriptUploadMetadataTest extends TestCase
 
         $this->assertSame(3, $interaction->audio_duration);
         $this->assertSame('completed', $interaction->transcription_status);
+        $this->assertSame(2, $interaction->metadata['audio_analysis_version']);
+        $this->assertNotEmpty($interaction->metadata['sentiment_segments']);
+        $this->assertSame('normal', $interaction->metadata['acoustic_analysis']['overall_pace']);
+        $this->assertSame('fortaleza', $interaction->metadata['quality_signals']['empathy']);
     }
 
     public function test_audio_transcription_uses_wav_fact_chunk_for_compressed_audio_duration(): void

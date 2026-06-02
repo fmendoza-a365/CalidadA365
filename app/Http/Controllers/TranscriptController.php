@@ -394,7 +394,7 @@ class TranscriptController extends Controller
         return Storage::disk($this->privateDisk())->download($interaction->file_path, $interaction->file_name);
     }
 
-    public function audio(Interaction $interaction)
+    public function audio(Request $request, Interaction $interaction)
     {
         $user = auth()->user();
         if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
@@ -421,21 +421,166 @@ class TranscriptController extends Controller
 
         $extension = strtolower(pathinfo($interaction->file_name, PATHINFO_EXTENSION));
         $mime = $mimeTypes[$extension] ?? 'audio/mpeg';
+        $size = (int) $disk->size($interaction->file_path);
 
-        $stream = $disk->readStream($interaction->file_path);
+        if ($size <= 0) {
+            return response('', 200, [
+                'Content-Type' => $mime,
+                'Content-Length' => '0',
+                'Accept-Ranges' => 'bytes',
+                'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
+            ]);
+        }
+
+        $range = $this->audioRange($request->headers->get('Range'), $size);
+
+        if (! $range['satisfiable']) {
+            return response('', 416, [
+                'Content-Range' => "bytes */{$size}",
+                'Accept-Ranges' => 'bytes',
+            ]);
+        }
+
+        $start = $range['start'];
+        $end = $range['end'];
+        $length = ($end - $start) + 1;
+        $stream = $this->audioStream($disk, $interaction->file_path, $start);
+
         if ($stream === false) {
             abort(404, 'Audio file not found.');
         }
 
-        return response()->stream(function () use ($stream) {
-            fpassthru($stream);
+        $headers = [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) $length,
+            'Accept-Ranges' => 'bytes',
+            'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
+        ];
+
+        if ($range['partial']) {
+            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+        }
+
+        return response()->stream(function () use ($stream, $length) {
+            $remaining = $length;
+
+            while ($remaining > 0 && ! feof($stream)) {
+                $chunk = fread($stream, min(8192, $remaining));
+
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+
+                echo $chunk;
+                $remaining -= strlen($chunk);
+
+                if (function_exists('flush')) {
+                    flush();
+                }
+            }
+
             if (is_resource($stream)) {
                 fclose($stream);
             }
-        }, 200, [
-            'Content-Type' => $mime,
-            'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
-        ]);
+        }, $range['partial'] ? 206 : 200, $headers);
+    }
+
+    /**
+     * @return array{satisfiable: bool, partial: bool, start: int, end: int}
+     */
+    private function audioRange(?string $header, int $size): array
+    {
+        $default = [
+            'satisfiable' => true,
+            'partial' => false,
+            'start' => 0,
+            'end' => max(0, $size - 1),
+        ];
+
+        if (! $header || ! str_starts_with($header, 'bytes=')) {
+            return $default;
+        }
+
+        $range = trim(explode(',', substr($header, 6), 2)[0] ?? '');
+
+        if (! preg_match('/^(\d*)-(\d*)$/', $range, $matches)) {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        $startRaw = $matches[1];
+        $endRaw = $matches[2];
+
+        if ($startRaw === '' && $endRaw === '') {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        if ($startRaw === '') {
+            $suffixLength = (int) $endRaw;
+
+            if ($suffixLength <= 0) {
+                return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+            }
+
+            $start = max(0, $size - $suffixLength);
+            $end = $size - 1;
+        } else {
+            $start = (int) $startRaw;
+            $end = $endRaw !== '' ? (int) $endRaw : $size - 1;
+        }
+
+        if ($start >= $size || $end < $start) {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        return [
+            'satisfiable' => true,
+            'partial' => true,
+            'start' => $start,
+            'end' => min($end, $size - 1),
+        ];
+    }
+
+    private function audioStream($disk, string $filePath, int $start)
+    {
+        if (method_exists($disk, 'path')) {
+            $absolutePath = $disk->path($filePath);
+
+            if (is_file($absolutePath)) {
+                $stream = fopen($absolutePath, 'rb');
+
+                if (is_resource($stream)) {
+                    fseek($stream, $start);
+
+                    return $stream;
+                }
+            }
+        }
+
+        $stream = $disk->readStream($filePath);
+
+        if (is_resource($stream)) {
+            $meta = stream_get_meta_data($stream);
+
+            if (($meta['seekable'] ?? false) === true) {
+                fseek($stream, $start);
+
+                return $stream;
+            }
+
+            fclose($stream);
+        }
+
+        $memory = fopen('php://temp', 'r+b');
+
+        if (! is_resource($memory)) {
+            return false;
+        }
+
+        fwrite($memory, $disk->get($filePath));
+        rewind($memory);
+        fseek($memory, $start);
+
+        return $memory;
     }
 
     public function evaluate(Interaction $interaction)
@@ -630,6 +775,12 @@ class TranscriptController extends Controller
 
         if (is_array($parsed) && isset($parsed['sentiment_segments']) && is_array($parsed['sentiment_segments'])) {
             $metadata['sentiment_segments'] = $parsed['sentiment_segments'];
+        }
+
+        foreach (['acoustic_analysis', 'quality_signals'] as $key) {
+            if (is_array($parsed) && isset($parsed[$key]) && is_array($parsed[$key])) {
+                $metadata[$key] = $parsed[$key];
+            }
         }
 
         return $metadata;
