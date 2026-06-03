@@ -178,6 +178,40 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame('completed', $interaction->transcription_status);
     }
 
+    public function test_audio_transcription_ignores_misleading_wav_fact_chunk(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/misleading-fact.wav', $this->compressedWavBytesWithFactDuration(16, 4));
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/misleading-fact.wav',
+            'file_name' => 'misleading-fact.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+
+        $this->assertSame(4, $interaction->audio_duration);
+        $this->assertSame('completed', $interaction->transcription_status);
+    }
+
     private function userWithRoleAndPermissions(string $role, array $permissions = []): User
     {
         $roleModel = Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -216,11 +250,12 @@ class TranscriptUploadMetadataTest extends TestCase
             .$data;
     }
 
-    private function compressedWavBytesWithFactDuration(int $durationSeconds): string
+    private function compressedWavBytesWithFactDuration(int $factDurationSeconds, ?int $dataDurationSeconds = null): string
     {
         $sampleRate = 8000;
-        $factSampleCount = $sampleRate * $durationSeconds;
-        $data = str_repeat("\xD5", $sampleRate);
+        $dataDurationSeconds ??= $factDurationSeconds;
+        $factSampleCount = $sampleRate * $factDurationSeconds;
+        $data = str_repeat("\xD5", $sampleRate * $dataDurationSeconds);
         $dataSize = strlen($data);
         $fmtChunk = 'fmt '
             .pack('VvvVVvvv', 18, 6, 1, $sampleRate, $sampleRate, 1, 8, 0);

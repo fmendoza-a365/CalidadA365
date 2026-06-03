@@ -193,7 +193,11 @@ Alpine.data('audioReview', (config = {}) => ({
 
         this.nativeDuration = nativeDuration;
 
-        const nextDuration = nativeDuration || this.timelineDuration || this.duration;
+        const serverDuration = Number(this.timelineDuration || 0);
+        const tolerance = Math.max(2, serverDuration * 0.25);
+        const nextDuration = serverDuration > 0 && Math.abs(nativeDuration - serverDuration) > tolerance
+            ? serverDuration
+            : nativeDuration || serverDuration || this.duration;
         if (Math.abs(nextDuration - this.duration) >= 0.1) {
             this.duration = nextDuration;
             this.normalizeTimeline();

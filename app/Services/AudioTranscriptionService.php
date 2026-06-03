@@ -324,15 +324,25 @@ PROMPT;
             $offset = $chunkDataOffset + $chunkSize + ($chunkSize % 2);
         }
 
+        $byteRateDuration = ($byteRate && $dataSize)
+            ? max(1, (int) round($dataSize / $byteRate))
+            : null;
+
         if ($format !== null && $format !== 1 && $factSampleCount && $sampleRate) {
-            return max(1, (int) round($factSampleCount / $sampleRate));
+            $factDuration = max(1, (int) round($factSampleCount / $sampleRate));
+
+            if ($byteRateDuration && abs($factDuration - $byteRateDuration) > max(2, (int) round($byteRateDuration * 0.25))) {
+                return $byteRateDuration;
+            }
+
+            return $factDuration;
         }
 
-        if (! $byteRate || ! $dataSize) {
+        if (! $byteRateDuration) {
             return null;
         }
 
-        return max(1, (int) round($dataSize / $byteRate));
+        return $byteRateDuration;
     }
 
     protected function durationSecondsFromTranscript(string $transcript): ?int
