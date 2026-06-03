@@ -24,37 +24,37 @@ val Violet = Color(0xFF7C3AED)
 val Cyan = Color(0xFF06B6D4)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF818CF8),       // Indigo 400 — vibrant on dark
-    secondary = Color(0xFFA78BFA),     // Violet 400
+    primary = Color(0xFF6366F1),       // Indigo 500
+    secondary = Color(0xFF4F46E5),     // Indigo 600
     tertiary = Amber,
-    background = Color(0xFF0A0A0A),    // Near black
-    surface = Color(0xFF141414),       // Elevated surface
-    surfaceVariant = Color(0xFF1E1E1E),// Card/bubble bg
-    onPrimary = Color(0xFF0A0A0A),
-    onSecondary = Color(0xFF0A0A0A),
+    background = Color(0xFF0A0A0A),    // Neutral 950
+    surface = Color(0xFF171717),       // Neutral 900
+    surfaceVariant = Color(0xFF262626),// Neutral 800
+    onPrimary = Color.White,
+    onSecondary = Color.White,
     onTertiary = Color.White,
-    onBackground = Color(0xFFE5E5E5),
-    onSurface = Color(0xFFF5F5F5),
-    onSurfaceVariant = Color(0xFFD4D4D4),
-    error = Color(0xFFFF6B6B),
-    outline = Color(0xFF2A2A2A),
+    onBackground = Color(0xFFF5F5F5),  // Neutral 100
+    onSurface = Color(0xFFF5F5F5),     // Neutral 100
+    onSurfaceVariant = Color(0xFFA3A3A3), // Neutral 400
+    error = Color(0xFFEF4444),         // Red 500
+    outline = Color(0xFF404040),       // Neutral 700
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF6366F1),       // Indigo 500
     secondary = Color(0xFF4F46E5),     // Indigo 600
     tertiary = Amber,
-    background = Color(0xFFF8FAFC),    // Slate 50 — softer than pure white
+    background = Color(0xFFFAF5F5),    // Web background (Light gray)
     surface = Color.White,
-    surfaceVariant = Color(0xFFF1F5F9),// Slate 100
+    surfaceVariant = Color(0xFFE5E5E5),// Neutral 200
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,
-    onBackground = Color(0xFF0F172A),  // Slate 900
-    onSurface = Color(0xFF1E293B),     // Slate 800
-    onSurfaceVariant = Color(0xFF475569), // Slate 600
-    error = Color(0xFFDC2626),
-    outline = Color(0xFFE2E8F0),       // Slate 200
+    onBackground = Color(0xFF171717),  // Neutral 900
+    onSurface = Color(0xFF171717),     // Neutral 900
+    onSurfaceVariant = Color(0xFF525252), // Neutral 600
+    error = Color(0xFFDC2626),         // Red 600
+    outline = Color(0xFFD4D4D4),       // Neutral 300
 )
 
 @Composable

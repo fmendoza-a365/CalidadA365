@@ -2,7 +2,9 @@ package com.qa365.mobile
 
 import android.content.Context
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,9 +21,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,6 +38,7 @@ fun DetailScreen(
     data: JSONObject,
     token: String?,
     serverUrl: String,
+    onNavigate: (String, JSONObject) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -44,7 +47,8 @@ fun DetailScreen(
                 title = {
                     Text(
                         text = getDetailTitle(type),
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
                     )
                 },
                 navigationIcon = {
@@ -69,7 +73,13 @@ fun DetailScreen(
                 "evaluation" -> EvaluationDetail(data, token, serverUrl)
                 "transcript" -> TranscriptDetail(data, token)
                 "campaign" -> CampaignDetail(data)
-                else -> Text("Detalle no soportado aún.")
+                "quality_form_list" -> QualityFormsModule(data, onNavigate)
+                "insight_list" -> InsightsModule(data, onNavigate)
+                "quality_form" -> QualityFormDetail(data)
+                "insight" -> InsightDetail(data)
+                else -> Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("Detalle no soportado.")
+                }
             }
         }
     }
@@ -80,12 +90,16 @@ fun getDetailTitle(type: String): String {
         "evaluation" -> "Evaluación"
         "transcript" -> "Transcripción"
         "campaign" -> "Campaña"
+        "quality_form_list" -> "Fichas de Calidad"
+        "insight_list" -> "Insights de IA"
+        "quality_form" -> "Detalle de Ficha"
+        "insight" -> "Detalle de Insight"
         else -> "Detalle"
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// EVALUATION DETAIL — Premium full-featured evaluation view
+// EVALUATION DETAIL — Premium evaluation view
 // ─────────────────────────────────────────────────────────────────────
 @Composable
 fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) {
@@ -98,10 +112,20 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
 
     Column(modifier = Modifier.padding(16.dp)) {
 
-        // ── Hero Score Card ──
+        // Hero Score Card aligned with web gradients
+        val scoreColor = getScoreColor(score)
+        val gradientColors = when {
+            score >= 85 -> listOf(Color(0xFF059669), Color(0xFF10B981))
+            score >= 70 -> listOf(Color(0xFFD97706), Color(0xFFF59E0B))
+            score >= 0 -> listOf(Color(0xFFDC2626), Color(0xFFEF4444))
+            else -> listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+        }
+
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.Transparent),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
@@ -109,15 +133,10 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        brush = Brush.linearGradient(
-                            colors = if (score >= 85) listOf(Color(0xFF059669), Color(0xFF10B981))
-                            else if (score >= 70) listOf(Color(0xFFD97706), Color(0xFFF59E0B))
-                            else if (score >= 0) listOf(Color(0xFFDC2626), Color(0xFFF43F5E))
-                            else listOf(Color(0xFF6366F1), Color(0xFF818CF8))
-                        ),
-                        shape = RoundedCornerShape(20.dp)
+                        brush = Brush.linearGradient(colors = gradientColors),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(24.dp)
+                    .padding(20.dp)
             ) {
                 Column {
                     Row(
@@ -134,20 +153,20 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Nota General",
-                                fontSize = 13.sp,
+                                text = "Calificación General",
+                                fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                         Text(
                             text = if (score < 0) "—" else String.format("%.1f%%", score),
-                            fontSize = 44.sp,
+                            fontSize = 38.sp,
                             fontWeight = FontWeight.Black,
                             color = Color.White
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    // Score bar
+                    Spacer(modifier = Modifier.height(14.dp))
+                    
                     LinearProgressIndicator(
                         progress = { if (score < 0) 0f else (score / 100.0).toFloat().coerceIn(0f, 1f) },
                         modifier = Modifier
@@ -157,7 +176,9 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                         color = Color.White,
                         trackColor = Color.White.copy(alpha = 0.25f)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Spacer(modifier = Modifier.height(14.dp))
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -169,7 +190,6 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
             }
         }
 
-        // ── Status chip ──
         Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -180,61 +200,64 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
             val sourceType = evaluation.optString("source_type", "")
             if (sourceType.isNotEmpty()) {
                 LabelChip(
-                    text = if (sourceType == "audio") "🎧 Audio" else "💬 Chat",
-                    color = MaterialTheme.colorScheme.primary
+                    text = if (sourceType == "audio") "Audio" else "Chat",
+                    color = MaterialTheme.colorScheme.primary,
+                    icon = if (sourceType == "audio") Icons.Default.Audiotrack else Icons.Default.Chat
                 )
             }
         }
 
-        // ── Audio Player ──
+        // Advanced Audio Player
         val audioUrl = evaluation.optString("audio_url", "")
         if (audioUrl.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
             AudioPlayer(url = audioUrl, token = token)
         }
 
-        // ── AI Summary ──
+        // AI Summary (no emojis, uses AutoAwesome icon)
         val summary = evaluation.optString("summary", "")
         if (summary.isNotEmpty()) {
             Spacer(modifier = Modifier.height(20.dp))
-            SectionHeaderIcon(icon = Icons.Default.AutoAwesome, title = "Resumen IA")
+            SectionHeaderIcon(icon = Icons.Default.AutoAwesome, title = "Resumen de IA")
             Spacer(modifier = Modifier.height(8.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 )
             ) {
                 Text(
                     text = summary.replace("**", "").replace("###", "").replace("##", "").replace("#", "").trim(),
                     modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onBackground,
                     lineHeight = 22.sp
                 )
             }
         }
 
-        // ── Criteria Items ──
+        // Criteria Items Accordion List
         val items = evaluation.optJSONArray("items")
         if (items != null && items.length() > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeaderIcon(icon = Icons.Default.Checklist, title = "Criterios de Evaluación")
             Spacer(modifier = Modifier.height(8.dp))
             EvaluationCriteriaList(items = items)
         }
 
-        // ── Conversation Transcript ──
+        // Conversation Transcript
         val turns = evaluation.optJSONArray("conversation_turns")
         if (turns != null && turns.length() > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeaderIcon(icon = Icons.Default.Chat, title = "Transcripción")
             Spacer(modifier = Modifier.height(8.dp))
             ChatTranscript(turns = turns)
         }
 
-        // ── Feedback Indicators ──
+        // Feedback Indicators semantically colored
         val indicators = evaluation.optJSONObject("feedback_indicators")
         if (indicators != null) {
             val hasAny = indicators.keys().asSequence().any { key ->
@@ -242,56 +265,60 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                 v != null && v.toString() != "null" && v.toString().isNotEmpty()
             }
             if (hasAny) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 SectionHeaderIcon(icon = Icons.Default.Insights, title = "Indicadores de Calidad")
                 Spacer(modifier = Modifier.height(8.dp))
                 FeedbackIndicatorsCard(indicators)
             }
         }
 
-        // ── Agent Response (if already responded) ──
+        // Agent Response Details
         val response = evaluation.optJSONObject("feedback_response") ?: JSONObject()
         val hasResponded = response.optBoolean("responded")
 
         if (hasResponded) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeaderIcon(
-                icon = if (response.optString("type") == "accept") Icons.Default.CheckCircle else Icons.Default.Report,
+                icon = if (response.optString("type") == "accept") Icons.Default.CheckCircle else Icons.Default.Warning,
                 title = "Respuesta del Asesor"
             )
             Spacer(modifier = Modifier.height(8.dp))
             AgentResponseCard(response)
         }
 
-        // ── Accept/Dispute Form (only if not responded AND status is published) ──
+        // Accept / Dispute form matching web inputs and color outlines (no emojis)
         if (!hasResponded && !showSuccess && evaluation.optString("status") == "published_to_agent") {
-            Spacer(modifier = Modifier.height(24.dp))
-            SectionHeaderIcon(icon = Icons.Default.RateReview, title = "Tu Respuesta")
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeaderIcon(icon = Icons.Default.RateReview, title = "Responder a la Evaluación")
             Spacer(modifier = Modifier.height(8.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Revisa la evaluación y selecciona tu respuesta. Se refleja también en la web.",
+                        text = "Revise los criterios detallados y registre su conformidad o discrepancia. Este registro se sincronizará con la plataforma web.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         lineHeight = 18.sp
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     OutlinedTextField(
                         value = comment,
                         onValueChange = { comment = it },
-                        label = { Text("Comentario o motivo de disputa") },
+                        label = { Text("Comentarios o justificación de disputa") },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -302,7 +329,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                         Button(
                             onClick = {
                                 if (comment.isBlank()) {
-                                    feedbackMessage = "Agrega un comentario de compromiso."
+                                    feedbackMessage = "Por favor agregue un comentario de conformidad."
                                     return@Button
                                 }
                                 isSubmitting = true
@@ -316,18 +343,16 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                                         feedbackMessage = null
                                         showSuccess = true
                                     } catch (e: Exception) {
-                                        feedbackMessage = "Error: ${e.message}"
+                                        feedbackMessage = e.message ?: "Error al registrar respuesta"
                                     } finally {
                                         isSubmitting = false
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp),
                             enabled = !isSubmitting,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF059669)
-                            )
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
                         ) {
                             if (isSubmitting) {
                                 CircularProgressIndicator(
@@ -336,15 +361,16 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
+                        
                         OutlinedButton(
                             onClick = {
                                 if (comment.isBlank()) {
-                                    feedbackMessage = "Agrega un motivo para disputar."
+                                    feedbackMessage = "Por favor agregue el motivo detallado de la disputa."
                                     return@OutlinedButton
                                 }
                                 isSubmitting = true
@@ -358,71 +384,70 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
                                         feedbackMessage = null
                                         showSuccess = true
                                     } catch (e: Exception) {
-                                        feedbackMessage = "Error: ${e.message}"
+                                        feedbackMessage = e.message ?: "Error al registrar disputa"
                                     } finally {
                                         isSubmitting = false
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp),
                             enabled = !isSubmitting,
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Rose
-                            ),
-                            border = BorderStroke(1.dp, Rose.copy(alpha = 0.5f))
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Disputar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Disputar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
                     if (feedbackMessage != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            feedbackMessage!!,
+                            text = feedbackMessage!!,
                             color = MaterialTheme.colorScheme.error,
-                            fontSize = 13.sp
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
         }
 
-        // Success state
+        // Success message overlay box (no emojis)
         if (showSuccess) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF059669).copy(alpha = 0.1f))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = Color(0xFF059669).copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF059669).copy(alpha = 0.08f))
             ) {
                 Row(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Icon(
-                        Icons.Default.CheckCircle,
+                        imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
                         tint = Color(0xFF059669),
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        "Respuesta registrada exitosamente.",
-                        fontWeight = FontWeight.SemiBold,
+                        text = "Respuesta registrada y sincronizada correctamente.",
+                        fontWeight = FontWeight.Bold,
                         color = Color(0xFF059669),
-                        fontSize = 15.sp
+                        fontSize = 14.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
-
-// ─── Evaluation Sub-Components ───
 
 @Composable
 fun EvalInfoPill(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
@@ -431,27 +456,35 @@ fun EvalInfoPill(icon: androidx.compose.ui.graphics.vector.ImageVector, text: St
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
-        Text(text = text, fontSize = 12.sp, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = Color.White.copy(alpha = 0.9f),
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
 @Composable
 fun StatusChip(label: String, status: String) {
     val chipColor = when (status) {
-        "published_to_agent" -> Color(0xFF3B82F6)
-        "agent_accepted" -> Color(0xFF059669)
-        "agent_disputed" -> Rose
-        "dispute_resolved" -> Violet
+        "published_to_agent" -> Color(0xFF3B82F6) // Blue
+        "agent_accepted" -> Color(0xFF059669)     // Green
+        "agent_disputed" -> Color(0xFFEF4444)     // Red
+        "dispute_resolved" -> Color(0xFF7C3AED)   // Purple
         "closed" -> Color.Gray
-        else -> Amber
+        else -> Color(0xFFF59E0B)                 // Amber
     }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(chipColor.copy(alpha = 0.12f))
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(chipColor.copy(alpha = 0.1f))
+            .border(width = 0.5.dp, color = chipColor.copy(alpha = 0.2f), shape = RoundedCornerShape(6.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = chipColor)
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor)
     }
 }
 
@@ -462,14 +495,14 @@ fun SectionHeaderIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(
-            icon,
+            imageVector = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(20.dp)
         )
         Text(
             text = title,
-            fontSize = 18.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
@@ -478,7 +511,6 @@ fun SectionHeaderIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
 
 @Composable
 fun EvaluationCriteriaList(items: JSONArray) {
-    // Group items by attribute name
     val grouped = mutableMapOf<String, MutableList<JSONObject>>()
     for (i in 0 until items.length()) {
         val item = items.optJSONObject(i) ?: continue
@@ -491,20 +523,20 @@ fun EvaluationCriteriaList(items: JSONArray) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            shape = RoundedCornerShape(16.dp),
+                .padding(vertical = 5.dp)
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Attribute header
+            Column(modifier = Modifier.padding(14.dp)) {
                 Text(
                     text = attributeName,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 criteriaItems.forEachIndexed { index, item ->
                     val subattr = item.optJSONObject("subattribute") ?: JSONObject()
@@ -533,7 +565,6 @@ fun EvaluationCriteriaList(items: JSONArray) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Status icon
                                 val statusIcon = when (status) {
                                     "cumple" -> Icons.Default.CheckCircle
                                     "no_cumple" -> Icons.Default.Cancel
@@ -541,19 +572,19 @@ fun EvaluationCriteriaList(items: JSONArray) {
                                 }
                                 val statusColor = when (status) {
                                     "cumple" -> Color(0xFF059669)
-                                    "no_cumple" -> Rose
+                                    "no_cumple" -> Color(0xFFEF4444)
                                     else -> Color.Gray
                                 }
                                 Icon(
-                                    statusIcon,
+                                    imageVector = statusIcon,
                                     contentDescription = null,
                                     tint = statusColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                    modifier = Modifier.size(18.dp)
+                               )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = subName,
-                                        fontSize = 14.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 2,
@@ -571,21 +602,21 @@ fun EvaluationCriteriaList(items: JSONArray) {
                             CriteriaStatusTag(status)
                         }
 
-                        // Expanded detail
                         if (expanded) {
                             Spacer(modifier = Modifier.height(10.dp))
                             if (evidence.isNotEmpty() && evidence != "null") {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(8.dp))
                                         .padding(12.dp)
                                 ) {
                                     Column {
                                         Text(
-                                            "Evidencia",
-                                            fontSize = 11.sp,
+                                            text = "EVIDENCIA",
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
                                             letterSpacing = 0.5.sp
@@ -593,9 +624,9 @@ fun EvaluationCriteriaList(items: JSONArray) {
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = "\"$evidence\"",
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             fontStyle = FontStyle.Italic,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                            color = MaterialTheme.colorScheme.onBackground,
                                             lineHeight = 18.sp
                                         )
                                     }
@@ -603,17 +634,28 @@ fun EvaluationCriteriaList(items: JSONArray) {
                             }
                             if (notes.isNotEmpty() && notes != "null") {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "📝 $notes",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                                    lineHeight = 18.sp
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(14.dp).padding(top = 2.dp)
+                                    )
+                                    Text(
+                                        text = notes,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                        lineHeight = 18.sp
+                                    )
+                                }
                             }
                             if (confidence.isNotEmpty() && confidence != "null") {
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "Confianza: $confidence",
+                                    text = "Confianza del análisis: $confidence",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                                 )
@@ -623,7 +665,7 @@ fun EvaluationCriteriaList(items: JSONArray) {
                         if (index < criteriaItems.size - 1) {
                             Divider(
                                 modifier = Modifier.padding(vertical = 10.dp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                             )
                         }
                     }
@@ -637,29 +679,32 @@ fun EvaluationCriteriaList(items: JSONArray) {
 fun CriteriaStatusTag(status: String) {
     val (label, color) = when (status) {
         "cumple" -> "Cumple" to Color(0xFF059669)
-        "no_cumple" -> "No Cumple" to Rose
-        "no_encontrado" -> "No Encontrado" to Amber
+        "no_cumple" -> "No Cumple" to Color(0xFFEF4444)
+        "no_encontrado" -> "No Encontrado" to Color(0xFFF59E0B)
         else -> status.replace("_", " ").replaceFirstChar { it.uppercase() } to Color.Gray
     }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.1f))
+            .border(width = 0.5.dp, color = color.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color)
     }
 }
 
 @Composable
 fun FeedbackIndicatorsCard(indicators: JSONObject) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             val keys = listOf(
                 "empathy" to "Empatía",
                 "active_listening" to "Escucha Activa",
@@ -672,28 +717,31 @@ fun FeedbackIndicatorsCard(indicators: JSONObject) {
                 val value = indicators.optString(key, "")
                 if (value.isNotEmpty() && value != "null") {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                         val tagColor = when (value.lowercase()) {
                             "alto", "high", "bueno", "good", "si", "sí", "true" -> Color(0xFF059669)
-                            "medio", "medium", "regular" -> Amber
-                            "bajo", "low", "malo", "bad", "critico", "critical" -> Rose
-                            "no", "false" -> Rose
+                            "medio", "medium", "regular" -> Color(0xFFF59E0B)
+                            "bajo", "low", "malo", "bad", "critico", "critical" -> Color(0xFFEF4444)
+                            "no", "false" -> Color(0xFFEF4444)
                             else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         }
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(tagColor.copy(alpha = 0.12f))
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(tagColor.copy(alpha = 0.1f))
+                                .border(width = 0.5.dp, color = tagColor.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = value.replaceFirstChar { it.uppercase() },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = tagColor
                             )
                         }
@@ -710,28 +758,30 @@ fun FeedbackIndicatorsCard(indicators: JSONObject) {
 @Composable
 fun AgentResponseCard(response: JSONObject) {
     val isAccept = response.optString("type") == "accept"
-    val bgColor = if (isAccept) Color(0xFF059669) else Rose
+    val bgColor = if (isAccept) Color(0xFF059669) else Color(0xFFEF4444)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor.copy(alpha = 0.08f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(width = 1.dp, color = bgColor.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor.copy(alpha = 0.05f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    if (isAccept) Icons.Default.CheckCircle else Icons.Default.Report,
+                    imageVector = if (isAccept) Icons.Default.CheckCircle else Icons.Default.Warning,
                     contentDescription = null,
                     tint = bgColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
                 Text(
-                    text = if (isAccept) "Aceptado por el asesor" else "Disputado por el asesor",
-                    fontSize = 16.sp,
+                    text = if (isAccept) "Conformidad registrada por el asesor" else "Discrepancia registrada por el asesor",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = bgColor
                 )
@@ -742,20 +792,20 @@ fun AgentResponseCard(response: JSONObject) {
                 response.optString("dispute_reason", "")
 
             if (commentText.isNotEmpty() && commentText != "null") {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = commentText,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onBackground,
-                    lineHeight = 20.sp
+                    lineHeight = 18.sp
                 )
             }
             val respondedAt = response.optString("responded_at", "")
             if (respondedAt.isNotEmpty() && respondedAt != "null") {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Respondido: ${respondedAt.take(10)}",
-                    fontSize = 12.sp,
+                    text = "Registrado el: ${respondedAt.take(10)}",
+                    fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                 )
             }
@@ -769,18 +819,19 @@ fun AgentResponseCard(response: JSONObject) {
 @Composable
 fun TranscriptDetail(transcript: JSONObject, token: String?) {
     Column(modifier = Modifier.padding(16.dp)) {
-        // Hero info card
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = transcript.optString("file_name", "Interacción"),
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -803,8 +854,8 @@ fun TranscriptDetail(transcript: JSONObject, token: String?) {
             AudioPlayer(url = audioUrl, token = token)
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        SectionHeaderIcon(icon = Icons.Default.Chat, title = "Conversación")
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionHeaderIcon(icon = Icons.Default.Chat, title = "Detalle de la Conversación")
         Spacer(modifier = Modifier.height(8.dp))
 
         val turns = transcript.optJSONArray("conversation_turns")
@@ -813,20 +864,24 @@ fun TranscriptDetail(transcript: JSONObject, token: String?) {
         } else {
             val text = transcript.optString("transcript_text", transcript.optString("transcript_excerpt", "Transcripción no disponible."))
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 13.sp,
                     modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 20.sp
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -835,12 +890,19 @@ fun InfoColumn(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(2.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// CHAT TRANSCRIPT — Premium WhatsApp-style bubbles
+// CHAT TRANSCRIPT — Premium bubbles matching web theme (no emojis)
 // ─────────────────────────────────────────────────────────────────────
 @Composable
 fun ChatTranscript(turns: JSONArray) {
@@ -861,67 +923,69 @@ fun ChatTranscript(turns: JSONArray) {
 
             when (speaker) {
                 "client" -> {
-                    // Right-aligned indigo bubble
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.End
                     ) {
                         Text(
-                            text = "$label  ${if (timestamp.isNotEmpty()) timestamp else ""}".trim(),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
-                            modifier = Modifier.padding(end = 6.dp, bottom = 3.dp)
+                            text = "$label  $timestamp".trim(),
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(end = 4.dp, bottom = 2.dp)
                         )
                         Box(
                             modifier = Modifier
-                                .widthIn(max = 290.dp)
-                                .clip(RoundedCornerShape(18.dp, 4.dp, 18.dp, 18.dp))
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(12.dp, 2.dp, 12.dp, 12.dp))
                                 .background(
                                     Brush.linearGradient(
-                                        colors = listOf(Color(0xFF6366F1), Color(0xFF818CF8))
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary
+                                        )
                                     )
                                 )
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = message,
                                 color = Color.White,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
                             )
                         }
                     }
                 }
                 "agent" -> {
-                    // Left-aligned surface bubble
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.Start
                     ) {
                         Text(
-                            text = "${if (timestamp.isNotEmpty()) timestamp else ""}  $label".trim(),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
-                            modifier = Modifier.padding(start = 6.dp, bottom = 3.dp)
+                            text = "$timestamp  $label".trim(),
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
                         )
                         Box(
                             modifier = Modifier
-                                .widthIn(max = 290.dp)
-                                .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(2.dp, 12.dp, 12.dp, 12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(2.dp, 12.dp, 12.dp, 12.dp))
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = message,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
                             )
                         }
                     }
                 }
                 else -> {
-                    // System / context — center pill
+                    // System context pill
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -930,25 +994,27 @@ fun ChatTranscript(turns: JSONArray) {
                     ) {
                         Box(
                             modifier = Modifier
-                                .widthIn(max = 300.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .widthIn(max = 290.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(6.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = label.uppercase(),
-                                    fontSize = 10.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    letterSpacing = 0.8.sp
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    letterSpacing = 0.5.sp
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = message,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                    fontSize = 12.sp
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
@@ -965,10 +1031,11 @@ fun ChatTranscript(turns: JSONArray) {
 @Composable
 fun CampaignDetail(campaign: JSONObject) {
     Column(modifier = Modifier.padding(16.dp)) {
-        // Hero card
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
             Box(
@@ -976,11 +1043,14 @@ fun CampaignDetail(campaign: JSONObject) {
                     .fillMaxWidth()
                     .background(
                         brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF6366F1), Color(0xFF818CF8))
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
+                            )
                         ),
-                        shape = RoundedCornerShape(20.dp)
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(24.dp)
+                    .padding(20.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -990,20 +1060,20 @@ fun CampaignDetail(campaign: JSONObject) {
                     Column {
                         Text(
                             text = campaign.optString("name", "Campaña"),
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (campaign.optBoolean("active")) "🟢 Activa" else "⚫ Inactiva",
-                            fontSize = 14.sp,
+                            text = if (campaign.optBoolean("active")) "Campaña Activa" else "Campaña Inactiva",
+                            fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.8f)
                         )
                     }
                     Text(
                         text = campaign.optString("score_label", "0%"),
-                        fontSize = 36.sp,
+                        fontSize = 32.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White
                     )
@@ -1014,23 +1084,171 @@ fun CampaignDetail(campaign: JSONObject) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                ProgressLine("Calidad Promedio", campaign.optDouble("average_score", 0.0), getScoreColor(campaign.optDouble("average_score", 0.0)))
-                Spacer(modifier = Modifier.height(16.dp))
-                InfoRow("Evaluaciones", campaign.optString("evaluations", "0"))
-                InfoRow("Interacciones", campaign.optString("interactions", "0"))
+                ProgressLine(
+                    label = "Calidad Promedio de Campaña",
+                    score = campaign.optDouble("average_score", 0.0),
+                    color = getScoreColor(campaign.optDouble("average_score", 0.0))
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                InfoRow("Total Evaluaciones Realizadas", campaign.optString("evaluations", "0"))
+                InfoRow("Total Interacciones Recibidas", campaign.optString("interactions", "0"))
                 val target = campaign.optDouble("target_quality", -1.0)
                 if (target > 0) {
-                    InfoRow("Meta de Calidad", String.format("%.1f%%", target))
+                    InfoRow("Meta de Calidad Establecida", String.format("%.1f%%", target))
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// [NEW] QUALITY FORM DETAIL
+// ─────────────────────────────────────────────────────────────────────
+@Composable
+fun QualityFormDetail(form: JSONObject) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = form.optString("name", "Formato de Calidad"),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Este formato define la pauta de evaluación operativa configurada en el sistema para la auditoría de interacciones.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                InfoRow("Operación / Campaña", form.optString("campaign", "General"))
+                InfoRow("Versión", "V${form.optInt("versions", 1)}")
+                InfoRow("Estado de Versión", form.optString("latest_status", "Activo"))
+            }
+        }
+
+        val hasContext = form.optBoolean("has_context")
+        if (hasContext) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Contexto Operativo por IA",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Este formato cuenta con lineamientos específicos de contexto (pautas comerciales y de resolución) integrados en el motor de inteligencia artificial para auditar de forma automática las llamadas y chats.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// [NEW] INSIGHT DETAIL
+// ─────────────────────────────────────────────────────────────────────
+@Composable
+fun InsightDetail(insight: JSONObject) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Reporte de Insights IA",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Frecuencia del análisis: ${insight.optString("type", "Campaña").replaceFirstChar { it.uppercase() }}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                InfoRow("Campaña Analizada", insight.optString("campaign", "—"))
+                InfoRow("Rango de Fechas", insight.optString("date_range", "—"))
+                InfoRow("Hallazgos Identificados", "${insight.optInt("findings", 0)} detectados")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        SectionHeaderIcon(icon = Icons.Default.AutoAwesome, title = "Resumen del Reporte")
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = insight.optString("summary", "Detalles del reporte de insights generado por IA."),
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+        
         Spacer(modifier = Modifier.height(32.dp))
     }
 }

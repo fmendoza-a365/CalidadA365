@@ -1,5 +1,6 @@
 package com.qa365.mobile
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
 @Composable
@@ -21,18 +23,26 @@ fun DashboardScreen(
     onLogout: () -> Unit,
     onRefresh: () -> Unit
 ) {
-    var detailType by remember { mutableStateOf<String?>(null) }
-    var detailData by remember { mutableStateOf<JSONObject?>(null) }
+    // Premium navigation stack using mutableStateListOf
+    val navStack = remember { mutableStateListOf<Pair<String, JSONObject>>() }
 
-    if (detailType != null && detailData != null) {
+    // Clear navigation stack when switching tabs to avoid leaks or confusing back behaviors
+    LaunchedEffect(activeTab) {
+        navStack.clear()
+    }
+
+    if (navStack.isNotEmpty()) {
+        val (currentType, currentData) = navStack.last()
         DetailScreen(
-            type = detailType!!,
-            data = detailData!!,
+            type = currentType,
+            data = currentData,
             token = token,
             serverUrl = serverUrl,
+            onNavigate = { type, itemData ->
+                navStack.add(Pair(type, itemData))
+            },
             onBack = {
-                detailType = null
-                detailData = null
+                navStack.removeLast()
             }
         )
         return
@@ -41,8 +51,12 @@ fun DashboardScreen(
     Scaffold(
         bottomBar = {
             NavigationBar(
+                modifier = Modifier.border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                ),
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                tonalElevation = 0.dp
             ) {
                 val items = listOf(
                     NavItem("dashboard", "Inicio", Icons.Default.Home),
@@ -57,10 +71,12 @@ fun DashboardScreen(
                         selected = activeTab == item.id,
                         onClick = { onTabSelected(item.id) },
                         icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) },
+                        label = { Text(item.label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                         )
                     )
@@ -75,19 +91,18 @@ fun DashboardScreen(
         ) {
             if (data == null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(strokeWidth = 3.dp)
                 }
             } else {
-                val onDetailSelected: (String, JSONObject) -> Unit = { type, itemData ->
-                    detailType = type
-                    detailData = itemData
+                val onNavigate: (String, JSONObject) -> Unit = { type, itemData ->
+                    navStack.add(Pair(type, itemData))
                 }
 
                 when (activeTab) {
-                    "dashboard" -> MainDashboardModule(data, onDetailSelected)
-                    "transcripts" -> TranscriptsModule(data, onDetailSelected)
-                    "evaluations" -> EvaluationsModule(data, onDetailSelected)
-                    "campaigns" -> CampaignsModule(data, onDetailSelected)
+                    "dashboard" -> MainDashboardModule(data, onNavigate)
+                    "transcripts" -> TranscriptsModule(data, onNavigate)
+                    "evaluations" -> EvaluationsModule(data, onNavigate)
+                    "campaigns" -> CampaignsModule(data, onNavigate)
                     "more" -> ProfileModule(data, onLogout, onRefresh)
                     else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Módulo en construcción: $activeTab")

@@ -1,6 +1,9 @@
 package com.qa365.mobile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,10 +30,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // ═══════════════════════════════════════════════════════════════════
-// DASHBOARD MODULE — Premium BI-grade dashboard
+// DASHBOARD MODULE — Web-aligned BI Dashboard
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> Unit) {
+fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
     val overview = data.optJSONObject("overview") ?: JSONObject()
     val summary = data.optJSONObject("summary") ?: JSONObject()
     val modules = data.optJSONObject("modules") ?: JSONObject()
@@ -48,14 +52,20 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ── Hero Welcome Card with gradient ──
+        // Hero Welcome Card matching web colors
         val profileName = profile.optString("name", "Usuario")
         val avgScore = overview.optDouble("average_score", 0.0)
 
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                    shape = RoundedCornerShape(16.dp)
+                ),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Box(
@@ -63,63 +73,70 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
                     .fillMaxWidth()
                     .background(
                         brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF6366F1), Color(0xFF818CF8), Color(0xFFA78BFA))
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
+                            )
                         ),
-                        shape = RoundedCornerShape(20.dp)
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(24.dp)
+                    .padding(20.dp)
             ) {
                 Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "¡Hola, $profileName! 👋",
+                                text = "Hola, $profileName",
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
                         }
-                        // Score Badge
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = String.format("%.1f%%", avgScore),
-                                fontSize = 36.sp,
+                                fontSize = 32.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color.White
                             )
                             Text(
-                                text = "Nota Actual",
-                                fontSize = 11.sp,
+                                text = "Nota Promedio",
+                                fontSize = 10.sp,
                                 color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                     }
 
-                    // Agent league badge
+                    // Agent league badge (no emojis, uses Star icon)
                     if (league != null) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("🏆", fontSize = 16.sp)
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Text(
                                 text = league.optString("name", "Sin liga"),
-                                fontSize = 14.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
@@ -127,7 +144,8 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    // Quick stats row
+                    
+                    // Quick stats
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -142,47 +160,78 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── Metric Cards ──
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // System Modules Grid Section
+        SectionHeader(title = "Módulos de Gestión", subtitle = "Accesos rápidos de la operación")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ModuleShortcutCard(
+                title = "Fichas de Calidad",
+                icon = Icons.Default.Assignment,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("quality_form_list", data) }
+            )
+            ModuleShortcutCard(
+                title = "Reportes IA",
+                icon = Icons.Default.AutoAwesome,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("insight_list", data) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Metric Cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             MetricCard(
                 title = "Nota Promedio",
                 value = String.format("%.1f%%", overview.optDouble("average_score", 0.0)),
                 subtitle = "Periodo actual",
-                color = Green,
+                color = getScoreColor(overview.optDouble("average_score", 0.0)),
                 modifier = Modifier.weight(1f)
             )
             MetricCard(
                 title = "Disputadas",
                 value = summary.optString("disputed", "0"),
                 subtitle = "En revisión",
-                color = Rose,
+                color = getScoreColor(0.0), // Red
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── Feedback Tracking ──
+        // Feedback Tracking
         SectionHeader(title = "Seguimiento de Feedback")
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                FeedbackStatRow("📊 Publicadas", feedbackSummary.optString("published", "0"))
-                FeedbackStatRow("👁 Vistas", feedbackSummary.optString("viewed", "0"))
-                FeedbackStatRow("✅ Aceptadas", feedbackSummary.optString("accepted", "0"))
-                FeedbackStatRow("⚡ Disputadas", feedbackSummary.optString("disputed", "0"))
-                FeedbackStatRow("⏳ Pendientes", feedbackSummary.optString("pending_response", "0"))
+                FeedbackStatRow("Publicadas", feedbackSummary.optString("published", "0"), Icons.Default.Publish)
+                FeedbackStatRow("Vistas", feedbackSummary.optString("viewed", "0"), Icons.Default.Visibility)
+                FeedbackStatRow("Aceptadas", feedbackSummary.optString("accepted", "0"), Icons.Default.CheckCircle)
+                FeedbackStatRow("Disputadas", feedbackSummary.optString("disputed", "0"), Icons.Default.Warning)
+                FeedbackStatRow("Pendientes", feedbackSummary.optString("pending_response", "0"), Icons.Default.Schedule)
             }
         }
 
-        // ── Charts ──
+        // Charts
         val trendArray = data.optJSONArray("quality_trend")
         if (trendArray != null && trendArray.length() > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeader(title = "Tendencia de Calidad")
 
             val trendPoints = mutableListOf<ChartPoint>()
@@ -198,10 +247,16 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
                 )
             }
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     TrendLineChart(points = trendPoints)
@@ -211,7 +266,7 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
 
         val defectsArray = data.optJSONArray("top_defects")
         if (defectsArray != null && defectsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeader(title = "Hallazgos Principales")
 
             val defectPoints = mutableListOf<ChartPoint>()
@@ -222,15 +277,21 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
                     ChartPoint(
                         label = defect.optString("label", "Criterio"),
                         value = defect.optDouble("count", 0.0),
-                        color = if (isCritical) Rose else Amber
+                        color = if (isCritical) Color(0xFFEF4444) else Color(0xFFF59E0B)
                     )
                 )
             }
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     TopDefectsBarChart(defects = defectPoints)
@@ -238,10 +299,10 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
             }
         }
 
-        // ── Recent evaluations quick list ──
+        // Recent evaluations list
         val evaluationsArray = data.optJSONArray("evaluations")
         if (evaluationsArray != null && evaluationsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             SectionHeader(title = "Últimas Evaluaciones")
             for (i in 0 until minOf(evaluationsArray.length(), 4)) {
                 val eval = evaluationsArray.optJSONObject(i) ?: continue
@@ -251,9 +312,9 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
                     scoreColor = getScoreColor(eval.optDouble("score", -1.0)),
                     description = "${eval.optString("agent", "—")} | ${eval.optString("status_label", "—")}",
                     chips = listOf(
-                        if (eval.optJSONObject("feedback_response")?.optBoolean("responded") == true) "✅ Respondido" else "⏳ Pendiente"
+                        if (eval.optJSONObject("feedback_response")?.optBoolean("responded") == true) "Respondido" else "Pendiente"
                     ),
-                    onClick = { onDetailSelected("evaluation", eval) }
+                    onClick = { onNavigate("evaluation", eval) }
                 )
             }
         }
@@ -265,7 +326,12 @@ fun MainDashboardModule(data: JSONObject, onDetailSelected: (String, JSONObject)
 @Composable
 fun DashboardQuickStat(label: String, value: String, icon: ImageVector) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier.size(18.dp)
+        )
         Spacer(modifier = Modifier.height(4.dp))
         Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
         Text(label, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
@@ -273,16 +339,81 @@ fun DashboardQuickStat(label: String, value: String, icon: ImageVector) {
 }
 
 @Composable
-fun FeedbackStatRow(label: String, value: String) {
+fun ModuleShortcutCard(title: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun FeedbackStatRow(label: String, value: String, icon: ImageVector) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+        }
         Text(
-            value,
-            fontSize = 16.sp,
+            text = value,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -293,7 +424,7 @@ fun FeedbackStatRow(label: String, value: String) {
 // TRANSCRIPTS MODULE
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun TranscriptsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> Unit) {
+fun TranscriptsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
     val module = data.optJSONObject("modules")?.optJSONObject("transcripts") ?: JSONObject()
     val summary = module.optJSONObject("summary") ?: JSONObject()
     val items = module.optJSONArray("items") ?: JSONArray()
@@ -304,14 +435,17 @@ fun TranscriptsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        SectionHeader("Transcripciones", "Carga, estado y resultado de audios.")
+        SectionHeader("Transcripciones", "Carga, estado y resultado de audios")
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Total", summary.optString("total", "0"), "Interacciones", Blue, Modifier.weight(1f))
-            MetricCard("Procesando", summary.optString("processing", "0"), "En cola IA", Amber, Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Total", summary.optString("total", "0"), "Interacciones", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            MetricCard("Procesando", summary.optString("processing", "0"), "En cola IA", Color(0xFFF59E0B), Modifier.weight(1f))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         SectionHeader("Últimas Transcripciones")
 
         for (i in 0 until items.length()) {
@@ -321,8 +455,11 @@ fun TranscriptsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
                 scoreValue = item.optString("score_label", "Sin nota"),
                 scoreColor = getScoreColor(item.optDouble("score", -1.0)),
                 description = "${item.optString("agent", "Sin asesor")} | ${item.optString("file_name", "Interacción")}",
-                chips = listOf(item.optString("transcription_status", "Pendiente"), item.optString("duration_label", "00:00")),
-                onClick = { onDetailSelected("transcript", item) }
+                chips = listOf(
+                    item.optString("transcription_status", "Pendiente"),
+                    item.optString("duration_label", "00:00")
+                ),
+                onClick = { onNavigate("transcript", item) }
             )
         }
     }
@@ -332,7 +469,7 @@ fun TranscriptsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
 // EVALUATIONS MODULE
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun EvaluationsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> Unit) {
+fun EvaluationsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
     val module = data.optJSONObject("modules")?.optJSONObject("evaluations") ?: JSONObject()
     val summary = module.optJSONObject("summary") ?: JSONObject()
     val items = module.optJSONArray("items") ?: JSONArray()
@@ -343,14 +480,17 @@ fun EvaluationsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        SectionHeader("Evaluaciones", "Notas, revisión y respuesta del asesor.")
+        SectionHeader("Evaluaciones", "Notas, revisión y respuesta del asesor")
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Total", summary.optString("total", "0"), "Visibles", Blue, Modifier.weight(1f))
-            MetricCard("Pendientes", summary.optString("pending_monitor", "0"), "Por revisar", Amber, Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Total", summary.optString("total", "0"), "Visibles", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            MetricCard("Pendientes", summary.optString("pending_monitor", "0"), "Por revisar", Color(0xFFF59E0B), Modifier.weight(1f))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         SectionHeader("Últimas Evaluaciones")
 
         for (i in 0 until items.length()) {
@@ -360,8 +500,10 @@ fun EvaluationsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
                 scoreValue = item.optString("score_label", "0%"),
                 scoreColor = getScoreColor(item.optDouble("score", -1.0)),
                 description = "${item.optString("agent", "Sin asesor")} | ${item.optString("status_label", "Sin estado")}",
-                chips = listOf(if (item.optJSONObject("feedback_response")?.optBoolean("responded") == true) "✅ Respondido" else "⏳ Pendiente"),
-                onClick = { onDetailSelected("evaluation", item) }
+                chips = listOf(
+                    if (item.optJSONObject("feedback_response")?.optBoolean("responded") == true) "Respondido" else "Pendiente"
+                ),
+                onClick = { onNavigate("evaluation", item) }
             )
         }
     }
@@ -371,7 +513,7 @@ fun EvaluationsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -
 // CAMPAIGNS MODULE
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun CampaignsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> Unit) {
+fun CampaignsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
     val module = data.optJSONObject("modules")?.optJSONObject("campaigns") ?: JSONObject()
     val summary = module.optJSONObject("summary") ?: JSONObject()
     val items = module.optJSONArray("items") ?: JSONArray()
@@ -382,25 +524,29 @@ fun CampaignsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> 
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        SectionHeader("Campañas", "Avance por operación.")
+        SectionHeader("Campañas", "Avance por operación")
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MetricCard("Activas", summary.optString("active", "0"), "En operación", Green, Modifier.weight(1f))
-            MetricCard("Total", summary.optString("total", "0"), "Asignadas", Blue, Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Activas", summary.optString("active", "0"), "En operación", Color(0xFF10B981), Modifier.weight(1f))
+            MetricCard("Total", summary.optString("total", "0"), "Asignadas", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         SectionHeader("Campañas Visibles")
 
         for (i in 0 until items.length()) {
             val item = items.optJSONObject(i) ?: continue
+            val isActive = item.optBoolean("active")
             DetailCard(
                 title = item.optString("name", "Campaña"),
                 scoreValue = item.optString("score_label", "0%"),
                 scoreColor = getScoreColor(item.optDouble("average_score", 0.0)),
                 description = "${item.optString("evaluations", "0")} evals | ${item.optString("interactions", "0")} interacciones",
-                chips = listOf(if (item.optBoolean("active")) "🟢 Activa" else "⚫ Inactiva"),
-                onClick = { onDetailSelected("campaign", item) }
+                chips = listOf(if (isActive) "Activa" else "Inactiva"),
+                onClick = { onNavigate("campaign", item) }
             )
         }
     }
@@ -434,13 +580,17 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // ── Profile Header with gradient background ──
+        // Profile Header with gradient background matching brand
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(Color(0xFF6366F1), Color(0xFF818CF8), MaterialTheme.colorScheme.background)
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.background
+                        )
                     )
                 )
                 .padding(top = 32.dp, bottom = 24.dp),
@@ -464,7 +614,10 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                                 if (hasCustomAvatar) Modifier.background(Color.Transparent)
                                 else Modifier.background(
                                     Brush.linearGradient(
-                                        colors = listOf(Color(0xFF4F46E5), Color(0xFF6366F1))
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary
+                                        )
                                     )
                                 )
                             ),
@@ -486,7 +639,7 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                             } else "QA"
                             Text(
                                 text = initials,
-                                fontSize = 38.sp,
+                                fontSize = 36.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
@@ -498,7 +651,7 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
 
                 Text(
                     text = fullName,
-                    fontSize = 24.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
@@ -518,13 +671,13 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                 val mainRole = if (rolesArray != null && rolesArray.length() > 0) rolesArray.optString(0, "Usuario") else "Usuario"
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Color.White.copy(alpha = 0.2f))
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = mainRole.uppercase(),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         letterSpacing = 1.sp
@@ -533,9 +686,8 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
             }
         }
 
-        // ── Info Cards ──
+        // Info Cards
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            // Card 1: Account
             ProfileInfoCard(
                 title = "Datos de la Cuenta",
                 icon = Icons.Default.AccountCircle,
@@ -546,7 +698,6 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                 )
             )
 
-            // Card 2: Contact
             ProfileInfoCard(
                 title = "Información de Contacto",
                 icon = Icons.Default.Phone,
@@ -557,7 +708,6 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                 )
             )
 
-            // Card 3: Personal + Location
             val genderLabel = when (gender.lowercase()) {
                 "male", "m" -> "Masculino"
                 "female", "f" -> "Femenino"
@@ -577,31 +727,35 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                 )
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Action Buttons
             Button(
                 onClick = onRefresh,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Sincronizar Datos", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Sincronizar Datos", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedButton(
                 onClick = onLogout,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
             ) {
-                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Cerrar Sesión", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Cerrar Sesión", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -612,10 +766,17 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
 @Composable
 fun ProfileInfoCard(title: String, icon: ImageVector, items: List<Pair<String, String>>) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            ),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -623,14 +784,14 @@ fun ProfileInfoCard(title: String, icon: ImageVector, items: List<Pair<String, S
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    icon,
+                    imageVector = icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    title,
-                    fontSize = 15.sp,
+                    text = title,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -638,14 +799,16 @@ fun ProfileInfoCard(title: String, icon: ImageVector, items: List<Pair<String, S
             Spacer(modifier = Modifier.height(12.dp))
             items.forEachIndexed { index, (label, value) ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     Text(
-                        value,
-                        fontSize = 14.sp,
+                        text = value,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -657,6 +820,109 @@ fun ProfileInfoCard(title: String, icon: ImageVector, items: List<Pair<String, S
                     Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                 }
             }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// [NEW] QUALITY FORMS MODULE
+// ═══════════════════════════════════════════════════════════════════
+@Composable
+fun QualityFormsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
+    val module = data.optJSONObject("modules")?.optJSONObject("quality_forms") ?: JSONObject()
+    val summary = module.optJSONObject("summary") ?: JSONObject()
+    val items = module.optJSONArray("items") ?: JSONArray()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        SectionHeader("Fichas de Calidad", "Formatos y criterios de evaluación activos")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Total Fichas", summary.optString("total", "0"), "Registradas", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            MetricCard("Con Contexto", summary.optString("with_context", "0"), "Guiadas por IA", Color(0xFF10B981), Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionHeader("Formatos Disponibles")
+
+        if (items.length() == 0) {
+            Text(
+                text = "No hay fichas de calidad asignadas.",
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
+
+        for (i in 0 until items.length()) {
+            val item = items.optJSONObject(i) ?: continue
+            val hasContext = item.optBoolean("has_context")
+            DetailCard(
+                title = item.optString("name", "Formato de Calidad"),
+                scoreValue = "V${item.optInt("versions", 1)}",
+                scoreColor = MaterialTheme.colorScheme.primary,
+                description = "Campaña: ${item.optString("campaign", "General")} | Estado: ${item.optString("latest_status", "Activa")}",
+                chips = if (hasContext) listOf("Contexto IA") else emptyList(),
+                onClick = { onNavigate("quality_form", item) }
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// [NEW] INSIGHTS MODULE
+// ═══════════════════════════════════════════════════════════════════
+@Composable
+fun InsightsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
+    val module = data.optJSONObject("modules")?.optJSONObject("insights") ?: JSONObject()
+    val summary = module.optJSONObject("summary") ?: JSONObject()
+    val items = module.optJSONArray("items") ?: JSONArray()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        SectionHeader("Insights de IA", "Reportes y análisis automáticos de calidad")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Total Reportes", summary.optString("total", "0"), "Generados", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            MetricCard("Últimos 30 días", summary.optString("last_30_days", "0"), "Frecuencia mensual", Color(0xFF10B981), Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionHeader("Reportes de Insights")
+
+        if (items.length() == 0) {
+            Text(
+                text = "No se han generado reportes de insights aún.",
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
+
+        for (i in 0 until items.length()) {
+            val item = items.optJSONObject(i) ?: continue
+            DetailCard(
+                title = "Insight ${item.optString("type", "Campaña").replaceFirstChar { it.uppercase() }}",
+                scoreValue = "${item.optInt("findings", 0)} hallazgos",
+                scoreColor = Color(0xFFEF4444),
+                description = "Campaña: ${item.optString("campaign", "—")} | Rango: ${item.optString("date_range", "—")}",
+                chips = listOf(item.optString("summary", "Ver detalles")),
+                onClick = { onNavigate("insight", item) }
+            )
         }
     }
 }
