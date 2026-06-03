@@ -59,6 +59,18 @@ class TranscriptAudioTimelineTest extends TestCase
         $this->assertGreaterThan(25, $timeline['summary']['client_talk_percent']);
     }
 
+    public function test_it_does_not_extend_beyond_known_audio_duration(): void
+    {
+        $turns = (new TranscriptConversationParser)->parse("[00:01] Agente: Hola\n[01:25] Cliente: Gracias");
+        $timeline = (new TranscriptAudioTimeline)->build($turns, 87, [
+            'sentiment' => ['overall' => 'positivo'],
+        ]);
+
+        $this->assertSame(87, $timeline['duration']);
+        $this->assertSame('01:27', $timeline['duration_label']);
+        $this->assertSame(87, $timeline['segments'][1]['end']);
+    }
+
     /**
      * @param  array<int, array<string, mixed>>  $segments
      */

@@ -53,9 +53,13 @@ class TranscriptAudioTimeline
      */
     private function duration(array $turns, ?int $audioDuration): int
     {
+        if ($audioDuration && $audioDuration > 0) {
+            return max((int) $audioDuration, 1);
+        }
+
         $lastTimestamp = collect($turns)->max('timestamp_seconds') ?? 0;
 
-        return max((int) ($audioDuration ?: 0), (int) $lastTimestamp + 10, 1);
+        return max((int) $lastTimestamp + 10, 1);
     }
 
     /**
