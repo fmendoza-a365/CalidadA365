@@ -10,6 +10,7 @@ Route::prefix('mobile')->group(function () {
     Route::middleware('mobile.auth')->group(function () {
         Route::get('me', [MobileAuthController::class, 'me']);
         Route::post('logout', [MobileAuthController::class, 'logout']);
+        Route::get('dashboard', [MobileDashboardController::class, 'dashboard']);
         Route::get('summary', [MobileDashboardController::class, 'summary']);
         Route::get('alerts', [MobileDashboardController::class, 'alerts']);
         Route::get('evaluations', [MobileDashboardController::class, 'evaluations']);

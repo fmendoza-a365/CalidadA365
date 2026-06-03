@@ -61,6 +61,48 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('message', 'Token movil invalido o vencido.');
     }
 
+    public function test_mobile_dashboard_returns_executive_payload(): void
+    {
+        [$admin] = $this->criticalEvaluation();
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $admin->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/mobile/dashboard')
+            ->assertOk()
+            ->assertJsonPath('profile.primary_view', 'executive')
+            ->assertJsonPath('overview.total_evaluations', 1)
+            ->assertJsonPath('summary.critical_scores', 1)
+            ->assertJsonPath('ranking.0.total_evals', 1)
+            ->assertJsonCount(1, 'evaluations');
+    }
+
+    public function test_mobile_dashboard_returns_agent_payload_for_advisors(): void
+    {
+        [, $evaluation] = $this->criticalEvaluation();
+        $agent = $evaluation->agent;
+        $evaluation->forceFill([
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'visible_to_agent_at' => now(),
+        ])->save();
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $agent->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/mobile/dashboard')
+            ->assertOk()
+            ->assertJsonPath('profile.primary_view', 'agent')
+            ->assertJsonPath('overview.total_evaluations', 1)
+            ->assertJsonPath('agent.league.name', 'Hierro')
+            ->assertJsonPath('agent.match_history.0.id', $evaluation->id);
+    }
+
     public function test_mobile_logout_revokes_current_token(): void
     {
         [$admin] = $this->criticalEvaluation();

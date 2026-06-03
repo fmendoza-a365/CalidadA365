@@ -1,6 +1,6 @@
 # QA365 Mobile
 
-App Android nativa para consultar resumen, alertas y ultimas evaluaciones de QA365.
+App Android nativa para consultar el dashboard movil de QA365: resumen por rol, alertas, ranking, resultados recientes y seguimiento de feedback.
 
 ## Abrir en Android Studio
 
@@ -21,4 +21,4 @@ El APK generado queda en:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-La app usa por defecto `https://qa365.com.pe`, pero el campo Servidor permite probar otra URL como `http://10.0.2.2:8000` desde un emulador local.
+La app usa por defecto `https://qa365.com.pe`, pero el campo Servidor permite probar otra URL como `http://10.0.2.2:8000` desde un emulador local. El tablero consume `/api/mobile/dashboard` y adapta la vista para jerarquias o asesores.
