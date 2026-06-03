@@ -598,8 +598,13 @@ class TranscriptAudioTimeline
             'client_energy' => $acoustic['client_energy'] ?? $this->energyFromIntensity($averageIntensity),
             'clarity' => $acoustic['clarity'] ?? 'no_detectado',
             'interruptions' => (int) ($acoustic['interruptions'] ?? 0),
+            'agent_interruptions' => (int) ($acoustic['agent_interruptions'] ?? 0),
+            'client_interruptions' => (int) ($acoustic['client_interruptions'] ?? 0),
             'long_pauses' => (int) ($acoustic['long_pauses'] ?? 0),
             'silence_ratio' => (float) ($acoustic['silence_ratio'] ?? 0),
+            'talk_balance' => $acoustic['talk_balance'] ?? 'no_detectado',
+            'talk_balance_note' => $acoustic['talk_balance_note'] ?? null,
+            'emotional_turning_point' => is_array($acoustic['emotional_turning_point'] ?? null) ? $acoustic['emotional_turning_point'] : null,
             'notes' => $acoustic['notes'] ?? null,
         ];
     }

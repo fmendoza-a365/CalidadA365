@@ -70,6 +70,44 @@ class TranscriptConversationViewTest extends TestCase
                 'sentiment_segments' => [
                     ['index' => 1, 'sentiment' => 'mixto', 'emotion' => 'preocupacion', 'score' => -0.2],
                 ],
+                'acoustic_analysis' => [
+                    'overall_pace' => 'normal',
+                    'talk_balance' => 'balanced',
+                    'talk_balance_note' => 'Conversación balanceada.',
+                    'interruptions' => 1,
+                    'long_pauses' => 0,
+                ],
+                'quality_signals' => [
+                    'empathy' => 'fortaleza',
+                    'active_listening' => 'fortaleza',
+                    'objection_handling' => 'neutral',
+                    'resolution_clarity' => 'riesgo',
+                    'script_control' => 'neutral',
+                    'closing_quality' => 'fortaleza',
+                    'customer_experience_risk' => 'medio',
+                    'emotional_recovery' => 'contiene',
+                    'agent_control' => 'medio',
+                    'frustration_cause' => 'duda del cliente',
+                    'customer_left_unresolved' => true,
+                    'critical_moments' => [
+                        [
+                            'label' => '00:08',
+                            'type' => 'oportunidad',
+                            'title' => 'Cliente preocupado',
+                            'evidence' => 'Estoy preocupado',
+                            'feedback' => 'Reforzar empatía antes de continuar.',
+                        ],
+                    ],
+                    'coaching_recommendations' => [
+                        [
+                            'priority' => 'alta',
+                            'skill' => 'empatía',
+                            'recommendation' => 'Validar la preocupación del cliente.',
+                            'example' => 'Entiendo su preocupación.',
+                        ],
+                    ],
+                    'summary' => 'Hay señales útiles para feedback.',
+                ],
             ],
         ]);
 
@@ -81,7 +119,13 @@ class TranscriptConversationViewTest extends TestCase
             ->assertSee('Lectura rápida')
             ->assertSee('Preocupación')
             ->assertSee('Señales de voz')
-            ->assertSee('Impacto en calidad')
+            ->assertSee('Indicadores de feedback')
+            ->assertSee('Escucha activa')
+            ->assertSee('Claridad solución')
+            ->assertSee('Momentos críticos')
+            ->assertSee('Cliente preocupado')
+            ->assertSee('Recomendaciones coaching')
+            ->assertSee('Validar la preocupación del cliente.')
             ->assertSee('Línea de tiempo')
             ->assertSee('data-audio-timeline-track', false)
             ->assertSee('seekFromTimeline($event)', false)

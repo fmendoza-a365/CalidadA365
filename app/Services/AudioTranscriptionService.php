@@ -75,6 +75,14 @@ Analiza la llamada por tramos usando lo que se escucha en el audio y lo que se d
 - No inventes datos imposibles. Si una señal acústica no se aprecia, marca "no_detectado" o usa un score conservador.
 - El análisis emocional es señal de apoyo para calidad; no reemplaza la evidencia textual.
 
+TAREA 3 - INDICADORES PARA FEEDBACK OPERATIVO:
+Genera indicadores accionables parecidos a call analytics, pero usando solo este proveedor y el audio disponible.
+- Enfócate en feedback útil para un monitor: qué hizo bien el agente, qué debe corregir, en qué segundo ocurrió y por qué impacta la experiencia.
+- Evalúa recuperación emocional: si el cliente inició negativo o tenso, indica si el agente logró contener, recuperar o empeorar la llamada.
+- Evalúa objeciones: identifica si el cliente rechazó, dudó, reclamó, pidió postergar, mostró molestia o quedó sin solución.
+- Evalúa cierre: confirma si el final queda claro, cordial, con siguiente paso definido o con riesgo.
+- Los campos de listas deben tener máximo 4 elementos. Cada elemento debe ser breve y accionable.
+
 RESPONDE EXCLUSIVAMENTE con el siguiente JSON válido.
 IMPORTANTE: El campo "transcript" debe ser un solo string con saltos de línea (\n) separando cada intervención.
 
@@ -124,15 +132,60 @@ IMPORTANTE: El campo "transcript" debe ser un solo string con saltos de línea (
     "client_energy": "baja|media|alta|variable|no_detectado",
     "clarity": "claro|regular|bajo|no_detectado",
     "interruptions": 0,
+    "agent_interruptions": 0,
+    "client_interruptions": 0,
     "long_pauses": 0,
     "silence_ratio": 0.0,
+    "talk_balance": "agent_dominant|client_dominant|balanced|no_detectado",
+    "talk_balance_note": "lectura breve del balance de conversación",
+    "emotional_turning_point": {
+      "second": 0,
+      "label": "MM:SS",
+      "type": "recuperacion|deterioro|sin_cambio|no_detectado",
+      "summary": "momento donde cambia o se estabiliza la emoción"
+    },
     "notes": "observaciones acústicas relevantes"
   },
   "quality_signals": {
     "empathy": "fortaleza|neutral|riesgo",
+    "active_listening": "fortaleza|neutral|riesgo",
     "objection_handling": "fortaleza|neutral|riesgo",
+    "resolution_clarity": "fortaleza|neutral|riesgo",
+    "script_control": "fortaleza|neutral|riesgo",
+    "closing_quality": "fortaleza|neutral|riesgo",
     "customer_experience_risk": "bajo|medio|alto",
-    "summary": "cómo estas señales podrían influir en calidad"
+    "emotional_recovery": "recupera|contiene|empeora|sin_riesgo|no_detectado",
+    "agent_control": "alto|medio|bajo|no_detectado",
+    "frustration_cause": "motivo principal de frustración o no_detectado",
+    "customer_left_unresolved": true,
+    "supervisor_alerts": [
+      {
+        "level": "alto|medio|bajo",
+        "second": 0,
+        "label": "MM:SS",
+        "message": "alerta operativa breve"
+      }
+    ],
+    "critical_moments": [
+      {
+        "second": 0,
+        "label": "MM:SS",
+        "speaker": "agent|client|system",
+        "type": "riesgo|fortaleza|oportunidad",
+        "title": "nombre corto del momento",
+        "evidence": "frase o señal concreta",
+        "feedback": "qué debe observar o corregir el monitor"
+      }
+    ],
+    "coaching_recommendations": [
+      {
+        "priority": "alta|media|baja",
+        "skill": "empatía|escucha activa|objeciones|claridad|cierre|control emocional|producto",
+        "recommendation": "recomendación concreta para el agente",
+        "example": "frase sugerida o conducta observable"
+      }
+    ],
+    "summary": "cómo estas señales impactan calidad y experiencia del cliente"
   }
 }
 
@@ -422,14 +475,61 @@ PROMPT;
                 'client_energy' => 'media',
                 'clarity' => 'claro',
                 'interruptions' => 0,
+                'agent_interruptions' => 0,
+                'client_interruptions' => 0,
                 'long_pauses' => 0,
                 'silence_ratio' => 0.04,
+                'talk_balance' => 'balanced',
+                'talk_balance_note' => 'El agente guía la llamada sin desplazar la participación del cliente.',
+                'emotional_turning_point' => [
+                    'second' => 35,
+                    'label' => '00:35',
+                    'type' => 'recuperacion',
+                    'summary' => 'El cliente pasa de preocupación a conformidad cuando el agente confirma la nota de crédito.',
+                ],
                 'notes' => 'Ritmo estable, buena claridad y cierre sin tensión audible.',
             ],
             'quality_signals' => [
                 'empathy' => 'fortaleza',
+                'active_listening' => 'fortaleza',
                 'objection_handling' => 'fortaleza',
+                'resolution_clarity' => 'fortaleza',
+                'script_control' => 'fortaleza',
+                'closing_quality' => 'fortaleza',
                 'customer_experience_risk' => 'bajo',
+                'emotional_recovery' => 'recupera',
+                'agent_control' => 'alto',
+                'frustration_cause' => 'cargo duplicado en factura',
+                'customer_left_unresolved' => false,
+                'supervisor_alerts' => [],
+                'critical_moments' => [
+                    [
+                        'second' => 10,
+                        'label' => '00:10',
+                        'speaker' => 'agent',
+                        'type' => 'fortaleza',
+                        'title' => 'Contención inicial',
+                        'evidence' => 'Lamenta el inconveniente y pide verificar la cuenta.',
+                        'feedback' => 'Mantener reconocimiento del problema antes de pasar a validación.',
+                    ],
+                    [
+                        'second' => 35,
+                        'label' => '00:35',
+                        'speaker' => 'agent',
+                        'type' => 'fortaleza',
+                        'title' => 'Resolución clara',
+                        'evidence' => 'Confirma la nota de crédito y el efecto en la próxima factura.',
+                        'feedback' => 'Buen cierre de solución porque explica acción y expectativa.',
+                    ],
+                ],
+                'coaching_recommendations' => [
+                    [
+                        'priority' => 'baja',
+                        'skill' => 'cierre',
+                        'recommendation' => 'Cerrar confirmando si el cliente entendió el ajuste y el plazo.',
+                        'example' => '¿Le quedó claro cuándo verá reflejada la nota de crédito?',
+                    ],
+                ],
                 'summary' => 'El tono empático y la resolución reducen el riesgo de experiencia negativa.',
             ],
         ];

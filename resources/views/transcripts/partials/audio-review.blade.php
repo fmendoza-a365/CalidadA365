@@ -29,14 +29,38 @@
         'variable' => 'Variable',
         'claro' => 'Claro',
         'regular' => 'Regular',
+        'balanced' => 'Balanceado',
+        'agent_dominant' => 'Dominio agente',
+        'client_dominant' => 'Dominio cliente',
+        'recupera' => 'Recupera',
+        'contiene' => 'Contiene',
+        'empeora' => 'Empeora',
+        'sin_riesgo' => 'Sin riesgo',
         default => filled($value) ? str($value)->replace('_', ' ')->title()->toString() : 'No detectado',
     };
     $signalClass = fn ($value) => match ($value) {
-        'fortaleza', 'bajo', 'claro' => 'text-emerald-600 dark:text-emerald-300',
-        'riesgo', 'alto', 'bajo_claridad' => 'text-rose-600 dark:text-rose-300',
-        'medio', 'regular', 'variable' => 'text-amber-600 dark:text-amber-300',
+        'fortaleza', 'bajo', 'claro', 'recupera', 'sin_riesgo', 'alto_control', 'balanced' => 'text-emerald-600 dark:text-emerald-300',
+        'riesgo', 'alto', 'bajo_claridad', 'empeora', 'client_dominant' => 'text-rose-600 dark:text-rose-300',
+        'medio', 'regular', 'variable', 'contiene', 'agent_dominant' => 'text-amber-600 dark:text-amber-300',
         default => 'text-gray-900 dark:text-white',
     };
+    $feedbackIndicators = [
+        'empathy' => 'Empatía',
+        'active_listening' => 'Escucha activa',
+        'objection_handling' => 'Objeciones',
+        'resolution_clarity' => 'Claridad solución',
+        'script_control' => 'Control del speech',
+        'closing_quality' => 'Cierre',
+    ];
+    $criticalMoments = collect($qualitySignals['critical_moments'] ?? [])
+        ->filter(fn ($moment) => is_array($moment))
+        ->take(4);
+    $coachingRecommendations = collect($qualitySignals['coaching_recommendations'] ?? [])
+        ->filter(fn ($recommendation) => is_array($recommendation))
+        ->take(4);
+    $supervisorAlerts = collect($qualitySignals['supervisor_alerts'] ?? [])
+        ->filter(fn ($alert) => is_array($alert))
+        ->take(3);
 @endphp
 
 <div class="card overflow-hidden">
@@ -288,6 +312,14 @@
                             <span class="text-gray-500 dark:text-gray-400">Participación cliente</span>
                             <span class="font-semibold text-indigo-600">{{ $summary['client_talk_percent'] ?? 0 }}%</span>
                         </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Recuperación emocional</span>
+                            <span class="font-semibold {{ $signalClass($qualitySignals['emotional_recovery'] ?? null) }}">{{ $signalLabel($qualitySignals['emotional_recovery'] ?? null) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Riesgo experiencia</span>
+                            <span class="font-semibold {{ $signalClass($qualitySignals['customer_experience_risk'] ?? null) }}">{{ $signalLabel($qualitySignals['customer_experience_risk'] ?? null) }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -316,28 +348,48 @@
                             <span class="text-gray-500 dark:text-gray-400">Interrupciones</span>
                             <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['interruptions'] ?? 0 }}</span>
                         </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Pausas largas</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['long_pauses'] ?? 0 }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Balance conversación</span>
+                            <span class="font-semibold {{ $signalClass($voice['talk_balance'] ?? null) }}">{{ $signalLabel($voice['talk_balance'] ?? null) }}</span>
+                        </div>
                     </div>
+                    @if(!empty($voice['talk_balance_note']))
+                        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ $voice['talk_balance_note'] }}</p>
+                    @endif
                     @if(!empty($voice['notes']))
                         <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ $voice['notes'] }}</p>
                     @endif
                 </div>
 
                 <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                    <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Impacto en calidad</h4>
-                    <div class="space-y-3 text-sm">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Empatía</span>
-                            <span class="font-semibold {{ $signalClass($qualitySignals['empathy'] ?? null) }}">{{ $signalLabel($qualitySignals['empathy'] ?? null) }}</span>
+                    <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Indicadores de feedback</h4>
+                    <div class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                        @foreach($feedbackIndicators as $key => $label)
+                            <div class="rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
+                                <div class="text-xs text-gray-500 dark:text-gray-400">{{ $label }}</div>
+                                <div class="mt-1 font-semibold {{ $signalClass($qualitySignals[$key] ?? null) }}">{{ $signalLabel($qualitySignals[$key] ?? null) }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                        <div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800/60">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Control agente</div>
+                            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ $signalLabel($qualitySignals['agent_control'] ?? null) }}</div>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Objeciones</span>
-                            <span class="font-semibold {{ $signalClass($qualitySignals['objection_handling'] ?? null) }}">{{ $signalLabel($qualitySignals['objection_handling'] ?? null) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">Riesgo experiencia</span>
-                            <span class="font-semibold {{ $signalClass($qualitySignals['customer_experience_risk'] ?? null) }}">{{ $signalLabel($qualitySignals['customer_experience_risk'] ?? null) }}</span>
+                        <div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800/60">
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Cliente queda sin resolver</div>
+                            <div class="mt-1 font-semibold {{ !empty($qualitySignals['customer_left_unresolved']) ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300' }}">
+                                {{ !empty($qualitySignals['customer_left_unresolved']) ? 'Sí' : 'No' }}
+                            </div>
                         </div>
                     </div>
+                    @if(!empty($qualitySignals['frustration_cause']) && $qualitySignals['frustration_cause'] !== 'no_detectado')
+                        <p class="mt-3 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold text-gray-700 dark:text-gray-300">Causa:</span> {{ $qualitySignals['frustration_cause'] }}</p>
+                    @endif
                     <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">{{ $qualitySignals['summary'] ?? 'Señales listas para apoyar la evaluación de calidad.' }}</p>
                 </div>
 
@@ -366,6 +418,77 @@
                     </p>
                 </div>
             </div>
+
+            @if($supervisorAlerts->isNotEmpty() || $criticalMoments->isNotEmpty() || $coachingRecommendations->isNotEmpty())
+                <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    @if($supervisorAlerts->isNotEmpty())
+                        <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                            <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Alertas supervisor</h4>
+                            <div class="space-y-3">
+                                @foreach($supervisorAlerts as $alert)
+                                    <div class="rounded-lg bg-rose-50 px-3 py-2 text-sm dark:bg-rose-500/10">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="font-semibold text-rose-700 dark:text-rose-300">{{ $alert['label'] ?? $signalLabel($alert['level'] ?? null) }}</span>
+                                            <span class="text-xs uppercase tracking-wide text-rose-500">{{ $signalLabel($alert['level'] ?? null) }}</span>
+                                        </div>
+                                        <p class="mt-1 text-rose-700/80 dark:text-rose-200/80">{{ $alert['message'] ?? 'Alerta operativa detectada.' }}</p>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($criticalMoments->isNotEmpty())
+                        <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800 {{ $supervisorAlerts->isEmpty() ? 'xl:col-span-2' : '' }}">
+                            <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Momentos críticos</h4>
+                            <div class="space-y-3">
+                                @foreach($criticalMoments as $moment)
+                                    @php
+                                        $momentType = $moment['type'] ?? 'oportunidad';
+                                        $momentClass = match ($momentType) {
+                                            'riesgo' => 'border-rose-200 bg-rose-50 dark:border-rose-500/20 dark:bg-rose-500/10',
+                                            'fortaleza' => 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10',
+                                            default => 'border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10',
+                                        };
+                                    @endphp
+                                    <div class="rounded-lg border px-3 py-2 text-sm {{ $momentClass }}">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="font-semibold text-gray-900 dark:text-white">{{ $moment['title'] ?? 'Momento relevante' }}</span>
+                                            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ $moment['label'] ?? '' }}</span>
+                                        </div>
+                                        @if(!empty($moment['evidence']))
+                                            <p class="mt-1 text-gray-700 dark:text-gray-300">{{ $moment['evidence'] }}</p>
+                                        @endif
+                                        @if(!empty($moment['feedback']))
+                                            <p class="mt-1 text-gray-500 dark:text-gray-400">{{ $moment['feedback'] }}</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if($coachingRecommendations->isNotEmpty())
+                        <div class="rounded-xl border border-gray-200 p-4 dark:border-gray-800 {{ $supervisorAlerts->isEmpty() && $criticalMoments->isEmpty() ? 'xl:col-span-3' : '' }}">
+                            <h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Recomendaciones coaching</h4>
+                            <div class="space-y-3">
+                                @foreach($coachingRecommendations as $recommendation)
+                                    <div class="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-800">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="font-semibold text-gray-900 dark:text-white">{{ ucfirst($recommendation['skill'] ?? 'Habilidad') }}</span>
+                                            <span class="text-xs uppercase tracking-wide text-gray-500">{{ ucfirst($recommendation['priority'] ?? 'media') }}</span>
+                                        </div>
+                                        <p class="mt-1 text-gray-600 dark:text-gray-300">{{ $recommendation['recommendation'] ?? 'Reforzar conducta observable.' }}</p>
+                                        @if(!empty($recommendation['example']))
+                                            <p class="mt-1 text-gray-500 dark:text-gray-400">{{ $recommendation['example'] }}</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
         @endif
     </div>
 </div>
