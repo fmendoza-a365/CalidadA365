@@ -41,6 +41,9 @@
                     <a href="#how-it-works"
                         class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cómo
                         Funciona</a>
+                    <a href="#mobile-app"
+                        class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">App
+                        Android</a>
                     <a href="/docs-executive.html" target="_blank"
                         class="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors flex items-center gap-1">
                         Manual Ejecutivo
@@ -138,6 +141,9 @@
                 <a href="#features" class="btn-secondary text-lg px-8 py-4">
                     Ver Características
                 </a>
+                <a href="#mobile-app" class="btn-secondary text-lg px-8 py-4">
+                    App Android
+                </a>
             </div>
 
             <!-- Stats -->
@@ -219,6 +225,88 @@
                         Crea formularios de calidad adaptados a cada campaña con atributos ponderados y criterios
                         críticos.
                     </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Mobile App -->
+    <section id="mobile-app" class="py-24 bg-white dark:bg-[#0a0a0a] border-y border-gray-200 dark:border-neutral-800">
+        <div class="w-full mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-[1fr_420px] gap-12 items-center max-w-6xl mx-auto">
+                <div>
+                    <div
+                        class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 mb-6">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span class="text-sm font-medium text-emerald-700 dark:text-emerald-300">Disponible para
+                            Android</span>
+                    </div>
+                    <h2 class="text-3xl md:text-4xl font-bold mb-4">QA365 Mobile</h2>
+                    <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed mb-8">
+                        Revisa resultados, alertas críticas, evaluaciones recientes y señales de audio desde el móvil,
+                        conectado al mismo sistema de calidad.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <a href="{{ asset('downloads/qa365-mobile.apk') }}" download
+                            class="btn-primary text-lg px-8 py-4">
+                            Descargar APK
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </a>
+                        @auth
+                            <a href="{{ route('dashboard') }}" class="btn-secondary text-lg px-8 py-4">Ir al
+                                Dashboard</a>
+                        @else
+                            <a href="{{ route('login') }}" class="btn-secondary text-lg px-8 py-4">Iniciar Sesión</a>
+                        @endauth
+                    </div>
+                    <div class="mt-6 text-sm text-gray-500 dark:text-gray-400">
+                        Archivo: <span class="font-semibold text-gray-700 dark:text-gray-300">qa365-mobile.apk</span>
+                    </div>
+                </div>
+
+                <div class="rounded-[2rem] border border-gray-200 dark:border-neutral-800 bg-gray-100 dark:bg-neutral-950 p-4 shadow-2xl">
+                    <div class="rounded-[1.5rem] bg-white dark:bg-[#111111] border border-gray-200 dark:border-neutral-800 overflow-hidden">
+                        <div class="px-5 py-4 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">QA365 Mobile</div>
+                                <div class="font-bold">Alertas de calidad</div>
+                            </div>
+                            <span class="px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold">Live</span>
+                        </div>
+                        <div class="p-5 space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="rounded-lg border border-gray-200 dark:border-neutral-800 p-3">
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Promedio</div>
+                                    <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-300">86%</div>
+                                </div>
+                                <div class="rounded-lg border border-gray-200 dark:border-neutral-800 p-3">
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Alertas</div>
+                                    <div class="text-2xl font-bold text-amber-600 dark:text-amber-300">4</div>
+                                </div>
+                            </div>
+                            <div class="rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 p-3">
+                                <div class="text-sm font-bold text-rose-700 dark:text-rose-300">Revisar evaluación crítica</div>
+                                <div class="text-xs text-rose-700/80 dark:text-rose-200/80 mt-1">Riesgo alto de experiencia y cliente sin resolver.</div>
+                            </div>
+                            <div class="rounded-lg border border-gray-200 dark:border-neutral-800 p-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold">Claro</span>
+                                    <span class="text-sm font-bold text-emerald-600 dark:text-emerald-300">91%</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tiempo muerto: 00:00</div>
+                            </div>
+                            <div class="rounded-lg border border-gray-200 dark:border-neutral-800 p-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold">BCP</span>
+                                    <span class="text-sm font-bold text-rose-600 dark:text-rose-300">58%</span>
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tiempo muerto: 00:45</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
