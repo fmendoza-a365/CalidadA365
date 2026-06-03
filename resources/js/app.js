@@ -90,8 +90,10 @@ Alpine.data('audioReview', (config = {}) => ({
     timeline: config.timeline || {},
     rawBars: config.timeline?.bars || [],
     rawSegments: config.timeline?.segments || [],
+    rawSilences: config.timeline?.silences || [],
     visualBars: [],
     segments: [],
+    silentSegments: [],
     timelineDuration: Number(config.timeline?.duration || 0),
     nativeDuration: 0,
     duration: Number(config.timeline?.duration || 0),
@@ -294,6 +296,21 @@ Alpine.data('audioReview', (config = {}) => ({
         const duration = this.safeDuration();
 
         this.segments = this.rawSegments.map((segment) => {
+            const rawStart = Math.max(0, Number(segment.start || 0));
+            const rawEnd = Math.max(rawStart + 0.1, Number(segment.end || rawStart + 1));
+            const start = Math.min(rawStart, Math.max(duration - 0.1, 0));
+            const end = Math.min(duration, Math.max(start + 0.1, rawEnd));
+
+            return {
+                ...segment,
+                start,
+                end,
+                left: this.percent(start, duration),
+                width: Math.max(this.percent(end - start, duration), 0.35),
+            };
+        });
+
+        this.silentSegments = this.rawSilences.map((segment) => {
             const rawStart = Math.max(0, Number(segment.start || 0));
             const rawEnd = Math.max(rawStart + 0.1, Number(segment.end || rawStart + 1));
             const start = Math.min(rawStart, Math.max(duration - 0.1, 0));

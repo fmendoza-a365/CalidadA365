@@ -71,6 +71,38 @@ class TranscriptAudioTimelineTest extends TestCase
         $this->assertSame(87, $timeline['segments'][1]['end']);
     }
 
+    public function test_it_exposes_dead_air_segments_for_audio_timeline(): void
+    {
+        $turns = (new TranscriptConversationParser)->parse("[00:00] Agente: Hola\n[00:05] Cliente: Espero");
+        $timeline = (new TranscriptAudioTimeline)->build($turns, 20, [
+            'sentiment' => ['overall' => 'neutro'],
+            'acoustic_analysis' => [
+                'long_pauses' => 1,
+                'silence_ratio' => 0.25,
+                'dead_air_total_seconds' => 5.0,
+                'dead_air_total_label' => '00:05',
+                'dead_air_longest_seconds' => 5.0,
+                'dead_air_longest_label' => '00:08-00:13',
+                'dead_air_segments' => [
+                    [
+                        'start' => 8.0,
+                        'end' => 13.0,
+                        'duration' => 5.0,
+                        'start_label' => '00:08',
+                        'end_label' => '00:13',
+                        'duration_label' => '00:05',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertCount(1, $timeline['silences']);
+        $this->assertSame(8.0, $timeline['silences'][0]['start']);
+        $this->assertSame(13.0, $timeline['silences'][0]['end']);
+        $this->assertSame('00:05', $timeline['summary']['silence']['total_label']);
+        $this->assertSame(25.0, $timeline['summary']['silence']['ratio_percent']);
+    }
+
     /**
      * @param  array<int, array<string, mixed>>  $segments
      */

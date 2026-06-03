@@ -16,7 +16,9 @@ class AudioTranscriptionService
 
     protected string $model;
 
-    public function __construct()
+    public function __construct(
+        protected AudioSilenceAnalysisService $silenceAnalysisService,
+    )
     {
         $config = AiSettings::transcriptionConfig();
 
@@ -53,6 +55,7 @@ class AudioTranscriptionService
             $audioData = $disk->get($filePath);
             $audioDurationSeconds = $this->durationSecondsFromStoredAudio($filePath)
                 ?? $this->durationSecondsFromAudioBytes($audioData, $filePath);
+            $technicalSilence = $this->silenceAnalysisService->analyzeStoredFile($filePath, $audioDurationSeconds);
             $base64Audio = base64_encode($audioData);
             $mimeType = $this->getMimeType($filePath);
 
@@ -193,6 +196,8 @@ NOTAS sobre sentiment scores: Usa una escala de -1.0 (muy negativo) a 1.0 (muy p
 NOTAS sobre intensity: Usa 0 a 100, donde 0 es sin carga emocional y 100 es carga muy alta.
 PROMPT;
 
+            $prompt .= $this->technicalSilencePrompt($technicalSilence);
+
             $systemInstruction = 'Eres un transcriptor profesional de audio y analista de sentimiento para un centro de contacto (call center). Tu tarea requiere EXTREMA PRECISIÓN y ESTRICTO APEGO a las instrucciones de formato. DEBES devolver UNICAMENTE un objeto JSON válido.';
 
             $response = Http::timeout(300)
@@ -270,7 +275,7 @@ PROMPT;
                     'transcript' => $cleanTranscript,
                     'sentiment' => null,
                     'sentiment_segments' => [],
-                    'acoustic_analysis' => null,
+                    'acoustic_analysis' => $this->mergeTechnicalSilenceAnalysis([], $technicalSilence),
                     'quality_signals' => null,
                     'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
                 ];
@@ -278,6 +283,8 @@ PROMPT;
 
             // Clean literal \n if they survived in the transcript field
             $cleanTranscript = str_replace('\n', "\n", $parsed['transcript']);
+            $parsedAcousticAnalysis = is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [];
+            $acousticAnalysis = $this->mergeTechnicalSilenceAnalysis($parsedAcousticAnalysis, $technicalSilence);
 
             Log::info('AudioTranscriptionService: Transcription + sentiment completed. Length: '.strlen($cleanTranscript).' chars');
 
@@ -285,7 +292,7 @@ PROMPT;
                 'transcript' => $cleanTranscript,
                 'sentiment' => $parsed['sentiment'] ?? null,
                 'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
-                'acoustic_analysis' => $parsed['acoustic_analysis'] ?? null,
+                'acoustic_analysis' => $acousticAnalysis,
                 'quality_signals' => $parsed['quality_signals'] ?? null,
                 'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
             ];
@@ -299,6 +306,62 @@ PROMPT;
 
             throw AiProviderErrors::exceptionFor('gemini', null, 'Could not connect to Gemini API: '.$safeMessage);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $technicalSilence
+     */
+    private function technicalSilencePrompt(array $technicalSilence): string
+    {
+        if (($technicalSilence['source'] ?? 'unavailable') === 'unavailable') {
+            return '';
+        }
+
+        $payload = [
+            'detected_by' => $technicalSilence['source'] ?? null,
+            'threshold_db' => $technicalSilence['threshold_db'] ?? null,
+            'minimum_silence_seconds' => $technicalSilence['minimum_silence_seconds'] ?? null,
+            'long_pauses' => $technicalSilence['long_pauses'] ?? 0,
+            'total_silence_seconds' => $technicalSilence['total_silence_seconds'] ?? 0,
+            'silence_ratio' => $technicalSilence['silence_ratio'] ?? 0,
+            'longest_silence_seconds' => $technicalSilence['longest_silence_seconds'] ?? 0,
+            'longest_silence_label' => $technicalSilence['longest_silence_label'] ?? null,
+            'segments' => collect($technicalSilence['segments'] ?? [])
+                ->take(8)
+                ->values()
+                ->all(),
+        ];
+
+        return "\n\nDATOS TECNICOS DE SILENCIO DETECTADOS POR EL SISTEMA:\n"
+            .json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+            ."\nUsa estos datos técnicos para long_pauses, silence_ratio, riesgo operativo y feedback. No reemplaces estos valores por estimaciones si el audio tiene silencios detectados.\n";
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $acousticAnalysis
+     * @param  array<string, mixed>  $technicalSilence
+     * @return array<string, mixed>
+     */
+    private function mergeTechnicalSilenceAnalysis(?array $acousticAnalysis, array $technicalSilence): array
+    {
+        $acousticAnalysis ??= [];
+
+        if (($technicalSilence['source'] ?? 'unavailable') === 'unavailable') {
+            return $acousticAnalysis;
+        }
+
+        $acousticAnalysis['long_pauses'] = (int) ($technicalSilence['long_pauses'] ?? 0);
+        $acousticAnalysis['silence_ratio'] = (float) ($technicalSilence['silence_ratio'] ?? 0.0);
+        $acousticAnalysis['dead_air_total_seconds'] = (float) ($technicalSilence['total_silence_seconds'] ?? 0.0);
+        $acousticAnalysis['dead_air_total_label'] = $technicalSilence['total_silence_label'] ?? '00:00';
+        $acousticAnalysis['dead_air_longest_seconds'] = (float) ($technicalSilence['longest_silence_seconds'] ?? 0.0);
+        $acousticAnalysis['dead_air_longest_label'] = $technicalSilence['longest_silence_label'] ?? null;
+        $acousticAnalysis['dead_air_segments'] = $technicalSilence['segments'] ?? [];
+        $acousticAnalysis['dead_air_detected_by'] = $technicalSilence['source'] ?? null;
+        $acousticAnalysis['dead_air_threshold_db'] = $technicalSilence['threshold_db'] ?? null;
+        $acousticAnalysis['dead_air_minimum_seconds'] = $technicalSilence['minimum_silence_seconds'] ?? null;
+
+        return $acousticAnalysis;
     }
 
     /**
@@ -438,9 +501,34 @@ PROMPT;
 
         Log::info("AudioTranscriptionService: Simulated transcription for {$fileName}");
 
+        $durationSeconds = $this->durationSecondsFromStoredAudio($filePath) ?? $this->durationSecondsFromTranscript($transcript);
+        $technicalSilence = $this->silenceAnalysisService->analyzeStoredFile($filePath, $durationSeconds);
+        $acousticAnalysis = $this->mergeTechnicalSilenceAnalysis([
+            'agent_speech_rate_wpm' => 132,
+            'client_speech_rate_wpm' => 118,
+            'overall_pace' => 'normal',
+            'agent_energy' => 'media',
+            'client_energy' => 'media',
+            'clarity' => 'claro',
+            'interruptions' => 0,
+            'agent_interruptions' => 0,
+            'client_interruptions' => 0,
+            'long_pauses' => 0,
+            'silence_ratio' => 0.04,
+            'talk_balance' => 'balanced',
+            'talk_balance_note' => 'El agente guía la llamada sin desplazar la participación del cliente.',
+            'emotional_turning_point' => [
+                'second' => 35,
+                'label' => '00:35',
+                'type' => 'recuperacion',
+                'summary' => 'El cliente pasa de preocupación a conformidad cuando el agente confirma la nota de crédito.',
+            ],
+            'notes' => 'Ritmo estable, buena claridad y cierre sin tensión audible.',
+        ], $technicalSilence);
+
         return [
             'transcript' => $transcript,
-            'duration_seconds' => $this->durationSecondsFromStoredAudio($filePath) ?? $this->durationSecondsFromTranscript($transcript),
+            'duration_seconds' => $durationSeconds,
             'sentiment' => [
                 'overall' => 'positivo',
                 'overall_score' => 0.7,
@@ -467,28 +555,7 @@ PROMPT;
                 ['index' => 2, 'start' => 10, 'speaker' => 'agent', 'sentiment' => 'positivo', 'emotion' => 'tension_controlada', 'score' => 0.5, 'intensity' => 58, 'tone' => 'empático y de contención', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'lamenta el inconveniente y verifica cuenta'],
                 ['index' => 7, 'start' => 45, 'speaker' => 'client', 'sentiment' => 'positivo', 'emotion' => 'satisfaccion', 'score' => 0.7, 'intensity' => 50, 'tone' => 'agradecido', 'pace' => 'normal', 'volume' => 'medio', 'clarity' => 'claro', 'evidence' => 'agradece la rápida solución'],
             ],
-            'acoustic_analysis' => [
-                'agent_speech_rate_wpm' => 132,
-                'client_speech_rate_wpm' => 118,
-                'overall_pace' => 'normal',
-                'agent_energy' => 'media',
-                'client_energy' => 'media',
-                'clarity' => 'claro',
-                'interruptions' => 0,
-                'agent_interruptions' => 0,
-                'client_interruptions' => 0,
-                'long_pauses' => 0,
-                'silence_ratio' => 0.04,
-                'talk_balance' => 'balanced',
-                'talk_balance_note' => 'El agente guía la llamada sin desplazar la participación del cliente.',
-                'emotional_turning_point' => [
-                    'second' => 35,
-                    'label' => '00:35',
-                    'type' => 'recuperacion',
-                    'summary' => 'El cliente pasa de preocupación a conformidad cuando el agente confirma la nota de crédito.',
-                ],
-                'notes' => 'Ritmo estable, buena claridad y cierre sin tensión audible.',
-            ],
+            'acoustic_analysis' => $acousticAnalysis,
             'quality_signals' => [
                 'empathy' => 'fortaleza',
                 'active_listening' => 'fortaleza',

@@ -141,7 +141,49 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame(2, $interaction->metadata['audio_analysis_version']);
         $this->assertNotEmpty($interaction->metadata['sentiment_segments']);
         $this->assertSame('normal', $interaction->metadata['acoustic_analysis']['overall_pace']);
+        $this->assertSame(1, $interaction->metadata['acoustic_analysis']['long_pauses']);
+        $this->assertEqualsWithDelta(3.0, $interaction->metadata['acoustic_analysis']['dead_air_total_seconds'], 0.2);
         $this->assertSame('fortaleza', $interaction->metadata['quality_signals']['empathy']);
+    }
+
+    public function test_audio_transcription_stores_technical_dead_air_metrics(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/dead-air.wav', $this->wavBytesWithToneAndSilence());
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/dead-air.wav',
+            'file_name' => 'dead-air.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+        $acoustic = $interaction->metadata['acoustic_analysis'];
+
+        $this->assertSame(5, $interaction->audio_duration);
+        $this->assertSame(1, $acoustic['long_pauses']);
+        $this->assertEqualsWithDelta(3.0, $acoustic['dead_air_total_seconds'], 0.2);
+        $this->assertEqualsWithDelta(0.6, $acoustic['silence_ratio'], 0.05);
+        $this->assertNotEmpty($acoustic['dead_air_segments']);
+        $this->assertEqualsWithDelta(1.0, $acoustic['dead_air_segments'][0]['start'], 0.2);
+        $this->assertEqualsWithDelta(4.0, $acoustic['dead_air_segments'][0]['end'], 0.2);
     }
 
     public function test_audio_transcription_uses_wav_fact_chunk_for_compressed_audio_duration(): void
@@ -238,6 +280,47 @@ class TranscriptUploadMetadataTest extends TestCase
         $byteRate = $sampleRate * $channels * $bytesPerSample;
         $blockAlign = $channels * $bytesPerSample;
         $data = str_repeat(pack('v', 0), $sampleCount);
+        $dataSize = strlen($data);
+
+        return 'RIFF'
+            .pack('V', 36 + $dataSize)
+            .'WAVE'
+            .'fmt '
+            .pack('VvvVVvv', 16, 1, $channels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample)
+            .'data'
+            .pack('V', $dataSize)
+            .$data;
+    }
+
+    private function wavBytesWithToneAndSilence(): string
+    {
+        $sampleRate = 8000;
+        $tone = $this->pcmTone($sampleRate, 1);
+        $silence = str_repeat(pack('v', 0), $sampleRate * 3);
+
+        return $this->wavBytesFromPcm($tone.$silence.$tone, $sampleRate);
+    }
+
+    private function pcmTone(int $sampleRate, int $durationSeconds): string
+    {
+        $data = '';
+        $sampleCount = $sampleRate * $durationSeconds;
+
+        for ($index = 0; $index < $sampleCount; $index++) {
+            $sample = (int) round(sin(2 * pi() * 440 * ($index / $sampleRate)) * 12000);
+            $data .= pack('v', $sample & 0xffff);
+        }
+
+        return $data;
+    }
+
+    private function wavBytesFromPcm(string $data, int $sampleRate): string
+    {
+        $bitsPerSample = 16;
+        $channels = 1;
+        $bytesPerSample = (int) ($bitsPerSample / 8);
+        $byteRate = $sampleRate * $channels * $bytesPerSample;
+        $blockAlign = $channels * $bytesPerSample;
         $dataSize = strlen($data);
 
         return 'RIFF'

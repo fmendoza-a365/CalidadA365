@@ -41,6 +41,7 @@ class TranscriptAudioTimeline
             'duration' => $duration,
             'duration_label' => $this->formatSeconds($duration),
             'segments' => $segments,
+            'silences' => $this->silenceSegments($metadata, $duration),
             'bars' => $this->bars($segments, $duration),
             'summary' => $this->summary($segments, $duration, $metadata),
             'turns' => $turns,
@@ -456,6 +457,7 @@ class TranscriptAudioTimeline
         $dominantEmotion = (string) ($emotions->keys()->first() ?: 'calma');
         $dominantEmotionMeta = $this->emotionMeta($dominantEmotion);
         $voice = $this->voiceSummary($segments, $metadata);
+        $silence = $this->silenceSummary($metadata, $duration);
 
         return [
             'duration_label' => $this->formatSeconds($duration),
@@ -471,6 +473,7 @@ class TranscriptAudioTimeline
             'overall_sentiment' => Arr::get($metadata, 'sentiment.overall', 'neutro'),
             'sentiments' => $sentiments,
             'voice' => $voice,
+            'silence' => $silence,
             'quality_signals' => $this->qualitySignals($segments, $metadata),
         ];
     }
@@ -602,6 +605,13 @@ class TranscriptAudioTimeline
             'client_interruptions' => (int) ($acoustic['client_interruptions'] ?? 0),
             'long_pauses' => (int) ($acoustic['long_pauses'] ?? 0),
             'silence_ratio' => (float) ($acoustic['silence_ratio'] ?? 0),
+            'dead_air_total_seconds' => (float) ($acoustic['dead_air_total_seconds'] ?? 0),
+            'dead_air_total_label' => $acoustic['dead_air_total_label'] ?? $this->formatSeconds((float) ($acoustic['dead_air_total_seconds'] ?? 0)),
+            'dead_air_longest_seconds' => (float) ($acoustic['dead_air_longest_seconds'] ?? 0),
+            'dead_air_longest_label' => $acoustic['dead_air_longest_label'] ?? null,
+            'dead_air_detected_by' => $acoustic['dead_air_detected_by'] ?? null,
+            'dead_air_threshold_db' => $acoustic['dead_air_threshold_db'] ?? null,
+            'dead_air_minimum_seconds' => $acoustic['dead_air_minimum_seconds'] ?? null,
             'talk_balance' => $acoustic['talk_balance'] ?? 'no_detectado',
             'talk_balance_note' => $acoustic['talk_balance_note'] ?? null,
             'emotional_turning_point' => is_array($acoustic['emotional_turning_point'] ?? null) ? $acoustic['emotional_turning_point'] : null,
@@ -629,6 +639,65 @@ class TranscriptAudioTimeline
             $intensity > 0 => 'baja',
             default => 'no_detectado',
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return array<int, array<string, mixed>>
+     */
+    private function silenceSegments(array $metadata, int $duration): array
+    {
+        $segments = Arr::get($metadata, 'acoustic_analysis.dead_air_segments', []);
+
+        if (! is_array($segments)) {
+            return [];
+        }
+
+        return collect($segments)
+            ->filter(fn ($segment): bool => is_array($segment) && is_numeric($segment['start'] ?? null) && is_numeric($segment['end'] ?? null))
+            ->map(function (array $segment, int $index) use ($duration): array {
+                $start = max(0.0, min((float) $segment['start'], max($duration - 0.1, 0)));
+                $end = max($start + 0.1, min((float) $segment['end'], $duration));
+                $segmentDuration = max(0.0, (float) ($segment['duration'] ?? ($end - $start)));
+
+                return [
+                    'id' => 'silence-'.$index,
+                    'start' => round($start, 2),
+                    'end' => round($end, 2),
+                    'duration' => round($segmentDuration, 2),
+                    'start_label' => $segment['start_label'] ?? $this->formatSeconds($start),
+                    'end_label' => $segment['end_label'] ?? $this->formatSeconds($end),
+                    'duration_label' => $segment['duration_label'] ?? $this->formatSeconds($segmentDuration),
+                    'left' => round(($start / max($duration, 1)) * 100, 4),
+                    'width' => max(round((($end - $start) / max($duration, 1)) * 100, 4), 0.35),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function silenceSummary(array $metadata, int $duration): array
+    {
+        $acoustic = is_array($metadata['acoustic_analysis'] ?? null) ? $metadata['acoustic_analysis'] : [];
+        $totalSeconds = (float) ($acoustic['dead_air_total_seconds'] ?? 0);
+        $ratio = (float) ($acoustic['silence_ratio'] ?? ($duration > 0 ? $totalSeconds / $duration : 0));
+
+        return [
+            'long_pauses' => (int) ($acoustic['long_pauses'] ?? 0),
+            'total_seconds' => $totalSeconds,
+            'total_label' => $acoustic['dead_air_total_label'] ?? $this->formatSeconds($totalSeconds),
+            'ratio' => $ratio,
+            'ratio_percent' => round($ratio * 100, 1),
+            'longest_seconds' => (float) ($acoustic['dead_air_longest_seconds'] ?? 0),
+            'longest_label' => $acoustic['dead_air_longest_label'] ?? null,
+            'detected_by' => $acoustic['dead_air_detected_by'] ?? null,
+            'threshold_db' => $acoustic['dead_air_threshold_db'] ?? null,
+            'minimum_seconds' => $acoustic['dead_air_minimum_seconds'] ?? null,
+        ];
     }
 
     /**

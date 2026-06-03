@@ -5,6 +5,7 @@
     $segments = $timeline['segments'] ?? [];
     $bars = $timeline['bars'] ?? [];
     $voice = $summary['voice'] ?? [];
+    $silence = $summary['silence'] ?? [];
     $qualitySignals = $summary['quality_signals'] ?? [];
     $emotionLegend = collect($segments)
         ->unique(fn ($segment) => $segment['emotion'] ?? $segment['emotion_label'] ?? '')
@@ -166,6 +167,14 @@
 
                     <div class="pointer-events-none absolute inset-x-0 top-[64px] h-px bg-white/10"></div>
 
+                    <div class="pointer-events-none absolute inset-x-0 bottom-8 top-9 z-[1]" x-show="silentSegments.length" x-cloak>
+                        <template x-for="silence in silentSegments" :key="silence.id">
+                            <span class="absolute inset-y-0 rounded-sm bg-amber-400/15 ring-1 ring-amber-300/25"
+                                :style="`left: ${silence.left}%; width: ${silence.width}%;`"
+                                :title="`Tiempo muerto ${silence.start_label}-${silence.end_label}`"></span>
+                        </template>
+                    </div>
+
                     <div class="pointer-events-none absolute inset-x-0 bottom-8 top-9 flex items-center gap-[3px]">
                         <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
                             <span class="flex h-full flex-1 items-center justify-center rounded-sm">
@@ -253,6 +262,12 @@
                 @empty
                     <span>Sin eventos detectados</span>
                 @endforelse
+                @if(($silence['long_pauses'] ?? 0) > 0)
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-200">
+                        <span class="h-2 w-2 rounded-full bg-amber-300"></span>
+                        Tiempo muerto {{ $silence['total_label'] ?? '00:00' }}
+                    </span>
+                @endif
                 </div>
             </div>
         </div>
@@ -318,6 +333,12 @@
                                 <span class="font-semibold {{ $signalClass($qualitySignals['emotional_recovery'] ?? null) }}">{{ $signalLabel($qualitySignals['emotional_recovery'] ?? null) }}</span>
                             </div>
                         @endif
+                        @if(($silence['long_pauses'] ?? 0) > 0)
+                            <div class="flex items-center justify-between gap-4">
+                                <span class="text-gray-500 dark:text-gray-400">Tiempo muerto</span>
+                                <span class="font-semibold text-amber-600 dark:text-amber-300">{{ $silence['total_label'] ?? '00:00' }}</span>
+                            </div>
+                        @endif
                         <div class="grid grid-cols-2 gap-2 pt-1">
                             <div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800/45">
                                 <div class="text-[11px] font-semibold uppercase text-gray-400">Agente</div>
@@ -380,6 +401,22 @@
                                     <span class="text-gray-500 dark:text-gray-400">Pausas largas</span>
                                     <span class="font-semibold text-gray-900 dark:text-white">{{ $voice['long_pauses'] }}</span>
                                 </div>
+                            @endif
+                            @if(($silence['total_seconds'] ?? 0) > 0)
+                                <div class="flex items-center justify-between gap-4 py-2">
+                                    <span class="text-gray-500 dark:text-gray-400">Tiempo muerto total</span>
+                                    <span class="font-semibold text-amber-600 dark:text-amber-300">{{ $silence['total_label'] ?? '00:00' }}</span>
+                                </div>
+                                <div class="flex items-center justify-between gap-4 py-2">
+                                    <span class="text-gray-500 dark:text-gray-400">Porcentaje de silencio</span>
+                                    <span class="font-semibold text-gray-900 dark:text-white">{{ $silence['ratio_percent'] ?? 0 }}%</span>
+                                </div>
+                                @if(!empty($silence['longest_label']))
+                                    <div class="flex items-center justify-between gap-4 py-2">
+                                        <span class="text-gray-500 dark:text-gray-400">Silencio más largo</span>
+                                        <span class="font-semibold text-gray-900 dark:text-white">{{ $silence['longest_label'] }}</span>
+                                    </div>
+                                @endif
                             @endif
                             @if($isDetected($voice['talk_balance'] ?? null))
                                 <div class="flex items-center justify-between gap-4 py-2">

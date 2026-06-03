@@ -43,4 +43,14 @@ return [
         'path' => env('FFPROBE_PATH'),
     ],
 
+    'ffmpeg' => [
+        'path' => env('FFMPEG_PATH'),
+    ],
+
+    'audio_silence' => [
+        'threshold_db' => env('AUDIO_SILENCE_THRESHOLD_DB', -45),
+        'minimum_seconds' => env('AUDIO_SILENCE_MIN_SECONDS', 2.0),
+        'max_segments' => env('AUDIO_SILENCE_MAX_SEGMENTS', 24),
+    ],
+
 ];

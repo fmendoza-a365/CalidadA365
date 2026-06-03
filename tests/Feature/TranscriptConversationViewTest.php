@@ -75,7 +75,22 @@ class TranscriptConversationViewTest extends TestCase
                     'talk_balance' => 'balanced',
                     'talk_balance_note' => 'Conversación balanceada.',
                     'interruptions' => 1,
-                    'long_pauses' => 0,
+                    'long_pauses' => 1,
+                    'silence_ratio' => 0.1,
+                    'dead_air_total_seconds' => 3.0,
+                    'dead_air_total_label' => '00:03',
+                    'dead_air_longest_seconds' => 3.0,
+                    'dead_air_longest_label' => '00:12-00:15',
+                    'dead_air_segments' => [
+                        [
+                            'start' => 12.0,
+                            'end' => 15.0,
+                            'duration' => 3.0,
+                            'start_label' => '00:12',
+                            'end_label' => '00:15',
+                            'duration_label' => '00:03',
+                        ],
+                    ],
                 ],
                 'quality_signals' => [
                     'empathy' => 'fortaleza',
@@ -122,6 +137,8 @@ class TranscriptConversationViewTest extends TestCase
             ->assertSee('Indicadores de feedback')
             ->assertSee('Escucha activa')
             ->assertSee('Claridad solución')
+            ->assertSee('Tiempo muerto')
+            ->assertSee('00:12-00:15')
             ->assertSee('Momentos críticos')
             ->assertSee('Cliente preocupado')
             ->assertSee('Recomendaciones coaching')
