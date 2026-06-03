@@ -72,7 +72,7 @@
 
                     <!-- Email -->
                     <div>
-                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <label for="email" class="form-label">Usuario o Correo Electrónico</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                 <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,10 +82,10 @@
                             <input 
                                 id="email" 
                                 name="email" 
-                                type="email" 
+                                type="text" 
                                 value="{{ old('email') }}"
                                 class="form-input pl-12" 
-                                placeholder="nombre@empresa.com"
+                                placeholder="Usuario o Correo Electrónico"
                                 required 
                                 autofocus 
                                 autocomplete="username">
