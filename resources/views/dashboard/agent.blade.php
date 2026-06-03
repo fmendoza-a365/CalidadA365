@@ -73,7 +73,7 @@
                 <div class="px-6 pb-6 relative">
                     <div class="flex justify-center -mt-12 mb-4 relative">
                         <div class="relative">
-                            <img src="{{ auth()->user()->profile_photo_url ?? 'https://ui-avatars.com/api/?name=' . urlencode(auth()->user()->name) . '&color=C1D2F0&background=0A1428' }}"
+                            <img src="{{ auth()->user()->avatar_url }}"
                                 class="w-24 h-24 rounded-full border-4 border-[#C8AA6E] object-cover shadow-[0_0_15px_rgba(200,170,110,0.5)] z-10 relative bg-white dark:bg-transparent">
                             <div
                                 class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white dark:bg-[#1E2328] border border-[#C8AA6E] text-gray-800 dark:text-[#F0E6D2] text-[10px] font-bold px-2.5 py-0.5 rounded-full z-20 whitespace-nowrap shadow-sm">

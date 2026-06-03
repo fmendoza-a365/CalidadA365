@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentResponse;
+use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Models\Interaction;
+use App\Models\InsightReport;
+use App\Models\QualityForm;
 use App\Models\User;
 use App\Services\QualityAnalyticsService;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,7 +40,7 @@ class MobileDashboardController extends Controller
             ->values();
 
         $recentEvaluations = $this->visibleEvaluations($user)
-            ->with(['agent', 'campaign', 'interaction', 'evaluator'])
+            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
             ->latest('evaluations.created_at')
             ->limit(8)
             ->get()
@@ -66,6 +70,7 @@ class MobileDashboardController extends Controller
             'ranking' => $ranking,
             'alerts' => $alerts,
             'evaluations' => $recentEvaluations,
+            'modules' => $this->modulesPayload($user, $filters),
             'generated_at' => now()->toIso8601String(),
         ];
 
@@ -142,6 +147,11 @@ class MobileDashboardController extends Controller
                     ->where('type', 'manual')
                     ->orWhereDoesntHave('interaction.manualEvaluation');
             });
+    }
+
+    private function visibleInteractions(User $user): Builder
+    {
+        return Interaction::query()->forUser($user);
     }
 
     private function dashboardFilters(Request $request): array
@@ -240,6 +250,204 @@ class MobileDashboardController extends Controller
             ->values();
     }
 
+    private function modulesPayload(User $user, array $filters): array
+    {
+        $visibleEvaluations = $this->visibleEvaluations($user);
+        $visibleInteractions = $this->visibleInteractions($user);
+        $publishedEvaluations = (clone $visibleEvaluations)->whereNotNull('visible_to_agent_at');
+        $feedbackResponded = (clone $publishedEvaluations)->whereHas('agentResponse')->count();
+        $feedbackPending = (clone $publishedEvaluations)->whereDoesntHave('agentResponse')->count();
+
+        return [
+            'dashboard' => [
+                'title' => 'Dashboard',
+                'description' => 'Avance de calidad, alertas y feedback.',
+                'count' => (clone $visibleEvaluations)->count(),
+                'url' => url('/dashboard'),
+            ],
+            'transcripts' => [
+                'summary' => [
+                    'total' => (clone $visibleInteractions)->count(),
+                    'audio' => (clone $visibleInteractions)->where('source_type', 'audio')->count(),
+                    'processing' => (clone $visibleInteractions)->whereIn('transcription_status', ['pending', 'processing'])->count(),
+                    'failed' => (clone $visibleInteractions)->where('transcription_status', 'failed')->count(),
+                ],
+                'items' => $this->transcriptsPayload($user),
+                'url' => url('/transcripts'),
+            ],
+            'evaluations' => [
+                'summary' => [
+                    'total' => (clone $visibleEvaluations)->count(),
+                    'pending_monitor' => (clone $visibleEvaluations)->whereIn('status', [
+                        Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+                        Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
+                    ])->count(),
+                    'published' => (clone $visibleEvaluations)->whereNotNull('visible_to_agent_at')->count(),
+                    'critical' => (clone $visibleEvaluations)->whereNotNull('percentage_score')->where('percentage_score', '<', 70)->count(),
+                ],
+                'items' => (clone $visibleEvaluations)
+                    ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
+                    ->latest('evaluations.created_at')
+                    ->limit(6)
+                    ->get()
+                    ->map(fn (Evaluation $evaluation) => $this->evaluationPayload($evaluation))
+                    ->values(),
+                'url' => url('/evaluations'),
+            ],
+            'campaigns' => [
+                'summary' => [
+                    'total' => Campaign::forUser($user)->count(),
+                    'active' => Campaign::forUser($user)->active()->count(),
+                ],
+                'items' => $this->campaignsPayload($user, $filters),
+                'url' => url('/campaigns'),
+            ],
+            'quality_forms' => [
+                'summary' => [
+                    'total' => QualityForm::forUser($user)->count(),
+                    'with_context' => QualityForm::forUser($user)
+                        ->where(function (Builder $query) {
+                            $query
+                                ->whereNotNull('operational_context_markdown')
+                                ->orWhereNotNull('context_file_text');
+                        })
+                        ->count(),
+                ],
+                'items' => $this->qualityFormsPayload($user),
+                'url' => url('/quality-forms'),
+            ],
+            'insights' => [
+                'summary' => [
+                    'total' => InsightReport::whereHas('campaign', fn (Builder $query) => $query->forUser($user))->count(),
+                    'last_30_days' => InsightReport::whereHas('campaign', fn (Builder $query) => $query->forUser($user))
+                        ->where('created_at', '>=', now()->subDays(30))
+                        ->count(),
+                ],
+                'items' => $this->insightsPayload($user),
+                'url' => url('/insights'),
+            ],
+            'feedback' => [
+                'summary' => [
+                    'published' => (clone $publishedEvaluations)->count(),
+                    'viewed' => (clone $publishedEvaluations)->whereNotNull('agent_viewed_at')->count(),
+                    'responded' => $feedbackResponded,
+                    'pending_response' => $feedbackPending,
+                    'accepted' => AgentResponse::whereHas('evaluation', fn (Builder $query) => $query->forUser($user))
+                        ->where('response_type', 'accept')
+                        ->count(),
+                    'disputed' => AgentResponse::whereHas('evaluation', fn (Builder $query) => $query->forUser($user))
+                        ->where('response_type', 'dispute')
+                        ->count(),
+                ],
+            ],
+        ];
+    }
+
+    private function transcriptsPayload(User $user): Collection
+    {
+        return $this->visibleInteractions($user)
+            ->with(['agent', 'campaign', 'supervisor', 'evaluation'])
+            ->latest('occurred_at')
+            ->latest('id')
+            ->limit(6)
+            ->get()
+            ->map(fn (Interaction $interaction) => [
+                'id' => $interaction->id,
+                'campaign' => $interaction->campaign?->name,
+                'agent' => $interaction->agent?->name,
+                'supervisor' => $interaction->supervisor?->name,
+                'source_type' => $interaction->source_type,
+                'file_name' => $interaction->file_name,
+                'status' => $interaction->status,
+                'transcription_status' => $interaction->transcription_status,
+                'duration_seconds' => $interaction->audio_duration,
+                'duration_label' => $this->formatDuration((float) ($interaction->audio_duration ?? 0)),
+                'occurred_at' => $interaction->occurred_at?->toIso8601String(),
+                'score' => $interaction->evaluation?->percentage_score !== null ? (float) $interaction->evaluation->percentage_score : null,
+                'score_label' => $interaction->evaluation?->percentage_score !== null ? $this->formatPercent($interaction->evaluation->percentage_score) : 'Sin nota',
+                'url' => url('/transcripts/'.$interaction->id),
+            ])
+            ->values();
+    }
+
+    private function campaignsPayload(User $user, array $filters): Collection
+    {
+        return Campaign::forUser($user)
+            ->withCount(['interactions', 'forms'])
+            ->latest()
+            ->limit(8)
+            ->get()
+            ->map(function (Campaign $campaign) use ($user, $filters) {
+                $query = Evaluation::query()->forUser($user)->where('campaign_id', $campaign->id);
+                $this->applyDateFilters($query, $filters);
+                $total = (clone $query)->count();
+                $average = (float) ((clone $query)->avg('percentage_score') ?? 0);
+
+                return [
+                    'id' => $campaign->id,
+                    'name' => $campaign->name,
+                    'active' => (bool) $campaign->is_active,
+                    'target_quality' => $campaign->target_quality !== null ? (float) $campaign->target_quality : null,
+                    'evaluations' => $total,
+                    'average_score' => round($average, 1),
+                    'score_label' => $this->formatPercent($average),
+                    'interactions' => (int) $campaign->interactions_count,
+                    'forms' => (int) $campaign->forms_count,
+                    'url' => url('/campaigns/'.$campaign->id),
+                ];
+            })
+            ->values();
+    }
+
+    private function qualityFormsPayload(User $user): Collection
+    {
+        return QualityForm::forUser($user)
+            ->with(['campaign', 'latestVersion'])
+            ->withCount('versions')
+            ->latest()
+            ->limit(6)
+            ->get()
+            ->map(fn (QualityForm $form) => [
+                'id' => $form->id,
+                'name' => $form->name,
+                'campaign' => $form->campaign?->name,
+                'versions' => (int) $form->versions_count,
+                'latest_status' => $form->latestVersion?->status ?? 'Sin version',
+                'has_context' => filled($form->operational_context_markdown) || filled($form->context_file_text),
+                'url' => url('/quality-forms/'.$form->id),
+            ])
+            ->values();
+    }
+
+    private function insightsPayload(User $user): Collection
+    {
+        return InsightReport::whereHas('campaign', fn (Builder $query) => $query->forUser($user))
+            ->with('campaign')
+            ->latest()
+            ->limit(6)
+            ->get()
+            ->map(fn (InsightReport $insight) => [
+                'id' => $insight->id,
+                'type' => $insight->type,
+                'campaign' => $insight->campaign?->name,
+                'date_range' => trim(($insight->date_range_start?->format('Y-m-d') ?? '').' - '.($insight->date_range_end?->format('Y-m-d') ?? ''), ' -'),
+                'findings' => is_array($insight->key_findings) ? count($insight->key_findings) : 0,
+                'summary' => str((string) $insight->summary_content)->stripTags()->limit(120)->toString(),
+                'url' => url('/insights/'.$insight->id),
+            ])
+            ->values();
+    }
+
+    private function applyDateFilters(Builder $query, array $filters): void
+    {
+        if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
+            $query->whereBetween('evaluations.created_at', [
+                \Illuminate\Support\Carbon::parse($filters['start_date'])->startOfDay(),
+                \Illuminate\Support\Carbon::parse($filters['end_date'])->endOfDay(),
+            ]);
+        }
+    }
+
     private function alertsForEvaluation(Evaluation $evaluation): Collection
     {
         $alerts = collect();
@@ -334,6 +542,8 @@ class MobileDashboardController extends Controller
             'evaluator' => $evaluation->evaluator?->name,
             'created_at' => $evaluation->created_at?->toIso8601String(),
             'occurred_at' => $evaluation->interaction?->occurred_at?->toIso8601String(),
+            'agent_viewed_at' => $evaluation->agent_viewed_at?->toIso8601String(),
+            'visible_to_agent_at' => $evaluation->visible_to_agent_at?->toIso8601String(),
             'audio' => [
                 'duration_seconds' => $evaluation->interaction?->audio_duration,
                 'source_type' => $evaluation->interaction?->source_type,
@@ -349,6 +559,11 @@ class MobileDashboardController extends Controller
                 'speech_control' => Arr::get($qualitySignals, 'speech_control'),
                 'customer_left_unresolved' => Arr::get($qualitySignals, 'customer_left_unresolved'),
                 'customer_experience_risk' => Arr::get($qualitySignals, 'customer_experience_risk'),
+            ],
+            'feedback_response' => [
+                'responded' => (bool) $evaluation->agentResponse,
+                'type' => $evaluation->agentResponse?->response_type,
+                'responded_at' => $evaluation->agentResponse?->responded_at?->toIso8601String(),
             ],
             'summary' => $evaluation->ai_summary,
             'action_url' => url('/evaluations/'.$evaluation->id),

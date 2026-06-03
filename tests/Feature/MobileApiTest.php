@@ -76,6 +76,10 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('profile.primary_view', 'executive')
             ->assertJsonPath('overview.total_evaluations', 1)
             ->assertJsonPath('summary.critical_scores', 1)
+            ->assertJsonPath('modules.transcripts.summary.total', 1)
+            ->assertJsonPath('modules.campaigns.summary.total', 1)
+            ->assertJsonPath('modules.quality_forms.summary.total', 1)
+            ->assertJsonPath('modules.evaluations.summary.pending_monitor', 1)
             ->assertJsonPath('ranking.0.total_evals', 1)
             ->assertJsonCount(1, 'evaluations');
     }
@@ -99,6 +103,8 @@ class MobileApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('profile.primary_view', 'agent')
             ->assertJsonPath('overview.total_evaluations', 1)
+            ->assertJsonPath('modules.feedback.summary.published', 1)
+            ->assertJsonPath('modules.feedback.summary.pending_response', 1)
             ->assertJsonPath('agent.league.name', 'Hierro')
             ->assertJsonPath('agent.match_history.0.id', $evaluation->id);
     }

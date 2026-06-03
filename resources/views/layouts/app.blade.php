@@ -241,10 +241,11 @@
                 <a href="{{ route('profile.edit') }}"
                     class="sidebar-user-link flex items-center gap-3 mb-3 p-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
                     title="{{ auth()->user()->name }}">
-                    <div
-                        class="avatar avatar-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-900 transition-colors">
-                        {{ substr(auth()->user()->name, 0, 1) }}
-                    </div>
+                    <img
+                        src="{{ auth()->user()->avatar_url }}"
+                        alt="{{ auth()->user()->name }}"
+                        class="avatar avatar-md object-cover ring-1 ring-gray-200 dark:ring-gray-700"
+                        loading="lazy">
                     <div class="sidebar-user-details flex-1 min-w-0">
                         <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ auth()->user()->name }}
                         </p>
