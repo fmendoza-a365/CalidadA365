@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -12,7 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,15 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
     val agentData = data.optJSONObject("agent")
     val league = agentData?.optJSONObject("league")
 
+    val alertsArray = data.optJSONArray("alerts")
+    val evaluationsArray = data.optJSONArray("evaluations")
+    val campaignsArray = data.optJSONArray("campaigns")
+    val rankingArray = data.optJSONArray("ranking")
+    val trendArray = data.optJSONArray("quality_trend")
+    val defectsArray = data.optJSONArray("top_defects")
+
+    var selectedSubTab by remember { mutableStateOf("resumen") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -52,437 +62,512 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Hero Welcome Card matching web colors
-        val profileName = profile.optString("name", "Usuario")
-        val avgScore = overview.optDouble("average_score", 0.0)
-
-        Card(
+        // Horizontal scrollable tab selector
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline,
-                    shape = RoundedCornerShape(16.dp)
-                ),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.secondary
-                            )
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(20.dp)
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Hola, $profileName",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = String.format("%.1f%%", avgScore),
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Nota Promedio",
-                                fontSize = 10.sp,
-                                color = Color.White.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
+            val tabs = listOf(
+                Pair("resumen", Pair("Resumen", Icons.Default.Assessment)),
+                Pair("campaigns", Pair("Campañas", Icons.Default.Campaign)),
+                Pair("feedback", Pair("Feedback", Icons.Default.Chat)),
+                Pair("ranking", Pair("Ranking", Icons.Default.Star)),
+                Pair("alerts", Pair("Alertas", Icons.Default.Warning))
+            )
+            tabs.forEach { (id, info) ->
+                val (label, icon) = info
+                val isSelected = selectedSubTab == id
+                val containerColor = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                }
+                val contentColor = if (isSelected) {
+                    Color.White
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                }
+                val borderStroke = if (isSelected) {
+                    null
+                } else {
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                }
 
-                    // Agent league badge (no emojis, uses Star icon)
-                    if (league != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = league.optString("name", "Sin liga"),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Quick stats
+                Box(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(containerColor)
+                        .then(
+                            if (borderStroke != null) {
+                                Modifier.border(borderStroke, RoundedCornerShape(20.dp))
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clickable { selectedSubTab = id }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        DashboardQuickStat("Evaluaciones", overview.optString("total_evaluations", "0"), Icons.Default.Assessment)
-                        DashboardQuickStat("Alertas", summary.optString("open_alerts", "0"), Icons.Default.Warning)
-                        DashboardQuickStat("Críticas", summary.optString("critical_scores", "0"), Icons.Default.Error)
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            modifier = Modifier.size(16.dp),
+                            tint = contentColor
+                        )
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = contentColor
+                        )
                     }
                 }
             }
         }
 
-        val agentObj = data.optJSONObject("agent")
-        val leagueObj = agentObj?.optJSONObject("league")
-        if (leagueObj != null) {
-            Spacer(modifier = Modifier.height(20.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Render tab contents
+        when (selectedSubTab) {
+            "resumen" -> {
+                val profileName = profile.optString("name", "Usuario")
+                val avgScore = overview.optDouble("average_score", 0.0)
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = RoundedCornerShape(16.dp)
+                        ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "LIGA: " + leagueObj.optString("name", "Asesor").uppercase(),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Nivel de desempeño competitivo",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                    }
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(20.dp)
                     ) {
-                        Text(
-                            text = leagueObj.optString("score_label", "0.0%"),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Hola, $profileName",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = String.format("%.1f%%", avgScore),
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Nota Promedio",
+                                        fontSize = 10.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            if (league != null) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.15f))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = league.optString("name", "Sin liga"),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                DashboardQuickStat("Evaluaciones", overview.optString("total_evaluations", "0"), Icons.Default.Assessment)
+                                DashboardQuickStat("Alertas", summary.optString("open_alerts", "0"), Icons.Default.Warning)
+                                DashboardQuickStat("Críticas", summary.optString("critical_scores", "0"), Icons.Default.Error)
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        val alertsArray = data.optJSONArray("alerts")
-        val evaluationsArray = data.optJSONArray("evaluations")
-        if (alertsArray != null && alertsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Alertas Operativas", subtitle = "Incidencias críticas de la operación")
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val count = minOf(alertsArray.length(), 3)
-                for (i in 0 until count) {
-                    val alert = alertsArray.optJSONObject(i) ?: continue
-                    val title = alert.optString("title", "Alerta")
-                    val desc = alert.optString("description", "")
-                    val severity = alert.optString("severity", "info")
-                    val created = alert.optString("created_at", "").take(10)
-                    val evalId = alert.optInt("evaluation_id", -1)
-                    
-                    val fullEval = if (evalId > 0 && evaluationsArray != null) {
-                        var found: org.json.JSONObject? = null
-                        for (idx in 0 until evaluationsArray.length()) {
-                            val ev = evaluationsArray.optJSONObject(idx)
-                            if (ev != null && ev.optInt("id") == evalId) {
-                                found = ev
-                                break
+                val agentObj = data.optJSONObject("agent")
+                val leagueObj = agentObj?.optJSONObject("league")
+                if (leagueObj != null) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "LIGA: " + leagueObj.optString("name", "Asesor").uppercase(),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Nivel de desempeño competitivo",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = leagueObj.optString("score_label", "0.0%"),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
-                        found
-                    } else null
-                    
-                    AlertRowCard(
-                        title = title,
-                        description = desc,
-                        severity = severity,
-                        dateLabel = created,
-                        onClick = {
-                            if (fullEval != null) {
-                                onNavigate("evaluation", fullEval)
-                            }
-                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                SectionHeader(title = "Módulos de Gestión", subtitle = "Accesos rápidos de la operación")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ModuleShortcutCard(
+                        title = "Fichas de Calidad",
+                        icon = Icons.Default.Assignment,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigate("quality_form_list", data) }
+                    )
+                    ModuleShortcutCard(
+                        title = "Reportes IA",
+                        icon = Icons.Default.AutoAwesome,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onNavigate("insight_list", data) }
                     )
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-        // System Modules Grid Section
-        SectionHeader(title = "Módulos de Gestión", subtitle = "Accesos rápidos de la operación")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ModuleShortcutCard(
-                title = "Fichas de Calidad",
-                icon = Icons.Default.Assignment,
-                modifier = Modifier.weight(1f),
-                onClick = { onNavigate("quality_form_list", data) }
-            )
-            ModuleShortcutCard(
-                title = "Reportes IA",
-                icon = Icons.Default.AutoAwesome,
-                modifier = Modifier.weight(1f),
-                onClick = { onNavigate("insight_list", data) }
-            )
-        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    MetricCard(
+                        title = "Nota Promedio",
+                        value = String.format("%.1f%%", overview.optDouble("average_score", 0.0)),
+                        subtitle = "Periodo actual",
+                        color = getScoreColor(overview.optDouble("average_score", 0.0)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MetricCard(
+                        title = "Disputadas",
+                        value = summary.optString("disputed", "0"),
+                        subtitle = "En revisión",
+                        color = getScoreColor(0.0),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
-        val campaignsArray = data.optJSONArray("campaigns")
-        if (campaignsArray != null && campaignsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Desempeño por Campaña", subtitle = "Promedios de calidad por operación")
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (i in 0 until campaignsArray.length()) {
-                        val camp = campaignsArray.optJSONObject(i) ?: continue
-                        val name = camp.optString("label", "Campaña")
-                        val avg = camp.optDouble("avg_score", 0.0)
-                        val count = camp.optInt("count", 0)
-                        
-                        ProgressLine(
-                            label = "$name ($count ev.)",
-                            score = avg,
-                            color = getScoreColor(avg)
+                if (trendArray != null && trendArray.length() > 0) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SectionHeader(title = "Tendencia de Calidad")
+
+                    val trendPoints = mutableListOf<ChartPoint>()
+                    for (i in 0 until trendArray.length()) {
+                        val point = trendArray.optJSONObject(i) ?: continue
+                        val score = point.optDouble("avg_score", 0.0)
+                        trendPoints.add(
+                            ChartPoint(
+                                label = point.optString("label", "Día").takeLast(5),
+                                value = score,
+                                color = getScoreColor(score)
+                            )
+                        )
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            TrendLineChart(points = trendPoints)
+                        }
+                    }
+                }
+
+                if (evaluationsArray != null && evaluationsArray.length() > 0) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SectionHeader(title = "Últimas Evaluaciones")
+                    for (i in 0 until minOf(evaluationsArray.length(), 4)) {
+                        val eval = evaluationsArray.optJSONObject(i) ?: continue
+                        DetailCard(
+                            title = eval.optString("campaign", "Sin campaña"),
+                            scoreValue = eval.optString("score_label", "—"),
+                            scoreColor = getScoreColor(eval.optDouble("score", -1.0)),
+                            description = "${eval.optString("agent", "—")} | ${eval.optString("status_label", "—")}",
+                            chips = listOf(
+                                if (eval.optJSONObject("feedback_response")?.optBoolean("responded") == true) "Respondido" else "Pendiente"
+                            ),
+                            onClick = { onNavigate("evaluation", eval) }
                         )
                     }
                 }
             }
-        }
+            "campaigns" -> {
+                if (campaignsArray != null && campaignsArray.length() > 0) {
+                    SectionHeader(title = "Desempeño por Campaña", subtitle = "Promedios de calidad por operación")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            for (i in 0 until campaignsArray.length()) {
+                                val camp = campaignsArray.optJSONObject(i) ?: continue
+                                val name = camp.optString("label", "Campaña")
+                                val avg = camp.optDouble("avg_score", 0.0)
+                                val count = camp.optInt("count", 0)
+                                
+                                ProgressLine(
+                                    label = "$name ($count ev.)",
+                                    score = avg,
+                                    color = getScoreColor(avg)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No hay datos de campañas disponibles", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(20.dp))
+                if (defectsArray != null && defectsArray.length() > 0) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SectionHeader(title = "Hallazgos Principales", subtitle = "Criterios con menor adherencia")
 
-        // Metric Cards
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricCard(
-                title = "Nota Promedio",
-                value = String.format("%.1f%%", overview.optDouble("average_score", 0.0)),
-                subtitle = "Periodo actual",
-                color = getScoreColor(overview.optDouble("average_score", 0.0)),
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                title = "Disputadas",
-                value = summary.optString("disputed", "0"),
-                subtitle = "En revisión",
-                color = getScoreColor(0.0), // Red
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        val rankingArray = data.optJSONArray("ranking")
-        if (rankingArray != null && rankingArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Competencia Mensual", subtitle = "Clasificación de asesores por calidad")
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    val count = minOf(rankingArray.length(), 5)
-                    for (i in 0 until count) {
-                        val rItem = rankingArray.optJSONObject(i) ?: continue
-                        val rName = rItem.optString("label", "Asesor")
-                        val rScore = rItem.optString("score_label", "0.0%")
-                        val rLevel = rItem.optString("level", "Plata")
-                        
-                        RankingRow(
-                            name = rName,
-                            scoreLabel = rScore,
-                            level = rLevel,
-                            position = i + 1
+                    val defectPoints = mutableListOf<ChartPoint>()
+                    for (i in 0 until defectsArray.length()) {
+                        val defect = defectsArray.optJSONObject(i) ?: continue
+                        val isCritical = defect.optBoolean("is_critical", false)
+                        defectPoints.add(
+                            ChartPoint(
+                                label = defect.optString("label", "Criterio"),
+                                value = defect.optDouble("count", 0.0),
+                                color = if (isCritical) Color(0xFFEF4444) else Color(0xFFF59E0B)
+                            )
                         )
-                        
-                        if (i < count - 1) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 12.dp),
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            TopDefectsBarChart(defects = defectPoints)
+                        }
+                    }
+                }
+            }
+            "feedback" -> {
+                SectionHeader(title = "Seguimiento de Feedback", subtitle = "Estado de respuestas y disputas")
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        FeedbackStatRow("Publicadas", feedbackSummary.optString("published", "0"), Icons.Default.Publish)
+                        FeedbackStatRow("Vistas", feedbackSummary.optString("viewed", "0"), Icons.Default.Visibility)
+                        FeedbackStatRow("Aceptadas", feedbackSummary.optString("accepted", "0"), Icons.Default.CheckCircle)
+                        FeedbackStatRow("Disputadas", feedbackSummary.optString("disputed", "0"), Icons.Default.Warning)
+                        FeedbackStatRow("Pendientes", feedbackSummary.optString("pending_response", "0"), Icons.Default.Schedule)
+                    }
+                }
+            }
+            "ranking" -> {
+                if (rankingArray != null && rankingArray.length() > 0) {
+                    SectionHeader(title = "Competencia Mensual", subtitle = "Clasificación de asesores por calidad")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            val count = rankingArray.length()
+                            for (i in 0 until count) {
+                                val rItem = rankingArray.optJSONObject(i) ?: continue
+                                val rName = rItem.optString("label", "Asesor")
+                                val rScore = rItem.optString("score_label", "0.0%")
+                                val rLevel = rItem.optString("level", "Plata")
+                                
+                                RankingRow(
+                                    name = rName,
+                                    scoreLabel = rScore,
+                                    level = rLevel,
+                                    position = i + 1
+                                )
+                                
+                                if (i < count - 1) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 12.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No hay datos de ranking disponibles", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
+                }
+            }
+            "alerts" -> {
+                if (alertsArray != null && alertsArray.length() > 0) {
+                    SectionHeader(title = "Alertas Operativas", subtitle = "Incidencias críticas detectadas")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        for (i in 0 until alertsArray.length()) {
+                            val alert = alertsArray.optJSONObject(i) ?: continue
+                            val title = alert.optString("title", "Alerta")
+                            val desc = alert.optString("description", "")
+                            val severity = alert.optString("severity", "info")
+                            val created = alert.optString("created_at", "").take(10)
+                            val evalId = alert.optInt("evaluation_id", -1)
+                            
+                            val fullEval = if (evalId > 0 && evaluationsArray != null) {
+                                var found: org.json.JSONObject? = null
+                                for (idx in 0 until evaluationsArray.length()) {
+                                    val ev = evaluationsArray.optJSONObject(idx)
+                                    if (ev != null && ev.optInt("id") == evalId) {
+                                        found = ev
+                                        break
+                                    }
+                                }
+                                found
+                            } else null
+                            
+                            AlertRowCard(
+                                title = title,
+                                description = desc,
+                                severity = severity,
+                                dateLabel = created,
+                                onClick = {
+                                    if (fullEval != null) {
+                                        onNavigate("evaluation", fullEval)
+                                    }
+                                }
                             )
                         }
                     }
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No hay alertas operativas críticas", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Feedback Tracking
-        SectionHeader(title = "Seguimiento de Feedback")
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline,
-                    shape = RoundedCornerShape(12.dp)
-                ),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                FeedbackStatRow("Publicadas", feedbackSummary.optString("published", "0"), Icons.Default.Publish)
-                FeedbackStatRow("Vistas", feedbackSummary.optString("viewed", "0"), Icons.Default.Visibility)
-                FeedbackStatRow("Aceptadas", feedbackSummary.optString("accepted", "0"), Icons.Default.CheckCircle)
-                FeedbackStatRow("Disputadas", feedbackSummary.optString("disputed", "0"), Icons.Default.Warning)
-                FeedbackStatRow("Pendientes", feedbackSummary.optString("pending_response", "0"), Icons.Default.Schedule)
-            }
-        }
-
-        // Charts
-        val trendArray = data.optJSONArray("quality_trend")
-        if (trendArray != null && trendArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Tendencia de Calidad")
-
-            val trendPoints = mutableListOf<ChartPoint>()
-            for (i in 0 until trendArray.length()) {
-                val point = trendArray.optJSONObject(i) ?: continue
-                val score = point.optDouble("avg_score", 0.0)
-                trendPoints.add(
-                    ChartPoint(
-                        label = point.optString("label", "Día").takeLast(5),
-                        value = score,
-                        color = getScoreColor(score)
-                    )
-                )
-            }
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    TrendLineChart(points = trendPoints)
-                }
-            }
-        }
-
-        val defectsArray = data.optJSONArray("top_defects")
-        if (defectsArray != null && defectsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Hallazgos Principales")
-
-            val defectPoints = mutableListOf<ChartPoint>()
-            for (i in 0 until defectsArray.length()) {
-                val defect = defectsArray.optJSONObject(i) ?: continue
-                val isCritical = defect.optBoolean("is_critical", false)
-                defectPoints.add(
-                    ChartPoint(
-                        label = defect.optString("label", "Criterio"),
-                        value = defect.optDouble("count", 0.0),
-                        color = if (isCritical) Color(0xFFEF4444) else Color(0xFFF59E0B)
-                    )
-                )
-            }
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    TopDefectsBarChart(defects = defectPoints)
-                }
-            }
-        }
-
-        // Recent evaluations list
-        if (evaluationsArray != null && evaluationsArray.length() > 0) {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader(title = "Últimas Evaluaciones")
-            for (i in 0 until minOf(evaluationsArray.length(), 4)) {
-                val eval = evaluationsArray.optJSONObject(i) ?: continue
-                DetailCard(
-                    title = eval.optString("campaign", "Sin campaña"),
-                    scoreValue = eval.optString("score_label", "—"),
-                    scoreColor = getScoreColor(eval.optDouble("score", -1.0)),
-                    description = "${eval.optString("agent", "—")} | ${eval.optString("status_label", "—")}",
-                    chips = listOf(
-                        if (eval.optJSONObject("feedback_response")?.optBoolean("responded") == true) "Respondido" else "Pendiente"
-                    ),
-                    onClick = { onNavigate("evaluation", eval) }
-                )
             }
         }
 

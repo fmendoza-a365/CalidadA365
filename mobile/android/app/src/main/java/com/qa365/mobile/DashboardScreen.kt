@@ -2,13 +2,16 @@ package com.qa365.mobile
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONObject
@@ -55,36 +58,54 @@ fun DashboardScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                ),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                val items = listOf(
-                    NavItem("dashboard", "Inicio", Icons.Default.Home),
-                    NavItem("transcripts", "Audios", Icons.Default.Audiotrack),
-                    NavItem("evaluations", "Eval.", Icons.Default.Assessment),
-                    NavItem("campaigns", "Campañas", Icons.Default.Campaign),
-                    NavItem("more", "Perfil", Icons.Default.Person)
-                )
-
-                items.forEach { item ->
-                    NavigationBarItem(
-                        selected = activeTab == item.id,
-                        onClick = { onTabSelected(item.id) },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label, fontSize = 11.sp) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(24.dp)
+                        ),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.height(72.dp)
+                    ) {
+                        val items = listOf(
+                            NavItem("dashboard", "Inicio", Icons.Default.Home),
+                            NavItem("transcripts", "Audios", Icons.Default.Audiotrack),
+                            NavItem("evaluations", "Eval.", Icons.Default.Assessment),
+                            NavItem("campaigns", "Campañas", Icons.Default.Campaign),
+                            NavItem("more", "Perfil", Icons.Default.Person)
                         )
-                    )
+
+                        items.forEach { item ->
+                            NavigationBarItem(
+                                selected = activeTab == item.id,
+                                onClick = { onTabSelected(item.id) },
+                                icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(20.dp)) },
+                                label = { Text(item.label, fontSize = 10.sp, fontWeight = FontWeight.Medium) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
