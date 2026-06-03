@@ -65,18 +65,9 @@ fun LoginScreen(
                 Image(
                     painter = painterResource(id = R.drawable.qa_logo),
                     contentDescription = "QA365 Logo",
-                    modifier = Modifier.size(64.dp),
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                    modifier = Modifier.size(76.dp)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "QA365",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Gestión de Calidad IA",
                     fontSize = 14.sp,
@@ -126,13 +117,14 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "hola, bienvenido a Qa365",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = "¡Hola!",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "¿esta listo para evaluar?",
+                        text = "Bienvenido, ¿estas listo para evaluar?",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
