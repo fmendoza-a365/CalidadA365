@@ -82,6 +82,11 @@ class TranscriptConversationViewTest extends TestCase
             ->assertSee('Preocupación')
             ->assertSee('Señales de voz')
             ->assertSee('Impacto en calidad')
+            ->assertSee('Línea de tiempo')
+            ->assertSee('data-audio-timeline-track', false)
+            ->assertSee('seekFromTimeline($event)', false)
+            ->assertSee('eventSegments.length', false)
+            ->assertSee('selectSegment(segment)', false)
             ->assertSee('selectTurn(0, \'turn-0\')', false)
             ->assertSee('Cliente mejora al cierre.');
     }

@@ -102,7 +102,6 @@ Alpine.data('audioReview', (config = {}) => ({
 
     init() {
         this.normalizeTimeline();
-        this.loadAudioWaveform();
 
         this.$nextTick(() => {
             if (!this.$refs.audio) {
@@ -114,11 +113,13 @@ Alpine.data('audioReview', (config = {}) => ({
     },
 
     get progress() {
-        if (!this.duration) {
+        const duration = this.safeDuration();
+
+        if (!duration) {
             return 0;
         }
 
-        return Math.min(100, Math.max(0, (this.currentTime / this.duration) * 100));
+        return this.percent(this.currentTime, duration);
     },
 
     get currentLabel() {
@@ -134,7 +135,15 @@ Alpine.data('audioReview', (config = {}) => ({
             return null;
         }
 
-        return this.segments.find((segment) => this.currentTime >= segment.start && this.currentTime < segment.end) || null;
+        const active = this.segments.find((segment) => this.currentTime >= segment.start && this.currentTime < segment.end);
+
+        if (active) {
+            return active;
+        }
+
+        const lastSegment = this.segments[this.segments.length - 1];
+
+        return lastSegment && this.currentTime >= lastSegment.end ? lastSegment : null;
     },
 
     get activeTurnId() {
@@ -184,10 +193,11 @@ Alpine.data('audioReview', (config = {}) => ({
 
         this.nativeDuration = nativeDuration;
 
-        const nextDuration = Math.max(this.timelineDuration || 0, nativeDuration);
-        if (Math.abs(nextDuration - this.duration) >= 0.5) {
+        const nextDuration = nativeDuration || this.timelineDuration || this.duration;
+        if (Math.abs(nextDuration - this.duration) >= 0.1) {
             this.duration = nextDuration;
             this.normalizeTimeline();
+            this.currentTime = this.clampTime(this.currentTime);
         }
     },
 
@@ -215,11 +225,15 @@ Alpine.data('audioReview', (config = {}) => ({
     },
 
     seek(seconds) {
-        const nextTime = Math.min(Math.max(Number(seconds) || 0, 0), this.duration || Number(seconds) || 0);
+        const nextTime = this.clampTime(seconds);
         this.currentTime = nextTime;
 
         if (this.$refs.audio) {
-            this.$refs.audio.currentTime = nextTime;
+            try {
+                this.$refs.audio.currentTime = nextTime;
+            } catch (error) {
+                this.currentTime = nextTime;
+            }
         }
     },
 
@@ -252,39 +266,34 @@ Alpine.data('audioReview', (config = {}) => ({
         });
     },
 
-    seekFromWaveform(event) {
-        if (!this.duration) {
+    seekFromTimeline(event) {
+        if (!this.safeDuration()) {
             return;
         }
 
-        const rect = event.currentTarget.getBoundingClientRect();
-        const style = window.getComputedStyle(event.currentTarget);
-        const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
-        const paddingRight = Number.parseFloat(style.paddingRight) || 0;
-        const innerWidth = Math.max(rect.width - paddingLeft - paddingRight, 1);
-        const x = Math.min(Math.max(event.clientX - rect.left - paddingLeft, 0), innerWidth);
-        const ratio = x / innerWidth;
+        const track = event.currentTarget;
+        const rect = track.getBoundingClientRect();
+        const ratio = Math.min(Math.max((event.clientX - rect.left) / Math.max(rect.width, 1), 0), 1);
 
-        this.seek(this.duration * ratio);
+        this.seek(this.safeDuration() * ratio);
+    },
+
+    seekFromWaveform(event) {
+        this.seekFromTimeline(event);
     },
 
     seekFromTrack(event) {
-        if (!this.duration) {
-            return;
-        }
-
-        const rect = event.currentTarget.getBoundingClientRect();
-        const ratio = Math.min(Math.max((event.clientX - rect.left) / Math.max(rect.width, 1), 0), 1);
-
-        this.seek(this.duration * ratio);
+        this.seekFromTimeline(event);
     },
 
     normalizeTimeline() {
         const duration = this.safeDuration();
 
         this.segments = this.rawSegments.map((segment) => {
-            const start = Math.max(0, Number(segment.start || 0));
-            const end = Math.max(start + 1, Number(segment.end || start + 1));
+            const rawStart = Math.max(0, Number(segment.start || 0));
+            const rawEnd = Math.max(rawStart + 0.1, Number(segment.end || rawStart + 1));
+            const start = Math.min(rawStart, Math.max(duration - 0.1, 0));
+            const end = Math.min(duration, Math.max(start + 0.1, rawEnd));
 
             return {
                 ...segment,
@@ -318,80 +327,20 @@ Alpine.data('audioReview', (config = {}) => ({
         });
     },
 
-    async loadAudioWaveform() {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
-        if (!this.audioUrl || !AudioContextClass || typeof fetch !== 'function') {
-            return;
-        }
-
-        try {
-            const response = await fetch(this.audioUrl, { credentials: 'same-origin' });
-
-            if (!response.ok) {
-                return;
-            }
-
-            const audioData = await response.arrayBuffer();
-            const audioContext = new AudioContextClass();
-            const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
-            const waveformBars = this.waveformBarsFromBuffer(audioBuffer, this.rawBars.length || 120);
-
-            if (waveformBars.length) {
-                this.rawBars = waveformBars;
-                this.visualBars = this.buildVisualBars(this.safeDuration());
-            }
-
-            if (typeof audioContext.close === 'function') {
-                await audioContext.close();
-            }
-        } catch (error) {
-            // The server-generated timeline stays visible if the browser cannot decode the file.
-        }
-    },
-
-    waveformBarsFromBuffer(audioBuffer, count) {
-        const channel = audioBuffer.getChannelData(0);
-
-        if (!channel.length || !count) {
-            return [];
-        }
-
-        const samplesPerBar = Math.max(Math.floor(channel.length / count), 1);
-        const levels = [];
-
-        for (let index = 0; index < count; index += 1) {
-            const start = index * samplesPerBar;
-            const end = Math.min(start + samplesPerBar, channel.length);
-            const step = Math.max(Math.floor((end - start) / 240), 1);
-            let sum = 0;
-            let reads = 0;
-
-            for (let sample = start; sample < end; sample += step) {
-                const value = channel[sample] || 0;
-                sum += value * value;
-                reads += 1;
-            }
-
-            levels.push(reads ? Math.sqrt(sum / reads) : 0);
-        }
-
-        const maxLevel = Math.max(...levels, 0.001);
-        const duration = this.safeDuration();
-
-        return levels.map((level, index) => ({
-            index,
-            time: duration > 0 ? (duration / count) * (index + 0.5) : 0,
-            height: 16 + Math.min(78, (level / maxLevel) * 78),
-        }));
-    },
-
     segmentAtSecond(second) {
         return this.segments.find((segment) => second >= segment.start && second < segment.end) || null;
     },
 
+    markerLeft(segment) {
+        return Math.min(99, Math.max(1, Number(segment?.left || 0)));
+    },
+
     safeDuration() {
-        return Math.max(Number(this.duration || 0), Number(this.timelineDuration || 0), 1);
+        return Math.max(Number(this.duration || this.timelineDuration || 0), 1);
+    },
+
+    clampTime(seconds) {
+        return Math.min(Math.max(Number(seconds) || 0, 0), this.safeDuration());
     },
 
     percent(value, duration) {

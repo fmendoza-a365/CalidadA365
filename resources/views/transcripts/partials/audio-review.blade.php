@@ -6,27 +6,6 @@
     $bars = $timeline['bars'] ?? [];
     $voice = $summary['voice'] ?? [];
     $qualitySignals = $summary['quality_signals'] ?? [];
-    $eventSegments = collect($segments)
-        ->filter(function ($segment, $index) use ($segments) {
-            $previous = $segments[$index - 1] ?? null;
-            $score = abs((float) ($segment['score'] ?? 0));
-            $sentiment = $segment['sentiment'] ?? 'neutro';
-            $emotion = $segment['emotion'] ?? 'calma';
-            $isNeutral = $sentiment === 'neutro'
-                && in_array($emotion, ['calma', 'neutro', 'neutral'], true)
-                && $score < 0.35;
-
-            if ($isNeutral) {
-                return false;
-            }
-
-            return $index === 0
-                || $score >= 0.35
-                || ($segment['sentiment'] ?? null) !== ($previous['sentiment'] ?? null)
-                || ($segment['emotion'] ?? null) !== ($previous['emotion'] ?? null);
-        })
-        ->take(48)
-        ->values();
     $emotionLegend = collect($segments)
         ->unique(fn ($segment) => $segment['emotion'] ?? $segment['emotion_label'] ?? '')
         ->take(6)
@@ -141,70 +120,68 @@
             </div>
 
             <div class="rounded-xl border border-white/10 bg-black/25 p-3">
-                <div class="mb-3">
-                    <div class="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        <span>Progreso</span>
-                        <span class="font-mono normal-case tracking-normal text-gray-300">
-                            <span x-text="currentLabel">00:00</span> / <span x-text="durationLabel">{{ $timeline['duration_label'] ?? '00:00' }}</span>
-                        </span>
-                    </div>
-                    <button type="button" class="relative block h-2 w-full rounded-full bg-white/15"
-                        @click="seekFromTrack($event)" aria-label="Cambiar posición del audio">
-                        <span class="absolute left-0 top-0 h-full rounded-full bg-emerald-400"
-                            :style="`width: ${progress}%;`"></span>
-                        <span class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-gray-950 bg-white shadow"
-                            :style="`left: ${progress}%;`"></span>
-                    </button>
+                <div class="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <span>Línea de tiempo</span>
+                    <span class="font-mono normal-case tracking-normal text-gray-300">
+                        <span x-text="currentLabel">00:00</span> / <span x-text="durationLabel">{{ $timeline['duration_label'] ?? '00:00' }}</span>
+                    </span>
                 </div>
 
-                <div class="relative mt-4">
-                    <div class="relative h-32 cursor-pointer overflow-hidden rounded-lg bg-white/5 px-2"
-                        @click="seekFromWaveform($event)">
-                        <div class="pointer-events-none absolute inset-x-2 top-1/2 h-px bg-white/10"></div>
-
-                        <div class="relative flex h-full items-center gap-[3px] pb-4 pt-7">
-                            <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
-                                <button type="button" class="flex h-full flex-1 items-center justify-center rounded-sm transition hover:opacity-100"
-                                    :title="formatTime(bar.time)"
-                                    @click.stop="seek(bar.time)">
-                                    <span class="block min-h-[4px] w-full rounded-full opacity-65 transition"
-                                        :class="{ 'opacity-100': bar.time <= currentTime }"
-                                        :style="`height: ${bar.height}%; background-color: ${bar.time <= currentTime ? bar.color : '#5f6b7c'};`">
-                                    </span>
-                                </button>
-                            </template>
-                        </div>
-
-                        <div class="pointer-events-none absolute inset-x-2 bottom-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                            <template x-for="segment in segments" :key="`sentiment-${segment.id}`">
-                                <span class="absolute top-0 h-full"
-                                    :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
-                            </template>
-                        </div>
-
-                        @if($eventSegments->isNotEmpty())
-                            <div class="absolute inset-x-2 top-2 z-20 h-7">
-                                @foreach($eventSegments as $segment)
-                                    <button type="button"
-                                        class="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 text-white shadow ring-1 ring-white/20 transition hover:scale-110 hover:ring-white"
-                                        :class="activeTurnId === '{{ $segment['turn_id'] ?? '' }}' ? 'ring-2 ring-white' : ''"
-                                        style="left: {{ $segment['left'] ?? 0 }}%; background-color: {{ $segment['color'] ?? '#64748b' }};"
-                                        title="{{ ($segment['start_label'] ?? '00:00').' · '.($segment['label'] ?? 'Evento').' · '.($segment['emotion_label'] ?? 'Evento') }}"
-                                        @click.stop="selectTurn({{ (int) ($segment['start'] ?? 0) }}, @js($segment['turn_id'] ?? null))">
-                                        @include('transcripts.partials.emotion-icon', [
-                                            'icon' => $segment['emotion_icon'] ?? 'wave',
-                                            'class' => 'h-3.5 w-3.5',
-                                        ])
-                                    </button>
-                                @endforeach
-                            </div>
-                        @endif
-
-                        <div class="pointer-events-none absolute inset-x-2 bottom-0 top-0 z-10">
-                            <div class="absolute bottom-0 top-0 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
-                                :style="`left: ${progress}%;`"></div>
-                        </div>
+                <div class="relative h-36 cursor-pointer overflow-hidden rounded-lg border border-white/10 bg-white/5"
+                    data-audio-timeline-track
+                    @click="seekFromTimeline($event)">
+                    <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-white/15">
+                        <div class="h-full bg-emerald-400" :style="`width: ${progress}%;`"></div>
                     </div>
+
+                    <div class="pointer-events-none absolute inset-x-0 top-[64px] h-px bg-white/10"></div>
+
+                    <div class="pointer-events-none absolute inset-x-0 bottom-8 top-9 flex items-center gap-[3px]">
+                        <template x-for="bar in visualBars" :key="`bar-${bar.index}`">
+                            <span class="flex h-full flex-1 items-center justify-center rounded-sm">
+                                <span class="block min-h-[4px] w-full rounded-full opacity-70 transition"
+                                    :class="{ 'opacity-100': bar.time <= currentTime }"
+                                    :style="`height: ${bar.height}%; background-color: ${bar.time <= currentTime ? bar.color : '#5f6b7c'};`">
+                                </span>
+                            </span>
+                        </template>
+                    </div>
+
+                    <div class="pointer-events-none absolute inset-x-0 bottom-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <template x-for="segment in segments" :key="`sentiment-${segment.id}`">
+                            <span class="absolute top-0 h-full"
+                                :style="`left: ${segment.left}%; width: ${segment.width}%; background-color: ${segment.color};`"></span>
+                        </template>
+                    </div>
+
+                    <div class="absolute inset-x-0 top-3 z-20 h-7" x-show="eventSegments.length" x-cloak>
+                        <template x-for="segment in eventSegments" :key="`event-${segment.id}`">
+                            <button type="button"
+                                class="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full border border-gray-950 text-white shadow ring-1 ring-white/20 transition hover:scale-110 hover:ring-white"
+                                :class="activeTurnId === segment.turn_id ? 'ring-2 ring-white' : ''"
+                                :style="`left: ${markerLeft(segment)}%; background-color: ${segment.color || '#64748b'};`"
+                                :title="eventTitle(segment)"
+                                @click.stop="selectSegment(segment)">
+                                <svg x-show="segment.emotion_icon === 'alert'" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.3 4.3 2.8 17.7A1.5 1.5 0 0 0 4.1 20h15.8a1.5 1.5 0 0 0 1.3-2.3L13.7 4.3a1.5 1.5 0 0 0-2.4 0Z" />
+                                </svg>
+                                <svg x-show="segment.emotion_icon === 'question'" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 9a3.5 3.5 0 1 1 5.2 3.1c-1.2.7-2.2 1.4-2.2 3.1M12 19h.01" />
+                                </svg>
+                                <svg x-show="segment.emotion_icon === 'minus'" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12h12" />
+                                </svg>
+                                <svg x-show="!['alert', 'question', 'minus'].includes(segment.emotion_icon)" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7" />
+                                </svg>
+                            </button>
+                        </template>
+                    </div>
+
+                    <div class="pointer-events-none absolute inset-y-0 z-10 w-px bg-white shadow-[0_0_12px_rgba(255,255,255,0.75)]"
+                        :style="`left: ${progress}%;`"></div>
+                    <div class="pointer-events-none absolute top-0 z-10 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-gray-950 bg-white shadow"
+                        :style="`left: ${progress}%;`"></div>
                 </div>
 
                 <div class="mt-3 grid grid-cols-[72px_1fr] gap-2 text-xs">
