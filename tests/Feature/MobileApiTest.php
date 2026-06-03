@@ -9,6 +9,7 @@ use App\Models\QualityForm;
 use App\Models\QualityFormVersion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -50,7 +51,8 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('data.0.id', $evaluation->id)
             ->assertJsonPath('data.0.score', 55)
             ->assertJsonPath('data.0.feedback_indicators.customer_experience_risk', 'Alto')
-            ->assertJsonPath('data.0.audio.dead_air_seconds', 45);
+            ->assertJsonPath('data.0.audio.dead_air_seconds', 45)
+            ->assertJsonPath('data.0.audio.source_type', 'audio');
     }
 
     public function test_mobile_api_rejects_invalid_tokens(): void
@@ -82,6 +84,24 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('modules.evaluations.summary.pending_monitor', 1)
             ->assertJsonPath('ranking.0.total_evals', 1)
             ->assertJsonCount(1, 'evaluations');
+    }
+
+    public function test_mobile_dashboard_exposes_transcript_text_and_mobile_audio_url(): void
+    {
+        [$admin, $evaluation] = $this->criticalEvaluation();
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $admin->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/mobile/dashboard')
+            ->assertOk()
+            ->assertJsonPath('modules.transcripts.items.0.id', $evaluation->interaction_id)
+            ->assertJsonPath('modules.transcripts.items.0.transcript_text', 'Cliente reporta problemas sin resolver.')
+            ->assertJsonPath('modules.transcripts.items.0.transcript_excerpt', 'Cliente reporta problemas sin resolver.')
+            ->assertJsonPath('modules.transcripts.items.0.audio_url', url('/api/mobile/transcripts/'.$evaluation->interaction_id.'/audio'));
     }
 
     public function test_mobile_dashboard_returns_agent_payload_for_advisors(): void
@@ -164,6 +184,24 @@ class MobileApiTest extends TestCase
             'agent_id' => $agent->id,
             'response_type' => 'accept',
         ]);
+    }
+
+    public function test_mobile_audio_route_streams_audio_with_bearer_token(): void
+    {
+        Storage::fake('local');
+        [$admin, $evaluation] = $this->criticalEvaluation();
+        Storage::disk('local')->put('audio/test.wav', '12345');
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $admin->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->get('/api/mobile/transcripts/'.$evaluation->interaction_id.'/audio');
+
+        $response->assertOk();
+        $this->assertSame('12345', $response->streamedContent());
     }
 
     public function test_mobile_logout_revokes_current_token(): void

@@ -16,5 +16,6 @@ Route::prefix('mobile')->group(function () {
         Route::get('evaluations', [MobileDashboardController::class, 'evaluations']);
         Route::post('evaluations/{evaluation}/viewed', [MobileDashboardController::class, 'markEvaluationViewed']);
         Route::post('evaluations/{evaluation}/respond', [MobileDashboardController::class, 'respondEvaluation']);
+        Route::get('transcripts/{interaction}/audio', [MobileDashboardController::class, 'transcriptAudio']);
     });
 });

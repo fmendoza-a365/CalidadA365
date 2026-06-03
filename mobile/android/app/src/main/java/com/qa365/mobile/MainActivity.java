@@ -7,6 +7,8 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -35,7 +37,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -58,8 +62,12 @@ public class MainActivity extends Activity {
     private LinearLayout content;
     private JSONObject dashboardData;
     private JSONObject detailData;
+    private Bitmap cachedAvatarBitmap;
+    private Button activeAudioButton;
+    private MediaPlayer mediaPlayer;
     private String token;
     private String serverUrl;
+    private String cachedAvatarUrl = "";
     private String activeTab = "dashboard";
     private String detailType = "";
     private boolean darkMode;
@@ -82,6 +90,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        releaseAudioPlayer();
         executor.shutdownNow();
         super.onDestroy();
     }
@@ -90,11 +99,12 @@ public class MainActivity extends Activity {
         applySystemBars();
         root = vertical();
         root.setBackgroundColor(bg());
-        root.setPadding(dp(20), dp(18), dp(20), dp(18));
+        root.setPadding(dp(22), dp(20), dp(22), dp(20));
 
         LinearLayout top = horizontal();
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text("QA365", 14, muted(), Typeface.BOLD), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        ImageView smallLogo = logoView(82, 32);
+        top.addView(smallLogo, new LinearLayout.LayoutParams(0, dp(36), 1));
         top.addView(themeIconButton(), new LinearLayout.LayoutParams(dp(42), dp(42)));
         root.addView(top, matchWrap());
 
@@ -103,31 +113,31 @@ public class MainActivity extends Activity {
         scroll.setVerticalScrollBarEnabled(false);
         LinearLayout body = vertical();
         body.setGravity(Gravity.CENTER_HORIZONTAL);
-        body.setPadding(0, dp(30), 0, dp(20));
+        body.setPadding(0, dp(22), 0, dp(20));
         scroll.addView(body, matchWrap());
         root.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        ImageView logo = logoView(172, 76);
+        ImageView logo = logoView(184, 82);
         LinearLayout.LayoutParams logoParams = wrapWrap();
-        logoParams.setMargins(0, 0, 0, dp(18));
+        logoParams.setMargins(0, dp(18), 0, dp(20));
         body.addView(logo, logoParams);
 
-        TextView title = text("Centro movil de calidad", 24, textColor(), Typeface.BOLD);
+        TextView title = text("Bienvenido", 28, textColor(), Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setMaxLines(2);
         body.addView(title, matchWrap());
 
-        TextView subtitle = text("Seguimiento ejecutivo y resultados de asesores", 14, muted(), Typeface.NORMAL);
+        TextView subtitle = text("Centro movil de calidad", 15, muted(), Typeface.NORMAL);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setMaxLines(3);
         LinearLayout.LayoutParams subtitleParams = matchWrap();
-        subtitleParams.setMargins(0, dp(8), 0, dp(22));
+        subtitleParams.setMargins(0, dp(8), 0, dp(26));
         body.addView(subtitle, subtitleParams);
 
         LinearLayout card = card();
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        card.setPadding(dp(16), dp(18), dp(16), dp(18));
 
-        EditText serverInput = input("Servidor");
+        EditText serverInput = input("Servidor QA365");
         serverInput.setText(serverUrl);
         card.addView(serverInput, matchWrap());
 
@@ -138,7 +148,7 @@ public class MainActivity extends Activity {
         password.input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         card.addView(password.container, spaced());
 
-        Button loginButton = primaryButton("Ingresar");
+        Button loginButton = primaryButton("Iniciar sesion");
         LinearLayout.LayoutParams buttonParams = matchWrap();
         buttonParams.setMargins(0, dp(16), 0, 0);
         card.addView(loginButton, buttonParams);
@@ -226,36 +236,65 @@ public class MainActivity extends Activity {
 
     private LinearLayout dashboardHeader() {
         JSONObject profile = object(dashboardData, "profile");
-        String name = nonEmpty(profile.optString("name"), "QA365");
-        String role = profile.optJSONArray("roles") != null && profile.optJSONArray("roles").length() > 0
-            ? profile.optJSONArray("roles").optString(0, "Usuario")
-            : "Centro movil";
 
         LinearLayout header = horizontal();
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(16), dp(14), dp(16), dp(10));
+        header.setPadding(dp(18), dp(14), dp(18), dp(8));
         header.setBackgroundColor(bg());
 
-        ImageView avatar = avatarView(profile, 42);
-        header.addView(avatar, new LinearLayout.LayoutParams(dp(42), dp(42)));
-
         LinearLayout titleBox = vertical();
-        titleBox.setPadding(dp(10), 0, 0, 0);
-        TextView title = text(name, 15, textColor(), Typeface.BOLD);
+        TextView title = text(headerTitle(), 24, textColor(), Typeface.BOLD);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         titleBox.addView(title, matchWrap());
-        TextView subtitle = text(roleLabel(role), 12, muted(), Typeface.NORMAL);
+        TextView subtitle = text(headerSubtitle(profile), 12, muted(), Typeface.NORMAL);
         subtitle.setSingleLine(true);
         subtitle.setEllipsize(TextUtils.TruncateAt.END);
         titleBox.addView(subtitle, matchWrap());
         header.addView(titleBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
-        header.addView(themeIconButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
         header.addView(headerIconButton(R.drawable.ic_refresh, "Actualizar", v -> loadDashboard()), marginLeft(dp(8), dp(40), dp(40)));
-        header.addView(headerIconButton(R.drawable.ic_logout, "Salir", v -> logout()), marginLeft(dp(8), dp(40), dp(40)));
+        header.addView(themeIconButton(), marginLeft(dp(8), dp(40), dp(40)));
+
+        ImageView avatar = avatarView(profile, 42);
+        avatar.setOnClickListener(v -> {
+            activeTab = "more";
+            detailType = "";
+            detailData = null;
+            renderDashboard();
+        });
+        header.addView(avatar, marginLeft(dp(10), dp(42), dp(42)));
 
         return header;
+    }
+
+    private String headerTitle() {
+        if (detailData != null) {
+            return detailTitle();
+        }
+        if ("transcripts".equals(activeTab)) {
+            return "Transcripciones";
+        }
+        if ("evaluations".equals(activeTab)) {
+            return "Evaluaciones";
+        }
+        if ("campaigns".equals(activeTab)) {
+            return "Campanas";
+        }
+        if ("more".equals(activeTab)) {
+            return "Perfil";
+        }
+        return "Dashboard";
+    }
+
+    private String headerSubtitle(JSONObject profile) {
+        if (detailData != null) {
+            return detailSubtitle();
+        }
+        String role = profile.optJSONArray("roles") != null && profile.optJSONArray("roles").length() > 0
+            ? profile.optJSONArray("roles").optString(0, "Usuario")
+            : "Centro movil";
+        return nonEmpty(profile.optString("name"), "QA365") + " | " + roleLabel(role);
     }
 
     private void loadDashboard() {
@@ -312,6 +351,11 @@ public class MainActivity extends Activity {
         JSONObject feedbackModule = object(modules, "feedback");
         JSONObject feedbackSummary = object(feedbackModule, "summary");
 
+        if (isAgent) {
+            renderAgentDashboardModule(profile, overview, summary, feedbackSummary);
+            return;
+        }
+
         content.addView(heroCard(profile, isAgent, overview, summary), matchWrap());
 
         LinearLayout grid = vertical();
@@ -329,6 +373,40 @@ public class MainActivity extends Activity {
         renderFeedbackBlock(feedbackSummary);
         renderTrend();
         renderDefects();
+    }
+
+    private void renderAgentDashboardModule(JSONObject profile, JSONObject overview, JSONObject summary, JSONObject feedbackSummary) {
+        JSONObject agent = object(dashboardData, "agent");
+        JSONObject league = object(agent, "league");
+        JSONArray matchHistory = agent.optJSONArray("match_history");
+
+        content.addView(heroCard(profile, true, overview, summary), matchWrap());
+
+        LinearLayout performance = section("Mi desempeno");
+        LinearLayout leagueCard = compactCard();
+        leagueCard.addView(rowTitleValue("Liga", nonEmpty(league.optString("name"), "En seguimiento"), accent()), matchWrap());
+        leagueCard.addView(progressLine("Promedio personal", overview.optDouble("average_score", 0), scoreColor(overview.optDouble("average_score", 0))), spaced());
+        leagueCard.addView(chipRow(new String[]{
+            overview.optString("total_evaluations", "0") + " evaluaciones",
+            summary.optString("critical_scores", "0") + " criticas"
+        }), spaced());
+        performance.addView(leagueCard, spaced());
+        content.addView(performance, sectionParams());
+
+        LinearLayout feedback = section("Mi feedback");
+        feedback.addView(metricRow(
+            compactMetric("Publicado", feedbackSummary.optString("published", "0"), BLUE),
+            compactMetric("Pendiente", feedbackSummary.optString("pending_response", "0"), AMBER)
+        ), spaced());
+        feedback.addView(metricRow(
+            compactMetric("Visto", feedbackSummary.optString("viewed", "0"), GREEN),
+            compactMetric("Respondido", feedbackSummary.optString("responded", "0"), GREEN)
+        ), spacedSmall());
+        content.addView(feedback, sectionParams());
+
+        LinearLayout evaluations = section("Mis evaluaciones");
+        renderEvaluationList(evaluations, matchHistory);
+        content.addView(evaluations, sectionParams());
     }
 
     private LinearLayout heroCard(JSONObject profile, boolean isAgent, JSONObject overview, JSONObject summary) {
@@ -441,6 +519,7 @@ public class MainActivity extends Activity {
                 card.addView(rowTitleValue(nonEmpty(item.optString("campaign"), "Sin campana"), item.optString("score_label", "Sin nota"), scoreColor(item.optDouble("score", -1))), matchWrap());
                 card.addView(bodyText(nonEmpty(item.optString("agent"), "Sin asesor")), spacedSmall());
                 card.addView(bodyText(nonEmpty(item.optString("file_name"), item.optString("source_type", "Interaccion"))), spacedSmall());
+                card.addView(bodyText(nonEmpty(item.optString("transcript_excerpt"), "Transcripcion pendiente")), spacedSmall());
                 card.addView(chipRow(new String[]{
                     "Estado: " + nonEmpty(item.optString("transcription_status"), "sin dato"),
                     "Duracion: " + nonEmpty(item.optString("duration_label"), "00:00")
@@ -523,17 +602,45 @@ public class MainActivity extends Activity {
 
     private LinearLayout profileCard() {
         JSONObject profile = object(dashboardData, "profile");
-        LinearLayout card = section("Perfil");
-        LinearLayout row = horizontal();
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(avatarView(profile, 64), new LinearLayout.LayoutParams(dp(64), dp(64)));
-        LinearLayout info = vertical();
-        info.setPadding(dp(12), 0, 0, 0);
-        info.addView(text(nonEmpty(profile.optString("name"), "Usuario"), 18, textColor(), Typeface.BOLD), matchWrap());
-        info.addView(text(nonEmpty(profile.optString("email"), ""), 12, muted(), Typeface.NORMAL), spacedSmall());
-        info.addView(text("Foto de perfil sincronizada con la web.", 12, muted(), Typeface.NORMAL), spacedSmall());
-        row.addView(info, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        card.addView(row, spaced());
+        String role = profile.optJSONArray("roles") != null && profile.optJSONArray("roles").length() > 0
+            ? profile.optJSONArray("roles").optString(0, "Usuario")
+            : "Usuario";
+
+        LinearLayout card = card();
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(18), dp(20), dp(18), dp(18));
+
+        ImageView avatar = avatarView(profile, 86);
+        card.addView(avatar, new LinearLayout.LayoutParams(dp(86), dp(86)));
+
+        TextView name = text(nonEmpty(profile.optString("name"), "Usuario QA365"), 22, textColor(), Typeface.BOLD);
+        name.setGravity(Gravity.CENTER);
+        name.setMaxLines(2);
+        card.addView(name, spaced());
+
+        TextView email = text(nonEmpty(profile.optString("email"), nonEmpty(profile.optString("username"), "Cuenta QA365")), 12, muted(), Typeface.NORMAL);
+        email.setGravity(Gravity.CENTER);
+        email.setSingleLine(true);
+        email.setEllipsize(TextUtils.TruncateAt.END);
+        card.addView(email, spacedSmall());
+        card.addView(labelChip(roleLabel(role), accent()), spaced());
+
+        LinearLayout account = vertical();
+        account.setPadding(0, dp(8), 0, dp(2));
+        account.addView(infoRow("Vista", profile.optString("primary_view", "executive").equals("agent") ? "Asesor" : "Ejecutiva"), matchWrap());
+        account.addView(infoRow("Servidor", serverUrl), spacedSmall());
+        account.addView(infoRow("Tema", darkMode ? "Oscuro" : "Claro"), spacedSmall());
+        card.addView(account, spaced());
+
+        LinearLayout actions = horizontal();
+        Button refresh = smallButton("Actualizar");
+        refresh.setOnClickListener(v -> loadDashboard());
+        Button signOut = smallButton("Cerrar sesion");
+        signOut.setTextColor(ROSE);
+        signOut.setOnClickListener(v -> logout());
+        actions.addView(refresh, weightParams(1, 0, dp(5), dp(10), 0));
+        actions.addView(signOut, weightParams(1, dp(5), 0, dp(10), 0));
+        card.addView(actions, matchWrap());
         return card;
     }
 
@@ -702,12 +809,12 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout moduleHeader(String title, String subtitle) {
-        LinearLayout header = card();
-        header.setPadding(dp(16), dp(16), dp(16), dp(16));
+        LinearLayout header = vertical();
+        header.setPadding(dp(2), dp(8), dp(2), dp(4));
         LinearLayout row = horizontal();
         row.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout copy = vertical();
-        copy.addView(text(title, 22, textColor(), Typeface.BOLD), matchWrap());
+        copy.addView(text(title, 24, textColor(), Typeface.BOLD), matchWrap());
         TextView sub = text(subtitle, 13, muted(), Typeface.NORMAL);
         sub.setMaxLines(3);
         copy.addView(sub, spacedSmall());
@@ -817,6 +924,26 @@ public class MainActivity extends Activity {
         card.addView(infoRow("Estado IA", nonEmpty(transcript.optString("transcription_status"), "Sin dato")), spacedSmall());
         card.addView(infoRow("Duracion", nonEmpty(transcript.optString("duration_label"), "00:00")), spacedSmall());
         content.addView(card, sectionParams());
+
+        if ("audio".equals(transcript.optString("source_type")) && ! nonEmpty(transcript.optString("audio_url"), "").isEmpty()) {
+            LinearLayout audio = section("Audio");
+            LinearLayout player = compactCard();
+            player.addView(infoRow("Duracion", nonEmpty(transcript.optString("duration_label"), "00:00")), matchWrap());
+            TextView status = text("Listo para reproducir", 12, muted(), Typeface.NORMAL);
+            Button play = primaryButton("Reproducir audio");
+            play.setOnClickListener(v -> playTranscriptAudio(transcript.optString("audio_url"), play, status));
+            player.addView(play, spaced());
+            player.addView(status, spacedSmall());
+            audio.addView(player, spaced());
+            content.addView(audio, sectionParams());
+        }
+
+        LinearLayout transcriptBox = section("Texto transcrito");
+        LinearLayout transcriptCard = compactCard();
+        String transcriptText = nonEmpty(transcript.optString("transcript_text"), nonEmpty(transcript.optString("transcript_excerpt"), "La transcripcion aun no esta disponible."));
+        transcriptCard.addView(longBodyText(transcriptText), matchWrap());
+        transcriptBox.addView(transcriptCard, spaced());
+        content.addView(transcriptBox, sectionParams());
     }
 
     private void renderCampaignDetail(JSONObject campaign) {
@@ -935,6 +1062,9 @@ public class MainActivity extends Activity {
     }
 
     private void openDetail(String type, JSONObject data) {
+        if (! "transcript".equals(type)) {
+            releaseAudioPlayer();
+        }
         detailType = type;
         detailData = data;
         renderDashboard();
@@ -1047,6 +1177,66 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void playTranscriptAudio(String url, Button button, TextView status) {
+        if (url == null || url.trim().isEmpty()) {
+            status.setText("Audio no disponible.");
+            return;
+        }
+
+        if (mediaPlayer != null && mediaPlayer.isPlaying() && activeAudioButton == button) {
+            releaseAudioPlayer();
+            status.setText("Audio detenido.");
+            return;
+        }
+
+        releaseAudioPlayer();
+        activeAudioButton = button;
+        button.setText("Cargando...");
+        status.setText("Preparando audio...");
+
+        try {
+            mediaPlayer = new MediaPlayer();
+            Map<String, String> headers = new HashMap<>();
+            if (token != null && ! token.isEmpty()) {
+                headers.put("Authorization", "Bearer " + token);
+            }
+            mediaPlayer.setDataSource(this, Uri.parse(url), headers);
+            mediaPlayer.setOnPreparedListener(player -> {
+                player.start();
+                button.setText("Detener audio");
+                status.setText("Reproduciendo");
+            });
+            mediaPlayer.setOnCompletionListener(player -> {
+                releaseAudioPlayer();
+                status.setText("Reproduccion finalizada.");
+            });
+            mediaPlayer.setOnErrorListener((player, what, extra) -> {
+                releaseAudioPlayer();
+                status.setText("No se pudo reproducir el audio.");
+                return true;
+            });
+            mediaPlayer.prepareAsync();
+        } catch (Exception ex) {
+            releaseAudioPlayer();
+            status.setText(cleanError(ex));
+        }
+    }
+
+    private void releaseAudioPlayer() {
+        if (activeAudioButton != null) {
+            activeAudioButton.setText("Reproducir audio");
+            activeAudioButton = null;
+        }
+        if (mediaPlayer != null) {
+            try {
+                mediaPlayer.stop();
+            } catch (Exception ignored) {
+            }
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+    }
+
     private void renderLoading() {
         if (content == null) {
             return;
@@ -1091,8 +1281,8 @@ public class MainActivity extends Activity {
         row.addView(navButton("dashboard", "Inicio", R.drawable.ic_nav_home), new LinearLayout.LayoutParams(0, dp(62), 1));
         row.addView(navButton("transcripts", "Audios", R.drawable.ic_nav_audio), new LinearLayout.LayoutParams(0, dp(62), 1));
         row.addView(navButton("evaluations", "Eval.", R.drawable.ic_nav_eval), new LinearLayout.LayoutParams(0, dp(62), 1));
-        row.addView(navButton("campaigns", "Camp.", R.drawable.ic_nav_campaign), new LinearLayout.LayoutParams(0, dp(62), 1));
-        row.addView(navButton("more", "Mas", R.drawable.ic_nav_more), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("campaigns", "Campanas", R.drawable.ic_nav_campaign), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("more", "Perfil", R.drawable.ic_nav_more), new LinearLayout.LayoutParams(0, dp(62), 1));
         wrapper.addView(row, matchWrap());
         return wrapper;
     }
@@ -1122,6 +1312,7 @@ public class MainActivity extends Activity {
         item.addView(pill, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         item.setOnClickListener(v -> {
+            releaseAudioPlayer();
             activeTab = key;
             detailType = "";
             detailData = null;
@@ -1289,6 +1480,12 @@ public class MainActivity extends Activity {
         return view;
     }
 
+    private TextView longBodyText(String value) {
+        TextView view = text(value, 13, textColor(), Typeface.NORMAL);
+        view.setLineSpacing(dp(3), 1.05f);
+        return view;
+    }
+
     private TextView emptyText(String value) {
         TextView view = text(value, 13, muted(), Typeface.NORMAL);
         view.setGravity(Gravity.CENTER);
@@ -1306,8 +1503,8 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout section(String titleText) {
-        LinearLayout section = card();
-        section.setPadding(dp(14), dp(14), dp(14), dp(14));
+        LinearLayout section = vertical();
+        section.setPadding(dp(2), dp(2), dp(2), 0);
         section.addView(text(titleText, 17, textColor(), Typeface.BOLD), matchWrap());
         return section;
     }
@@ -1315,6 +1512,7 @@ public class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout layout = vertical();
         layout.setBackground(rounded(cardColor(), border(), 8));
+        layout.setElevation(dp(1));
         return layout;
     }
 
@@ -1322,6 +1520,7 @@ public class MainActivity extends Activity {
         LinearLayout layout = vertical();
         layout.setPadding(dp(12), dp(12), dp(12), dp(12));
         layout.setBackground(rounded(cardAlt(), border(), 8));
+        layout.setElevation(dp(1));
         return layout;
     }
 
@@ -1448,12 +1647,23 @@ public class MainActivity extends Activity {
         avatar.setBackground(rounded(alpha(accent(), 32), alpha(accent(), 120), sizeDp));
         String avatarUrl = profile == null ? "" : profile.optString("avatar_url", "");
         if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
-            loadImage(avatar, avatarUrl);
+            if (avatarUrl.equals(cachedAvatarUrl) && cachedAvatarBitmap != null) {
+                avatar.setPadding(0, 0, 0, 0);
+                avatar.setImageBitmap(cachedAvatarBitmap);
+            } else {
+                loadImage(avatar, avatarUrl);
+            }
         }
         return avatar;
     }
 
     private void loadImage(ImageView target, String url) {
+        if (url.equals(cachedAvatarUrl) && cachedAvatarBitmap != null) {
+            target.setPadding(0, 0, 0, 0);
+            target.setImageBitmap(cachedAvatarBitmap);
+            return;
+        }
+
         executor.execute(() -> {
             try {
                 HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
@@ -1463,6 +1673,8 @@ public class MainActivity extends Activity {
                 try (InputStream stream = connection.getInputStream()) {
                     Bitmap bitmap = BitmapFactory.decodeStream(stream);
                     if (bitmap != null) {
+                        cachedAvatarUrl = url;
+                        cachedAvatarBitmap = bitmap;
                         runOnMain(() -> {
                             target.setPadding(0, 0, 0, 0);
                             target.setImageBitmap(bitmap);
@@ -1717,6 +1929,8 @@ public class MainActivity extends Activity {
         dashboardData = null;
         detailData = null;
         detailType = "";
+        cachedAvatarBitmap = null;
+        cachedAvatarUrl = "";
         prefs.edit().remove("token").apply();
     }
 

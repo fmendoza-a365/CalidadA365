@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\TranscriptController;
 use App\Models\AgentResponse;
 use App\Models\Campaign;
 use App\Models\Evaluation;
@@ -15,6 +16,7 @@ use App\Services\QualityAnalyticsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -176,6 +178,15 @@ class MobileDashboardController extends Controller
             'message' => 'Respuesta registrada.',
             'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])),
         ]);
+    }
+
+    public function transcriptAudio(Request $request, Interaction $interaction, TranscriptController $transcripts): Response
+    {
+        if (! Interaction::query()->forUser($request->user())->whereKey($interaction->id)->exists()) {
+            abort(403, 'No tiene permiso para escuchar esta transcripcion.');
+        }
+
+        return $transcripts->audio($request, $interaction);
     }
 
     private function visibleEvaluations(User $user): Builder
@@ -403,6 +414,9 @@ class MobileDashboardController extends Controller
                 'duration_seconds' => $interaction->audio_duration,
                 'duration_label' => $this->formatDuration((float) ($interaction->audio_duration ?? 0)),
                 'occurred_at' => $interaction->occurred_at?->toIso8601String(),
+                'transcript_text' => (string) $interaction->transcript_text,
+                'transcript_excerpt' => str((string) $interaction->transcript_text)->squish()->limit(180)->toString(),
+                'audio_url' => $interaction->isAudio() ? url('/api/mobile/transcripts/'.$interaction->id.'/audio') : null,
                 'score' => $interaction->evaluation?->percentage_score !== null ? (float) $interaction->evaluation->percentage_score : null,
                 'score_label' => $interaction->evaluation?->percentage_score !== null ? $this->formatPercent($interaction->evaluation->percentage_score) : 'Sin nota',
                 'url' => url('/transcripts/'.$interaction->id),
