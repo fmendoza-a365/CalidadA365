@@ -10,12 +10,14 @@ use App\Models\Interaction;
 use App\Models\InsightReport;
 use App\Models\QualityForm;
 use App\Models\User;
+use App\Services\AgentFeedbackResponseService;
 use App\Services\QualityAnalyticsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 class MobileDashboardController extends Controller
 {
@@ -121,7 +123,7 @@ class MobileDashboardController extends Controller
         $perPage = min(max((int) $request->query('per_page', 20), 1), 50);
 
         $evaluations = $this->visibleEvaluations($user)
-            ->with(['agent', 'campaign', 'interaction', 'evaluator'])
+            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
             ->latest('evaluations.created_at')
             ->paginate($perPage);
 
@@ -135,6 +137,44 @@ class MobileDashboardController extends Controller
                 'total' => $evaluations->total(),
                 'last_page' => $evaluations->lastPage(),
             ],
+        ]);
+    }
+
+    public function markEvaluationViewed(Request $request, Evaluation $evaluation): JsonResponse
+    {
+        $this->authorize('view', $evaluation);
+
+        if ($request->user()->hasRole('agent') && $evaluation->isVisibleToAgent() && ! $evaluation->agent_viewed_at) {
+            $evaluation->forceFill(['agent_viewed_at' => now()])->save();
+        }
+
+        return response()->json([
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])),
+        ]);
+    }
+
+    public function respondEvaluation(Request $request, Evaluation $evaluation, AgentFeedbackResponseService $responses): JsonResponse
+    {
+        $this->authorize('respond', $evaluation);
+
+        if ($evaluation->agentResponse()->exists()) {
+            throw ValidationException::withMessages([
+                'response_type' => ['Ya registraste una respuesta para esta evaluacion.'],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'response_type' => ['required', 'in:accept,dispute'],
+            'commitment_comment' => ['required_if:response_type,accept', 'nullable', 'string', 'max:5000'],
+            'dispute_reason' => ['required_if:response_type,dispute', 'nullable', 'string', 'max:5000'],
+            'disputed_items' => ['nullable', 'array'],
+        ]);
+
+        $responses->store($evaluation, $request->user(), $validated);
+
+        return response()->json([
+            'message' => 'Respuesta registrada.',
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])),
         ]);
     }
 

@@ -1,14 +1,12 @@
 package com.qa365.mobile;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,7 +18,6 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -60,9 +57,11 @@ public class MainActivity extends Activity {
     private LinearLayout root;
     private LinearLayout content;
     private JSONObject dashboardData;
+    private JSONObject detailData;
     private String token;
     private String serverUrl;
     private String activeTab = "dashboard";
+    private String detailType = "";
     private boolean darkMode;
 
     @Override
@@ -180,6 +179,8 @@ public class MainActivity extends Activity {
                         .putString("server_url", serverUrl)
                         .apply();
                     activeTab = "dashboard";
+                    detailType = "";
+                    detailData = null;
                     runOnMain(this::showDashboard);
                 } catch (Exception ex) {
                     runOnMain(() -> {
@@ -286,7 +287,9 @@ public class MainActivity extends Activity {
         buildDashboardShell();
         content.removeAllViews();
 
-        if ("transcripts".equals(activeTab)) {
+        if (detailData != null) {
+            renderDetailScreen();
+        } else if ("transcripts".equals(activeTab)) {
             renderTranscriptsModule();
         } else if ("evaluations".equals(activeTab)) {
             renderEvaluationsModule();
@@ -380,6 +383,8 @@ public class MainActivity extends Activity {
         LinearLayout tile = compactCard();
         tile.setOnClickListener(v -> {
             activeTab = tab;
+            detailType = "";
+            detailData = null;
             renderDashboard();
         });
         TextView label = text(title, 12, muted(), Typeface.BOLD);
@@ -411,7 +416,7 @@ public class MainActivity extends Activity {
         JSONObject summary = object(module, "summary");
         JSONArray items = module.optJSONArray("items");
 
-        content.addView(moduleHeader("Transcripciones", "Carga, estado y resultado de audios.", module.optString("url", "")), matchWrap());
+        content.addView(moduleHeader("Transcripciones", "Carga, estado y resultado de audios."), matchWrap());
         LinearLayout grid = vertical();
         grid.addView(metricRow(
             metricCard("Total", summary.optString("total", "0"), "Interacciones visibles", BLUE),
@@ -432,7 +437,7 @@ public class MainActivity extends Activity {
                 if (item == null) {
                     continue;
                 }
-                LinearLayout card = clickableCard(item.optString("url", ""));
+                LinearLayout card = detailCard("transcript", item);
                 card.addView(rowTitleValue(nonEmpty(item.optString("campaign"), "Sin campana"), item.optString("score_label", "Sin nota"), scoreColor(item.optDouble("score", -1))), matchWrap());
                 card.addView(bodyText(nonEmpty(item.optString("agent"), "Sin asesor")), spacedSmall());
                 card.addView(bodyText(nonEmpty(item.optString("file_name"), item.optString("source_type", "Interaccion"))), spacedSmall());
@@ -451,7 +456,7 @@ public class MainActivity extends Activity {
         JSONObject summary = object(module, "summary");
         JSONArray items = module.optJSONArray("items");
 
-        content.addView(moduleHeader("Evaluaciones", "Notas, revision monitor y respuesta del asesor.", module.optString("url", "")), matchWrap());
+        content.addView(moduleHeader("Evaluaciones", "Notas, revision monitor y respuesta del asesor."), matchWrap());
         LinearLayout grid = vertical();
         grid.addView(metricRow(
             metricCard("Total", summary.optString("total", "0"), "Visibles", BLUE),
@@ -473,7 +478,7 @@ public class MainActivity extends Activity {
         JSONObject summary = object(module, "summary");
         JSONArray items = module.optJSONArray("items");
 
-        content.addView(moduleHeader("Campanas", "Avance por operacion y calidad objetivo.", module.optString("url", "")), matchWrap());
+        content.addView(moduleHeader("Campanas", "Avance por operacion y calidad objetivo."), matchWrap());
         LinearLayout grid = vertical();
         grid.addView(metricRow(
             metricCard("Total", summary.optString("total", "0"), "Asignadas", BLUE),
@@ -490,7 +495,7 @@ public class MainActivity extends Activity {
                 if (campaign == null) {
                     continue;
                 }
-                LinearLayout item = clickableCard(campaign.optString("url", ""));
+                LinearLayout item = detailCard("campaign", campaign);
                 item.addView(rowTitleValue(nonEmpty(campaign.optString("name"), "Campana"), campaign.optString("score_label", "0%"), scoreColor(campaign.optDouble("average_score", 0))), matchWrap());
                 item.addView(progressLine("Calidad promedio", campaign.optDouble("average_score", 0), scoreColor(campaign.optDouble("average_score", 0))), spaced());
                 item.addView(chipRow(new String[]{
@@ -535,7 +540,7 @@ public class MainActivity extends Activity {
     private void renderForms(JSONObject forms) {
         JSONObject summary = object(forms, "summary");
         JSONArray items = forms.optJSONArray("items");
-        content.addView(moduleHeader("Fichas de calidad", summary.optString("total", "0") + " fichas disponibles", forms.optString("url", "")), sectionParams());
+        content.addView(moduleHeader("Fichas de calidad", summary.optString("total", "0") + " fichas disponibles"), sectionParams());
 
         LinearLayout list = section("Fichas recientes");
         if (items == null || items.length() == 0) {
@@ -546,7 +551,7 @@ public class MainActivity extends Activity {
                 if (form == null) {
                     continue;
                 }
-                LinearLayout item = clickableCard(form.optString("url", ""));
+                LinearLayout item = detailCard("form", form);
                 item.addView(rowTitleValue(nonEmpty(form.optString("name"), "Ficha"), form.optString("versions", "0") + " v.", BLUE), matchWrap());
                 item.addView(bodyText(nonEmpty(form.optString("campaign"), "Sin campana")), spacedSmall());
                 item.addView(chipRow(new String[]{
@@ -562,7 +567,7 @@ public class MainActivity extends Activity {
     private void renderInsights(JSONObject insights) {
         JSONObject summary = object(insights, "summary");
         JSONArray items = insights.optJSONArray("items");
-        content.addView(moduleHeader("Insights IA", summary.optString("last_30_days", "0") + " reportes en 30 dias", insights.optString("url", "")), sectionParams());
+        content.addView(moduleHeader("Insights IA", summary.optString("last_30_days", "0") + " reportes en 30 dias"), sectionParams());
 
         LinearLayout list = section("Reportes recientes");
         if (items == null || items.length() == 0) {
@@ -573,7 +578,7 @@ public class MainActivity extends Activity {
                 if (insight == null) {
                     continue;
                 }
-                LinearLayout item = clickableCard(insight.optString("url", ""));
+                LinearLayout item = detailCard("insight", insight);
                 item.addView(rowTitleValue(nonEmpty(insight.optString("campaign"), "Campana"), nonEmpty(insight.optString("type"), "Reporte"), VIOLET), matchWrap());
                 item.addView(bodyText(nonEmpty(insight.optString("summary"), "Sin resumen disponible")), spacedSmall());
                 item.addView(chipRow(new String[]{
@@ -597,7 +602,7 @@ public class MainActivity extends Activity {
             if (evaluation == null) {
                 continue;
             }
-            LinearLayout item = clickableCard(evaluation.optString("action_url", ""));
+            LinearLayout item = detailCard("evaluation", evaluation);
             item.addView(rowTitleValue(nonEmpty(evaluation.optString("campaign"), "Sin campana"), evaluation.optString("score_label", "Sin nota"), scoreColor(evaluation.optDouble("score", -1))), matchWrap());
 
             String agent = nonEmpty(evaluation.optString("agent"), "Sin asesor");
@@ -664,7 +669,7 @@ public class MainActivity extends Activity {
                     continue;
                 }
                 int color = severityColor(alert.optString("severity", "info"));
-                LinearLayout item = clickableCard(alert.optString("action_url", ""));
+                LinearLayout item = detailCard("alert", alert);
                 item.addView(rowTitleValue(nonEmpty(alert.optString("title"), "Alerta"), alert.optString("severity", "INFO").toUpperCase(Locale.US), color), matchWrap());
                 item.addView(bodyText(nonEmpty(alert.optString("description"), "Requiere revision.")), spacedSmall());
                 section.addView(item, spaced());
@@ -696,7 +701,7 @@ public class MainActivity extends Activity {
         content.addView(section, sectionParams());
     }
 
-    private LinearLayout moduleHeader(String title, String subtitle, String url) {
+    private LinearLayout moduleHeader(String title, String subtitle) {
         LinearLayout header = card();
         header.setPadding(dp(16), dp(16), dp(16), dp(16));
         LinearLayout row = horizontal();
@@ -707,13 +712,339 @@ public class MainActivity extends Activity {
         sub.setMaxLines(3);
         copy.addView(sub, spacedSmall());
         row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        if (url != null && !url.trim().isEmpty()) {
-            Button open = smallButton("Abrir web");
-            open.setOnClickListener(v -> openUrl(url));
-            row.addView(open, wrapWrap());
-        }
         header.addView(row, matchWrap());
         return header;
+    }
+
+    private void renderDetailScreen() {
+        content.addView(detailHeader(detailTitle(), detailSubtitle()), matchWrap());
+
+        if ("evaluation".equals(detailType)) {
+            renderEvaluationDetail(detailData);
+        } else if ("transcript".equals(detailType)) {
+            renderTranscriptDetail(detailData);
+        } else if ("campaign".equals(detailType)) {
+            renderCampaignDetail(detailData);
+        } else if ("form".equals(detailType)) {
+            renderFormDetail(detailData);
+        } else if ("insight".equals(detailType)) {
+            renderInsightDetail(detailData);
+        } else if ("alert".equals(detailType)) {
+            renderAlertDetail(detailData);
+        }
+    }
+
+    private LinearLayout detailHeader(String title, String subtitle) {
+        LinearLayout header = card();
+        header.setPadding(dp(14), dp(14), dp(14), dp(14));
+
+        LinearLayout row = horizontal();
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        Button back = smallButton("Volver");
+        back.setOnClickListener(v -> {
+            detailType = "";
+            detailData = null;
+            renderDashboard();
+        });
+        row.addView(back, wrapWrap());
+
+        LinearLayout copy = vertical();
+        copy.setPadding(dp(12), 0, 0, 0);
+        copy.addView(text(title, 20, textColor(), Typeface.BOLD), matchWrap());
+        TextView sub = text(subtitle, 12, muted(), Typeface.NORMAL);
+        sub.setMaxLines(2);
+        copy.addView(sub, spacedSmall());
+        row.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        header.addView(row, matchWrap());
+
+        return header;
+    }
+
+    private void renderEvaluationDetail(JSONObject evaluation) {
+        maybeMarkEvaluationViewed(evaluation);
+
+        JSONObject audio = object(evaluation, "audio");
+        JSONObject indicators = object(evaluation, "feedback_indicators");
+        JSONObject response = object(evaluation, "feedback_response");
+        double score = evaluation.optDouble("score", -1);
+
+        LinearLayout result = section("Resultado de calidad");
+        result.addView(rowTitleValue(nonEmpty(evaluation.optString("campaign"), "Sin campana"), evaluation.optString("score_label", "Sin nota"), scoreColor(score)), spaced());
+        result.addView(bodyText(nonEmpty(evaluation.optString("summary"), "Sin resumen disponible.")), spaced());
+        result.addView(progressLine("Nota", score < 0 ? 0 : score, scoreColor(score)), spaced());
+        result.addView(chipRow(new String[]{
+            nonEmpty(evaluation.optString("status_label"), "Sin estado"),
+            "Asesor: " + nonEmpty(evaluation.optString("agent"), "Sin dato"),
+            "Monitor: " + nonEmpty(evaluation.optString("evaluator"), "Sin dato")
+        }), spaced());
+        content.addView(result, sectionParams());
+
+        LinearLayout audioBox = section("Audio y tiempos");
+        audioBox.addView(infoRow("Duracion", formatDurationFromJson(audio.opt("duration_seconds"))), spaced());
+        audioBox.addView(infoRow("Tiempo muerto", nonEmpty(audio.optString("dead_air_label"), "00:00")), spacedSmall());
+        audioBox.addView(infoRow("Silencio operativo", percentText(audio.optDouble("silence_ratio", 0) * 100)), spacedSmall());
+        audioBox.addView(infoRow("Origen", nonEmpty(audio.optString("source_type"), "Sin dato")), spacedSmall());
+        content.addView(audioBox, sectionParams());
+
+        LinearLayout feedback = section("Indicadores de feedback");
+        feedback.addView(indicatorRow("Empatia", indicators.optString("empathy")), spaced());
+        feedback.addView(indicatorRow("Escucha activa", indicators.optString("active_listening")), spacedSmall());
+        feedback.addView(indicatorRow("Objeciones", indicators.optString("objection_handling")), spacedSmall());
+        feedback.addView(indicatorRow("Claridad de solucion", indicators.optString("resolution_clarity")), spacedSmall());
+        feedback.addView(indicatorRow("Control del speech", indicators.optString("speech_control")), spacedSmall());
+        feedback.addView(indicatorRow("Riesgo experiencia", indicators.optString("customer_experience_risk")), spacedSmall());
+        feedback.addView(indicatorRow("Cliente sin resolver", booleanLabel(indicators.opt("customer_left_unresolved"))), spacedSmall());
+        content.addView(feedback, sectionParams());
+
+        LinearLayout state = section("Seguimiento del asesor");
+        state.addView(infoRow("Publicado", nonEmpty(evaluation.optString("visible_to_agent_at"), "No publicado")), spaced());
+        state.addView(infoRow("Visto", nonEmpty(evaluation.optString("agent_viewed_at"), "Pendiente")), spacedSmall());
+        state.addView(infoRow("Respuesta", response.optBoolean("responded") ? response.optString("type", "respondido") : "Pendiente"), spacedSmall());
+        content.addView(state, sectionParams());
+
+        if (canRespondFeedback(evaluation, response)) {
+            renderFeedbackForm(evaluation);
+        }
+    }
+
+    private void renderTranscriptDetail(JSONObject transcript) {
+        LinearLayout card = section("Transcripcion");
+        card.addView(rowTitleValue(nonEmpty(transcript.optString("campaign"), "Sin campana"), transcript.optString("score_label", "Sin nota"), scoreColor(transcript.optDouble("score", -1))), spaced());
+        card.addView(infoRow("Asesor", nonEmpty(transcript.optString("agent"), "Sin dato")), spaced());
+        card.addView(infoRow("Supervisor", nonEmpty(transcript.optString("supervisor"), "Sin dato")), spacedSmall());
+        card.addView(infoRow("Archivo", nonEmpty(transcript.optString("file_name"), "Sin archivo")), spacedSmall());
+        card.addView(infoRow("Estado audio", nonEmpty(transcript.optString("status"), "Sin estado")), spacedSmall());
+        card.addView(infoRow("Estado IA", nonEmpty(transcript.optString("transcription_status"), "Sin dato")), spacedSmall());
+        card.addView(infoRow("Duracion", nonEmpty(transcript.optString("duration_label"), "00:00")), spacedSmall());
+        content.addView(card, sectionParams());
+    }
+
+    private void renderCampaignDetail(JSONObject campaign) {
+        LinearLayout card = section("Campana");
+        card.addView(rowTitleValue(nonEmpty(campaign.optString("name"), "Campana"), campaign.optString("score_label", "0%"), scoreColor(campaign.optDouble("average_score", 0))), spaced());
+        card.addView(progressLine("Calidad promedio", campaign.optDouble("average_score", 0), scoreColor(campaign.optDouble("average_score", 0))), spaced());
+        card.addView(infoRow("Evaluaciones", campaign.optString("evaluations", "0")), spaced());
+        card.addView(infoRow("Interacciones", campaign.optString("interactions", "0")), spacedSmall());
+        card.addView(infoRow("Fichas", campaign.optString("forms", "0")), spacedSmall());
+        card.addView(infoRow("Objetivo", campaign.isNull("target_quality") ? "Sin objetivo" : percentText(campaign.optDouble("target_quality", 0))), spacedSmall());
+        card.addView(infoRow("Estado", campaign.optBoolean("active") ? "Activa" : "Inactiva"), spacedSmall());
+        content.addView(card, sectionParams());
+    }
+
+    private void renderFormDetail(JSONObject form) {
+        LinearLayout card = section("Ficha de calidad");
+        card.addView(rowTitleValue(nonEmpty(form.optString("name"), "Ficha"), form.optString("versions", "0") + " versiones", BLUE), spaced());
+        card.addView(infoRow("Campana", nonEmpty(form.optString("campaign"), "Sin campana")), spaced());
+        card.addView(infoRow("Version vigente", nonEmpty(form.optString("latest_status"), "Sin version")), spacedSmall());
+        card.addView(infoRow("Contexto operativo", form.optBoolean("has_context") ? "Configurado" : "Pendiente"), spacedSmall());
+        content.addView(card, sectionParams());
+    }
+
+    private void renderInsightDetail(JSONObject insight) {
+        LinearLayout card = section("Insight IA");
+        card.addView(rowTitleValue(nonEmpty(insight.optString("campaign"), "Campana"), nonEmpty(insight.optString("type"), "Reporte"), VIOLET), spaced());
+        card.addView(bodyText(nonEmpty(insight.optString("summary"), "Sin resumen disponible.")), spaced());
+        card.addView(infoRow("Rango", nonEmpty(insight.optString("date_range"), "Sin rango")), spaced());
+        card.addView(infoRow("Hallazgos", insight.optString("findings", "0")), spacedSmall());
+        content.addView(card, sectionParams());
+    }
+
+    private void renderAlertDetail(JSONObject alert) {
+        int color = severityColor(alert.optString("severity", "info"));
+        LinearLayout card = section("Alerta operativa");
+        card.addView(rowTitleValue(nonEmpty(alert.optString("title"), "Alerta"), alert.optString("severity", "INFO").toUpperCase(Locale.US), color), spaced());
+        card.addView(bodyText(nonEmpty(alert.optString("description"), "Requiere revision.")), spaced());
+        card.addView(infoRow("Campana", nonEmpty(alert.optString("campaign"), "Sin dato")), spaced());
+        card.addView(infoRow("Asesor", nonEmpty(alert.optString("agent"), "Sin dato")), spacedSmall());
+        card.addView(infoRow("Estado", nonEmpty(alert.optString("status_label"), "Sin estado")), spacedSmall());
+        if (alert.has("evaluation_id")) {
+            Button open = primaryButton("Ver evaluacion en la app");
+            open.setOnClickListener(v -> openEvaluationFromAlert(alert.optInt("evaluation_id", 0)));
+            card.addView(open, spaced());
+        }
+        content.addView(card, sectionParams());
+    }
+
+    private void renderFeedbackForm(JSONObject evaluation) {
+        LinearLayout form = section("Responder feedback");
+        form.addView(bodyText("La respuesta se guarda en el sistema y se refleja tambien en la web."), spaced());
+        EditText comment = multiLineInput("Comentario, compromiso o motivo de disputa");
+        form.addView(comment, spaced());
+        TextView status = text("", 12, muted(), Typeface.NORMAL);
+
+        LinearLayout actions = horizontal();
+        Button accept = primaryButton("Aceptar");
+        Button dispute = smallButton("Disputar");
+        accept.setOnClickListener(v -> submitFeedback(evaluation.optInt("id", 0), "accept", comment.getText().toString(), status));
+        dispute.setOnClickListener(v -> submitFeedback(evaluation.optInt("id", 0), "dispute", comment.getText().toString(), status));
+        actions.addView(accept, weightParams(1, 0, dp(5), dp(10), 0));
+        actions.addView(dispute, weightParams(1, dp(5), 0, dp(10), 0));
+        form.addView(actions, matchWrap());
+        form.addView(status, spacedSmall());
+        content.addView(form, sectionParams());
+    }
+
+    private LinearLayout indicatorRow(String label, String rawValue) {
+        String value = nonEmpty(rawValue, "No detectado");
+        int color = indicatorColor(value);
+        return twoLineRow(label, value, "Indicador basado en evaluacion IA y senales operativas.", color);
+    }
+
+    private String detailTitle() {
+        if ("evaluation".equals(detailType)) {
+            return "Evaluacion";
+        }
+        if ("transcript".equals(detailType)) {
+            return "Transcripcion";
+        }
+        if ("campaign".equals(detailType)) {
+            return "Campana";
+        }
+        if ("form".equals(detailType)) {
+            return "Ficha";
+        }
+        if ("insight".equals(detailType)) {
+            return "Insight IA";
+        }
+        if ("alert".equals(detailType)) {
+            return "Alerta";
+        }
+        return "Detalle";
+    }
+
+    private String detailSubtitle() {
+        if (detailData == null) {
+            return "Informacion movil";
+        }
+        if ("evaluation".equals(detailType)) {
+            return nonEmpty(detailData.optString("campaign"), "Evaluacion de calidad") + " | " + nonEmpty(detailData.optString("status_label"), "Sin estado");
+        }
+        if ("transcript".equals(detailType)) {
+            return nonEmpty(detailData.optString("file_name"), "Audio o interaccion");
+        }
+        if ("campaign".equals(detailType) || "form".equals(detailType)) {
+            return nonEmpty(detailData.optString("name"), "Registro");
+        }
+        if ("insight".equals(detailType)) {
+            return nonEmpty(detailData.optString("date_range"), "Reporte operativo");
+        }
+        if ("alert".equals(detailType)) {
+            return nonEmpty(detailData.optString("title"), "Alerta operativa");
+        }
+        return "Informacion movil";
+    }
+
+    private void openDetail(String type, JSONObject data) {
+        detailType = type;
+        detailData = data;
+        renderDashboard();
+    }
+
+    private void openEvaluationFromAlert(int evaluationId) {
+        JSONObject evaluation = findEvaluation(evaluationId);
+        if (evaluation != null) {
+            openDetail("evaluation", evaluation);
+        }
+    }
+
+    private JSONObject findEvaluation(int evaluationId) {
+        if (evaluationId <= 0 || dashboardData == null) {
+            return null;
+        }
+        JSONObject modules = object(dashboardData, "modules");
+        JSONObject evaluations = object(modules, "evaluations");
+        JSONObject agent = object(dashboardData, "agent");
+        JSONArray[] lists = new JSONArray[]{
+            dashboardData.optJSONArray("evaluations"),
+            evaluations.optJSONArray("items"),
+            agent.optJSONArray("match_history")
+        };
+        for (JSONArray list : lists) {
+            if (list == null) {
+                continue;
+            }
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject item = list.optJSONObject(i);
+                if (item != null && item.optInt("id", 0) == evaluationId) {
+                    return item;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean canRespondFeedback(JSONObject evaluation, JSONObject response) {
+        JSONObject profile = object(dashboardData, "profile");
+        return "agent".equals(profile.optString("primary_view", "executive"))
+            && "published_to_agent".equals(evaluation.optString("status"))
+            && ! response.optBoolean("responded");
+    }
+
+    private void maybeMarkEvaluationViewed(JSONObject evaluation) {
+        JSONObject profile = object(dashboardData, "profile");
+        if (! "agent".equals(profile.optString("primary_view", "executive"))
+            || ! "published_to_agent".equals(evaluation.optString("status"))
+            || ! nonEmpty(evaluation.optString("agent_viewed_at"), "").isEmpty()) {
+            return;
+        }
+
+        int id = evaluation.optInt("id", 0);
+        if (id <= 0) {
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                JSONObject response = request("POST", "/api/mobile/evaluations/" + id + "/viewed", new JSONObject());
+                JSONObject updated = response.optJSONObject("evaluation");
+                if (updated != null) {
+                    runOnMain(() -> {
+                        if ("evaluation".equals(detailType) && detailData != null && detailData.optInt("id", 0) == id) {
+                            detailData = updated;
+                            renderDashboard();
+                        }
+                    });
+                }
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    private void submitFeedback(int evaluationId, String type, String textValue, TextView status) {
+        String value = textValue == null ? "" : textValue.trim();
+        if (evaluationId <= 0) {
+            status.setText("No se pudo identificar la evaluacion.");
+            return;
+        }
+        if (value.isEmpty()) {
+            status.setText("Agrega un comentario breve para registrar la respuesta.");
+            return;
+        }
+
+        status.setText("Guardando respuesta...");
+        executor.execute(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                body.put("response_type", type);
+                if ("dispute".equals(type)) {
+                    body.put("dispute_reason", value);
+                } else {
+                    body.put("commitment_comment", value);
+                }
+
+                JSONObject response = request("POST", "/api/mobile/evaluations/" + evaluationId + "/respond", body);
+                JSONObject updated = response.optJSONObject("evaluation");
+                runOnMain(() -> {
+                    if (updated != null) {
+                        detailData = updated;
+                    }
+                    renderDashboard();
+                    loadDashboard();
+                });
+            } catch (Exception ex) {
+                runOnMain(() -> status.setText(cleanError(ex)));
+            }
+        });
     }
 
     private void renderLoading() {
@@ -749,40 +1080,58 @@ public class MainActivity extends Activity {
 
     private LinearLayout bottomNavigation() {
         LinearLayout wrapper = vertical();
-        wrapper.setPadding(dp(10), dp(8), dp(10), dp(10));
-        wrapper.setBackgroundColor(navBg());
+        wrapper.setPadding(dp(14), dp(6), dp(14), dp(14));
+        wrapper.setBackgroundColor(bg());
+
         LinearLayout row = horizontal();
         row.setGravity(Gravity.CENTER);
-        row.addView(navButton("dashboard", "Inicio"), new LinearLayout.LayoutParams(0, dp(52), 1));
-        row.addView(navButton("transcripts", "Audios"), new LinearLayout.LayoutParams(0, dp(52), 1));
-        row.addView(navButton("evaluations", "Eval."), new LinearLayout.LayoutParams(0, dp(52), 1));
-        row.addView(navButton("campaigns", "Camp."), new LinearLayout.LayoutParams(0, dp(52), 1));
-        row.addView(navButton("more", "Mas"), new LinearLayout.LayoutParams(0, dp(52), 1));
+        row.setPadding(dp(6), dp(6), dp(6), dp(6));
+        row.setBackground(rounded(navBg(), border(), 30));
+        row.setElevation(dp(10));
+        row.addView(navButton("dashboard", "Inicio", R.drawable.ic_nav_home), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("transcripts", "Audios", R.drawable.ic_nav_audio), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("evaluations", "Eval.", R.drawable.ic_nav_eval), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("campaigns", "Camp.", R.drawable.ic_nav_campaign), new LinearLayout.LayoutParams(0, dp(62), 1));
+        row.addView(navButton("more", "Mas", R.drawable.ic_nav_more), new LinearLayout.LayoutParams(0, dp(62), 1));
         wrapper.addView(row, matchWrap());
         return wrapper;
     }
 
-    private Button navButton(String key, String label) {
-        Button button = new Button(this);
+    private LinearLayout navButton(String key, String label, int iconRes) {
         boolean active = key.equals(activeTab);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextSize(11);
-        button.setTypeface(Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
-        button.setTextColor(active ? Color.WHITE : muted());
-        button.setBackground(rounded(active ? accent() : Color.TRANSPARENT, active ? accent() : Color.TRANSPARENT, 8));
-        button.setPadding(0, 0, 0, 0);
-        button.setMinHeight(0);
-        button.setMinWidth(0);
-        button.setOnClickListener(v -> {
+
+        LinearLayout item = vertical();
+        item.setGravity(Gravity.CENTER);
+        item.setPadding(dp(2), 0, dp(2), 0);
+
+        LinearLayout pill = vertical();
+        pill.setGravity(Gravity.CENTER);
+        pill.setPadding(dp(8), dp(5), dp(8), dp(5));
+        pill.setBackground(rounded(active ? accent() : Color.TRANSPARENT, active ? accent() : Color.TRANSPARENT, active ? 22 : 18));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(active ? Color.WHITE : muted());
+        pill.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        TextView text = text(label, 10, active ? Color.WHITE : muted(), active ? Typeface.BOLD : Typeface.NORMAL);
+        text.setGravity(Gravity.CENTER);
+        text.setSingleLine(true);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        pill.addView(text, spacedSmall());
+        item.addView(pill, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        item.setOnClickListener(v -> {
             activeTab = key;
+            detailType = "";
+            detailData = null;
             if (dashboardData == null) {
                 renderLoading();
             } else {
                 renderDashboard();
             }
         });
-        return button;
+        return item;
     }
 
     private JSONObject request(String method, String path, JSONObject body) throws Exception {
@@ -917,10 +1266,10 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private LinearLayout clickableCard(String actionUrl) {
+    private LinearLayout detailCard(String type, JSONObject data) {
         LinearLayout item = compactCard();
-        if (actionUrl != null && !actionUrl.trim().isEmpty()) {
-            item.setOnClickListener(v -> openUrl(actionUrl));
+        if (data != null) {
+            item.setOnClickListener(v -> openDetail(type, data));
         }
         return item;
     }
@@ -986,6 +1335,15 @@ public class MainActivity extends Activity {
         input.setPadding(dp(12), 0, dp(12), 0);
         input.setBackground(rounded(inputBg(), border(), 8));
         input.setMinHeight(dp(50));
+        return input;
+    }
+
+    private EditText multiLineInput(String hint) {
+        EditText input = input(hint);
+        input.setSingleLine(false);
+        input.setMinLines(3);
+        input.setGravity(Gravity.TOP);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
         return input;
     }
 
@@ -1243,6 +1601,64 @@ public class MainActivity extends Activity {
         return CYAN;
     }
 
+    private int indicatorColor(String value) {
+        String normalized = value == null ? "" : value.toLowerCase(Locale.US);
+        if (normalized.isEmpty() || normalized.contains("no detectado")) {
+            return muted();
+        }
+        if (normalized.contains("alto")
+            || normalized.contains("riesgo")
+            || normalized.contains("critico")
+            || normalized.contains("sin resolver")) {
+            return ROSE;
+        }
+        if (normalized.contains("medio")
+            || normalized.contains("neutral")
+            || normalized.contains("pendiente")) {
+            return AMBER;
+        }
+        if (normalized.contains("fortaleza")
+            || normalized.contains("si")
+            || normalized.contains("claro")
+            || normalized.contains("detectado")) {
+            return GREEN;
+        }
+        return muted();
+    }
+
+    private String booleanLabel(Object value) {
+        if (value == null || JSONObject.NULL.equals(value)) {
+            return "No detectado";
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value ? "Si" : "No";
+        }
+        String normalized = String.valueOf(value).trim();
+        if (normalized.isEmpty()) {
+            return "No detectado";
+        }
+        if ("1".equals(normalized) || "true".equalsIgnoreCase(normalized)) {
+            return "Si";
+        }
+        if ("0".equals(normalized) || "false".equalsIgnoreCase(normalized)) {
+            return "No";
+        }
+        return normalized;
+    }
+
+    private String formatDurationFromJson(Object value) {
+        if (value == null || JSONObject.NULL.equals(value)) {
+            return "00:00";
+        }
+        try {
+            double seconds = value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(String.valueOf(value));
+            int total = Math.max(0, (int) Math.round(seconds));
+            return String.format(Locale.US, "%02d:%02d", total / 60, total % 60);
+        } catch (Exception ignored) {
+            return "00:00";
+        }
+    }
+
     private int bg() {
         return darkMode ? Color.rgb(9, 10, 12) : Color.rgb(246, 247, 250);
     }
@@ -1296,16 +1712,11 @@ public class MainActivity extends Activity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private void openUrl(String url) {
-        if (url == null || url.trim().isEmpty()) {
-            return;
-        }
-        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-    }
-
     private void clearSession() {
         token = null;
         dashboardData = null;
+        detailData = null;
+        detailType = "";
         prefs.edit().remove("token").apply();
     }
 

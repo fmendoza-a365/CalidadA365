@@ -109,6 +109,63 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('agent.match_history.0.id', $evaluation->id);
     }
 
+    public function test_mobile_agent_can_mark_published_evaluation_as_viewed(): void
+    {
+        [, $evaluation] = $this->criticalEvaluation();
+        $agent = $evaluation->agent;
+        $evaluation->forceFill([
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'visible_to_agent_at' => now(),
+            'agent_viewed_at' => null,
+        ])->save();
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $agent->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/mobile/evaluations/'.$evaluation->id.'/viewed')
+            ->assertOk()
+            ->assertJsonPath('evaluation.id', $evaluation->id)
+            ->assertJsonPath('evaluation.status', Evaluation::STATUS_PUBLISHED_TO_AGENT);
+
+        $this->assertNotNull($evaluation->fresh()->agent_viewed_at);
+    }
+
+    public function test_mobile_agent_can_accept_published_feedback(): void
+    {
+        [, $evaluation] = $this->criticalEvaluation();
+        $agent = $evaluation->agent;
+        $evaluation->forceFill([
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'visible_to_agent_at' => now(),
+        ])->save();
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $agent->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/mobile/evaluations/'.$evaluation->id.'/respond', [
+                'response_type' => 'accept',
+                'commitment_comment' => 'Acepto el feedback y aplicare el plan de mejora.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Respuesta registrada.')
+            ->assertJsonPath('evaluation.id', $evaluation->id)
+            ->assertJsonPath('evaluation.status', Evaluation::STATUS_AGENT_ACCEPTED)
+            ->assertJsonPath('evaluation.feedback_response.responded', true)
+            ->assertJsonPath('evaluation.feedback_response.type', 'accept');
+
+        $this->assertDatabaseHas('agent_responses', [
+            'evaluation_id' => $evaluation->id,
+            'agent_id' => $agent->id,
+            'response_type' => 'accept',
+        ]);
+    }
+
     public function test_mobile_logout_revokes_current_token(): void
     {
         [$admin] = $this->criticalEvaluation();
