@@ -1,17 +1,25 @@
 package com.qa365.mobile
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -179,10 +187,153 @@ fun TranscriptDetail(transcript: JSONObject, token: String?) {
         AudioPlayer(url = audioUrl, token = token)
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
-    SectionHeader("Texto transcrito")
-    val text = transcript.optString("transcript_text", transcript.optString("transcript_excerpt", "Transcripción no disponible."))
-    Text(text = text, style = MaterialTheme.typography.bodyMedium)
+    Spacer(modifier = Modifier.height(24.dp))
+    SectionHeader("Conversación")
+    
+    val turns = transcript.optJSONArray("conversation_turns")
+    if (turns != null && turns.length() > 0) {
+        ChatTranscript(turns = turns)
+    } else {
+        val text = transcript.optString("transcript_text", transcript.optString("transcript_excerpt", "Transcripción no disponible."))
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun ChatTranscript(turns: JSONArray) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        for (i in 0 until turns.length()) {
+            val turn = turns.optJSONObject(i) ?: continue
+            val speaker = turn.optString("speaker", "system")
+            val label = turn.optString("label", "Sistema")
+            val message = turn.optString("message", "")
+            val timestamp = turn.optString("timestamp", "")
+            
+            when (speaker) {
+                "client" -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (timestamp.isNotEmpty()) {
+                                Text(
+                                    text = timestamp,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                )
+                            }
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                                .background(Color(0xFF6366F1)) // Indigo 500 matching central web client bubble
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = message,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+                "agent" -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                            if (timestamp.isNotEmpty()) {
+                                Text(
+                                    text = timestamp,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+                else -> { // System/Context
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .widthIn(max = 300.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = label.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

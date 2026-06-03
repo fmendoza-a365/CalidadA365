@@ -1,15 +1,21 @@
 package com.qa365.mobile
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -245,6 +251,22 @@ fun CampaignsModule(data: JSONObject, onDetailSelected: (String, JSONObject) -> 
 @Composable
 fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit) {
     val profile = data.optJSONObject("profile") ?: JSONObject()
+    val name = profile.optString("name", "Usuario")
+    val paternal = profile.optString("paternal_surname", "")
+    val maternal = profile.optString("maternal_surname", "")
+    val fullName = profile.optString("full_name", "$name $paternal $maternal".trim()).ifEmpty { "Usuario QA365" }
+    val username = profile.optString("username", "")
+    val email = profile.optString("email", "")
+    val personalEmail = profile.optString("personal_email", "")
+    val personalPhone = profile.optString("personal_phone", "")
+    val companyPhone = profile.optString("company_phone", "")
+    val birthdate = profile.optString("birthdate", "")
+    val gender = profile.optString("gender", "")
+    val address = profile.optString("address", "")
+    val department = profile.optString("department", "")
+    val province = profile.optString("province", "")
+    val district = profile.optString("district", "")
+    val avatarUrl = profile.optString("avatar_url", "")
 
     Column(
         modifier = Modifier
@@ -253,24 +275,133 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
-        Text(text = profile.optString("name", "Usuario QA365"), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(text = profile.optString("email", "Cuenta"), fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-        Spacer(modifier = Modifier.height(16.dp))
-        LabelChip(text = profile.optJSONArray("roles")?.optString(0, "Usuario") ?: "Usuario", color = Blue)
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
-            Text("Sincronizar Datos")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Premium Profile Avatar using Coil
+        Box(
+            modifier = Modifier
+                .size(108.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
         ) {
-            Text("Cerrar Sesión")
+            val fallbackUrl = "https://ui-avatars.com/api/?name=${fullName.replace(" ", "+")}&color=6366F1&background=EBF4FF&bold=true&size=128"
+            AsyncImage(
+                model = avatarUrl.ifEmpty { fallbackUrl },
+                contentDescription = "Foto de perfil",
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = fullName,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        
+        if (username.isNotEmpty()) {
+            Text(
+                text = "@$username",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        val rolesArray = profile.optJSONArray("roles")
+        val mainRole = if (rolesArray != null && rolesArray.length() > 0) rolesArray.optString(0, "Usuario") else "Usuario"
+        LabelChip(text = mainRole.uppercase(), color = MaterialTheme.colorScheme.primary)
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Cards layout
+        // Card 1: Cuenta
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Datos de la Cuenta", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(12.dp))
+                InfoRow("Email Corporativo", email.ifEmpty { "—" })
+                InfoRow("Rol del Sistema", mainRole)
+                if (username.isNotEmpty()) {
+                    InfoRow("Usuario", username)
+                }
+            }
+        }
+
+        // Card 2: Contacto
+        if (personalPhone.isNotEmpty() || companyPhone.isNotEmpty() || personalEmail.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Información de Contacto", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (companyPhone.isNotEmpty()) InfoRow("Teléfono Corporativo", companyPhone)
+                    if (personalPhone.isNotEmpty()) InfoRow("Teléfono Personal", personalPhone)
+                    if (personalEmail.isNotEmpty()) InfoRow("Email Personal", personalEmail)
+                }
+            }
+        }
+
+        // Card 3: Datos Personales y Ubicación
+        if (birthdate.isNotEmpty() || gender.isNotEmpty() || address.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Información Personal", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (birthdate.isNotEmpty()) InfoRow("Cumpleaños", birthdate)
+                    if (gender.isNotEmpty()) InfoRow("Género", if (gender.lowercase() == "male" || gender.lowercase() == "m") "Masculino" else if (gender.lowercase() == "female" || gender.lowercase() == "f") "Femenino" else gender)
+                    if (address.isNotEmpty()) InfoRow("Dirección", address)
+                    
+                    val location = listOf(district, province, department).filter { it.isNotEmpty() }.joinToString(", ")
+                    if (location.isNotEmpty()) InfoRow("Ubicación", location)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Action Buttons
+        Button(
+            onClick = onRefresh,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+        ) {
+            Text("Sincronizar Datos", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("Cerrar Sesión", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

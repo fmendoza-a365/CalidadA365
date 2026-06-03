@@ -58,8 +58,20 @@ class MobileDashboardController extends Controller
             'profile' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'paternal_surname' => $user->paternal_surname,
+                'maternal_surname' => $user->maternal_surname,
+                'full_name' => $user->full_name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'personal_email' => $user->personal_email,
+                'personal_phone' => $user->personal_phone,
+                'company_phone' => $user->company_phone,
+                'birthdate' => $user->birthdate?->format('Y-m-d'),
+                'gender' => $user->gender,
+                'address' => $user->address,
+                'department' => $user->department,
+                'province' => $user->province,
+                'district' => $user->district,
                 'roles' => $user->roles->pluck('name')->values(),
                 'primary_view' => $user->hasRole('agent') ? 'agent' : 'executive',
                 'avatar_url' => $user->avatar_url,
@@ -396,6 +408,7 @@ class MobileDashboardController extends Controller
 
     private function transcriptsPayload(User $user): Collection
     {
+        $conversationParser = new \App\Support\TranscriptConversationParser();
         return $this->visibleInteractions($user)
             ->with(['agent', 'campaign', 'supervisor', 'evaluation'])
             ->latest('occurred_at')
@@ -416,6 +429,7 @@ class MobileDashboardController extends Controller
                 'occurred_at' => $interaction->occurred_at?->toIso8601String(),
                 'transcript_text' => (string) $interaction->transcript_text,
                 'transcript_excerpt' => str((string) $interaction->transcript_text)->squish()->limit(180)->toString(),
+                'conversation_turns' => $conversationParser->parse($interaction->transcript_text),
                 'audio_url' => $interaction->isAudio() ? url('/api/mobile/transcripts/'.$interaction->id.'/audio') : null,
                 'score' => $interaction->evaluation?->percentage_score !== null ? (float) $interaction->evaluation->percentage_score : null,
                 'score_label' => $interaction->evaluation?->percentage_score !== null ? $this->formatPercent($interaction->evaluation->percentage_score) : 'Sin nota',

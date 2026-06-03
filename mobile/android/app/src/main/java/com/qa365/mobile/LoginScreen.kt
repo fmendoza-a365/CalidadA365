@@ -32,7 +32,7 @@ fun LoginScreen(
     initialServer: String,
     onLoginSuccess: (token: String, server: String) -> Unit
 ) {
-    var server by remember { mutableStateOf(initialServer) }
+    var server by remember { mutableStateOf(if (initialServer.isBlank() || initialServer.contains("localhost") || initialServer.contains("10.0.2.2")) "https://qa365.com.pe" else initialServer) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -81,15 +81,7 @@ fun LoginScreen(
             Column(
                 modifier = Modifier.padding(20.dp)
             ) {
-                OutlinedTextField(
-                    value = server,
-                    onValueChange = { server = it },
-                    label = { Text("Servidor QA365") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
+                // Server URL field removed as requested. Hardcoded internally.
                 
                 OutlinedTextField(
                     value = username,

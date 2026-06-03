@@ -24,29 +24,29 @@ val Violet = Color(0xFF7C3AED)
 val Cyan = Color(0xFF06B6D4)
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Blue,
-    secondary = Green,
+    primary = Color.White,
+    secondary = Color(0xFFE5E5E5),
     tertiary = Amber,
-    background = Color(0xFF0B1120), // Deep Midnight Blue
-    surface = Color(0xFF151E32), // Slightly lighter blue for cards
-    onPrimary = Color.White,
-    onSecondary = Color.White,
+    background = Color(0xFF0A0A0A),
+    surface = Color(0xFF141414),
+    onPrimary = Color(0xFF0A0A0A),
+    onSecondary = Color(0xFF0A0A0A),
     onTertiary = Color.White,
-    onBackground = Color(0xFFF1F5F9), // Slate 100 for crisp text
-    onSurface = Color(0xFFF8FAFC),
+    onBackground = Color(0xFFE5E5E5),
+    onSurface = Color.White,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Blue,
-    secondary = Green,
+    primary = Color(0xFF6366F1), // Indigo 500
+    secondary = Color(0xFF4F46E5), // Indigo 600
     tertiary = Amber,
-    background = Color(0xFFF6F7FA),
+    background = Color(0xFFFAFAFA), // Gray 50
     surface = Color.White,
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,
-    onBackground = Color(0xFF111827),
-    onSurface = Color(0xFF111827),
+    onBackground = Color(0xFF171717), // Neutral 900
+    onSurface = Color(0xFF171717),
 )
 
 @Composable
