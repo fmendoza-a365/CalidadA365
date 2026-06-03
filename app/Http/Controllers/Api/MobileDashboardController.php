@@ -44,7 +44,7 @@ class MobileDashboardController extends Controller
             ->values();
 
         $recentEvaluations = $this->visibleEvaluations($user)
-            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
+            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
             ->latest('evaluations.created_at')
             ->limit(8)
             ->get()
@@ -137,7 +137,7 @@ class MobileDashboardController extends Controller
         $perPage = min(max((int) $request->query('per_page', 20), 1), 50);
 
         $evaluations = $this->visibleEvaluations($user)
-            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
+            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
             ->latest('evaluations.created_at')
             ->paginate($perPage);
 
@@ -163,7 +163,7 @@ class MobileDashboardController extends Controller
         }
 
         return response()->json([
-            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])),
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
         ]);
     }
 
@@ -188,7 +188,7 @@ class MobileDashboardController extends Controller
 
         return response()->json([
             'message' => 'Respuesta registrada.',
-            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])),
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
         ]);
     }
 
@@ -349,7 +349,7 @@ class MobileDashboardController extends Controller
                     'critical' => (clone $visibleEvaluations)->whereNotNull('percentage_score')->where('percentage_score', '<', 70)->count(),
                 ],
                 'items' => (clone $visibleEvaluations)
-                    ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator'])
+                    ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
                     ->latest('evaluations.created_at')
                     ->limit(6)
                     ->get()
@@ -632,9 +632,33 @@ class MobileDashboardController extends Controller
                 'responded' => (bool) $evaluation->agentResponse,
                 'type' => $evaluation->agentResponse?->response_type,
                 'responded_at' => $evaluation->agentResponse?->responded_at?->toIso8601String(),
+                'commitment_comment' => $evaluation->agentResponse?->commitment_comment,
+                'dispute_reason' => $evaluation->agentResponse?->dispute_reason,
             ],
             'summary' => $evaluation->ai_summary,
             'action_url' => url('/evaluations/'.$evaluation->id),
+            'items' => $evaluation->items->map(fn ($item) => [
+                'id' => $item->id,
+                'status' => $item->status,
+                'confidence' => $item->confidence,
+                'evidence_quote' => $item->evidence_quote,
+                'evidence_reference' => $item->evidence_reference,
+                'ai_notes' => $item->ai_notes,
+                'subattribute' => [
+                    'id' => $item->subAttribute?->id,
+                    'name' => $item->subAttribute?->name,
+                    'weight_percent' => $item->subAttribute?->weight_percent,
+                    'attribute_name' => $item->subAttribute?->attribute?->name,
+                ]
+            ])->values(),
+            'conversation_turns' => $evaluation->interaction && $evaluation->interaction->transcript_text 
+                ? (new \App\Support\TranscriptConversationParser())->parse($evaluation->interaction->transcript_text)
+                : [],
+            'audio_url' => $evaluation->interaction && $evaluation->interaction->isAudio()
+                ? url('/api/mobile/transcripts/'.$evaluation->interaction->id.'/audio')
+                : null,
+            'source_type' => $evaluation->interaction?->source_type,
+            'file_name' => $evaluation->interaction?->file_name,
         ];
     }
 
