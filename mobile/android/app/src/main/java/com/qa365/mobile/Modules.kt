@@ -141,102 +141,135 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 val profileName = profile.optString("name", "Usuario")
                 val avgScore = overview.optDouble("average_score", 0.0)
 
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "¡Hola, $profileName!",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
+                            
+                            if (league != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = league.optString("name", "Sin liga"),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(
                             width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                             shape = RoundedCornerShape(16.dp)
                         ),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary
-                                    )
-                                ),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .padding(20.dp)
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Rendimiento General",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Nota de calidad acumulada",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Hola, $profileName",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
-                                        fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.7f)
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = String.format("%.1f%%", avgScore),
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "Nota Promedio",
-                                        fontSize = 10.sp,
-                                        color = Color.White.copy(alpha = 0.6f)
-                                    )
-                                }
+                                Text(
+                                    text = String.format("%.1f%%", avgScore),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
+                        }
 
-                            if (league != null) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color.White.copy(alpha = 0.15f))
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = league.optString("name", "Sin liga"),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                DashboardQuickStat("Evaluaciones", overview.optString("total_evaluations", "0"), Icons.Default.Assessment)
-                                DashboardQuickStat("Alertas", summary.optString("open_alerts", "0"), Icons.Default.Warning)
-                                DashboardQuickStat("Críticas", summary.optString("critical_scores", "0"), Icons.Default.Error)
-                            }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            DashboardQuickStat("Evaluaciones", overview.optString("total_evaluations", "0"), Icons.Default.Assessment)
+                            DashboardQuickStat("Alertas", summary.optString("open_alerts", "0"), Icons.Default.Warning)
+                            DashboardQuickStat("Críticas", summary.optString("critical_scores", "0"), Icons.Default.Error)
                         }
                     }
                 }
@@ -577,16 +610,37 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
 
 @Composable
 fun DashboardQuickStat(label: String, value: String, icon: ImageVector) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.7f),
-            modifier = Modifier.size(18.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = value,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.onSurface
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
-        Text(label, fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        )
     }
 }
 
