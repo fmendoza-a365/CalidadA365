@@ -91,17 +91,31 @@ fun DashboardScreen(
                         )
 
                         items.forEach { item ->
+                            val isSelected = activeTab == item.id
                             NavigationBarItem(
-                                selected = activeTab == item.id,
+                                selected = isSelected,
                                 onClick = { onTabSelected(item.id) },
-                                icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(20.dp)) },
-                                label = { Text(item.label, fontSize = 10.sp, fontWeight = FontWeight.Medium) },
+                                icon = {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = item.label,
+                                        modifier = Modifier.size(if (isSelected) 22.dp else 20.dp)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = item.label,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                alwaysShowLabel = false,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
                                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    indicatorColor = Color.Transparent
                                 )
                             )
                         }

@@ -8,10 +8,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,48 +85,78 @@ fun AudioPlayer(url: String, token: String?) {
             .padding(vertical = 8.dp)
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline,
-                shape = RoundedCornerShape(12.dp)
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(16.dp)
             ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Reproductor de Audio",
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Seeker / Slider
+            // Waveform visualizer preview
+            val waveBarHeights = listOf(
+                10, 16, 12, 20, 26, 14, 10, 18, 22, 30, 
+                24, 16, 12, 20, 28, 22, 14, 18, 26, 32, 
+                22, 14, 10, 16, 20, 12, 8, 14, 18, 12
+            )
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val progress = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f
-                Slider(
-                    value = progress,
-                    onValueChange = { newValue ->
-                        isSliderDragging = true
-                        currentPosition = (newValue * totalDuration).toInt()
-                    },
-                    onValueChangeFinished = {
-                        isSliderDragging = false
-                        mediaPlayer?.let { player ->
-                            player.seekTo(currentPosition)
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        thumbColor = MaterialTheme.colorScheme.primary
+                waveBarHeights.forEachIndexed { index, heightDp ->
+                    val barProgress = index.toFloat() / waveBarHeights.size
+                    val color = if (progress >= barProgress) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 1.5.dp)
+                            .height(heightDp.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(color)
                     )
-                )
+                }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Seeker / Slider
+            val progress = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f
+            Slider(
+                value = progress,
+                onValueChange = { newValue ->
+                    isSliderDragging = true
+                    currentPosition = (newValue * totalDuration).toInt()
+                },
+                onValueChangeFinished = {
+                    isSliderDragging = false
+                    mediaPlayer?.let { player ->
+                        player.seekTo(currentPosition)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(16.dp),
+                colors = SliderDefaults.colors(
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                    thumbColor = MaterialTheme.colorScheme.primary
+                )
+            )
 
             // Time markers: Current / Total
             Row(
@@ -134,9 +167,14 @@ fun AudioPlayer(url: String, token: String?) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${formatTime(currentPosition)} / ${formatTime(totalDuration)}",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    text = formatTime(currentPosition),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+                Text(
+                    text = formatTime(totalDuration),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
 
@@ -148,111 +186,20 @@ fun AudioPlayer(url: String, token: String?) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Play / Pause Button
-                Button(
-                    onClick = {
-                        if (isPlaying) {
-                            mediaPlayer?.pause()
-                            isPlaying = false
-                        } else {
-                            mediaPlayer?.let { player ->
-                                player.start()
-                                isPlaying = true
-                                return@Button
-                            }
-
-                            // Initialize new player
-                            isLoading = true
-                            errorMessage = null
-                            coroutineScope.launch {
-                                try {
-                                    val player = MediaPlayer()
-                                    val headers = mutableMapOf<String, String>()
-                                    if (!token.isNullOrEmpty()) {
-                                        headers["Authorization"] = "Bearer $token"
-                                    }
-                                    player.setDataSource(context, android.net.Uri.parse(url), headers)
-                                    player.setOnPreparedListener { preparedPlayer ->
-                                        isLoading = false
-                                        totalDuration = preparedPlayer.duration
-                                        
-                                        // Apply speed params
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                            try {
-                                                preparedPlayer.playbackParams = preparedPlayer.playbackParams.setSpeed(playbackSpeed)
-                                            } catch (e: Exception) {}
-                                        }
-                                        preparedPlayer.start()
-                                        isPlaying = true
-                                    }
-                                    player.setOnCompletionListener { completedPlayer ->
-                                        isPlaying = false
-                                        currentPosition = 0
-                                    }
-                                    player.setOnErrorListener { _, _, _ ->
-                                        isLoading = false
-                                        isPlaying = false
-                                        errorMessage = "Error al reproducir el audio."
-                                        true
-                                    }
-                                    mediaPlayer = player
-                                    player.prepareAsync()
-                                } catch (e: Exception) {
-                                    isLoading = false
-                                    errorMessage = "Error: ${e.message}"
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.height(44.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isPlaying) "Pausar" else "Reproducir",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // Speed Selector Options
+                // Playback speed chips on the left (smaller size, rounded)
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Speed,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    
-                    listOf(1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
+                    listOf(1.0f, 1.5f, 2.0f).forEach { speed ->
                         val isSelected = playbackSpeed == speed
+                        val textBg = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                         val textColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        val textBg = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else androidx.compose.ui.graphics.Color.Transparent
-                        val borderMod = if (isSelected) Modifier.border(width = 0.5.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) else Modifier
                         
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(textBg)
-                                .then(borderMod)
                                 .clickable {
                                     playbackSpeed = speed
                                     mediaPlayer?.let { player ->
@@ -263,17 +210,141 @@ fun AudioPlayer(url: String, token: String?) {
                                         }
                                     }
                                 }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = "${speed}x",
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = textColor
                             )
                         }
                     }
                 }
+
+                // Center controls: Rewind, Play/Pause, Forward
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            mediaPlayer?.let { player ->
+                                val target = maxOf(0, player.currentPosition - 10000)
+                                player.seekTo(target)
+                                currentPosition = target
+                            }
+                        },
+                        enabled = mediaPlayer != null,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FastRewind,
+                            contentDescription = "Retroceder 10s",
+                            tint = if (mediaPlayer != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // Play/Pause circular button
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable {
+                                if (isPlaying) {
+                                    mediaPlayer?.pause()
+                                    isPlaying = false
+                                } else {
+                                    mediaPlayer?.let { player ->
+                                        player.start()
+                                        isPlaying = true
+                                        return@clickable
+                                    }
+
+                                    // Initialize new player
+                                    isLoading = true
+                                    errorMessage = null
+                                    coroutineScope.launch {
+                                        try {
+                                            val player = MediaPlayer()
+                                            val headers = mutableMapOf<String, String>()
+                                            if (!token.isNullOrEmpty()) {
+                                                headers["Authorization"] = "Bearer $token"
+                                            }
+                                            player.setDataSource(context, android.net.Uri.parse(url), headers)
+                                            player.setOnPreparedListener { preparedPlayer ->
+                                                isLoading = false
+                                                totalDuration = preparedPlayer.duration
+                                                
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                    try {
+                                                        preparedPlayer.playbackParams = preparedPlayer.playbackParams.setSpeed(playbackSpeed)
+                                                    } catch (e: Exception) {}
+                                                }
+                                                preparedPlayer.start()
+                                                isPlaying = true
+                                            }
+                                            player.setOnCompletionListener { completedPlayer ->
+                                                isPlaying = false
+                                                currentPosition = 0
+                                            }
+                                            player.setOnErrorListener { _, _, _ ->
+                                                isLoading = false
+                                                isPlaying = false
+                                                errorMessage = "Error al reproducir el audio."
+                                                true
+                                            }
+                                            mediaPlayer = player
+                                            player.prepareAsync()
+                                        } catch (e: Exception) {
+                                            isLoading = false
+                                            errorMessage = "Error: ${e.message}"
+                                        }
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.5.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = {
+                            mediaPlayer?.let { player ->
+                                val target = minOf(totalDuration, player.currentPosition + 10000)
+                                player.seekTo(target)
+                                currentPosition = target
+                            }
+                        },
+                        enabled = mediaPlayer != null,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FastForward,
+                            contentDescription = "Adelantar 10s",
+                            tint = if (mediaPlayer != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                // Speed label or icon placeholder to balance row
+                Spacer(modifier = Modifier.width(76.dp))
             }
 
             if (errorMessage != null) {
