@@ -158,6 +158,101 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
             }
         }
 
+        val agentObj = data.optJSONObject("agent")
+        val leagueObj = agentObj?.optJSONObject("league")
+        if (leagueObj != null) {
+            Spacer(modifier = Modifier.height(20.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "LIGA: " + leagueObj.optString("name", "Asesor").uppercase(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Nivel de desempeño competitivo",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = leagueObj.optString("score_label", "0.0%"),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
+        val alertsArray = data.optJSONArray("alerts")
+        val evaluationsArray = data.optJSONArray("evaluations")
+        if (alertsArray != null && alertsArray.length() > 0) {
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeader(title = "Alertas Operativas", subtitle = "Incidencias críticas de la operación")
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val count = minOf(alertsArray.length(), 3)
+                for (i in 0 until count) {
+                    val alert = alertsArray.optJSONObject(i) ?: continue
+                    val title = alert.optString("title", "Alerta")
+                    val desc = alert.optString("description", "")
+                    val severity = alert.optString("severity", "info")
+                    val created = alert.optString("created_at", "").take(10)
+                    val evalId = alert.optInt("evaluation_id", -1)
+                    
+                    val fullEval = if (evalId > 0 && evaluationsArray != null) {
+                        var found: org.json.JSONObject? = null
+                        for (idx in 0 until evaluationsArray.length()) {
+                            val ev = evaluationsArray.optJSONObject(idx)
+                            if (ev != null && ev.optInt("id") == evalId) {
+                                found = ev
+                                break
+                            }
+                        }
+                        found
+                    } else null
+                    
+                    AlertRowCard(
+                        title = title,
+                        description = desc,
+                        severity = severity,
+                        dateLabel = created,
+                        onClick = {
+                            if (fullEval != null) {
+                                onNavigate("evaluation", fullEval)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         // System Modules Grid Section
@@ -178,6 +273,36 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 modifier = Modifier.weight(1f),
                 onClick = { onNavigate("insight_list", data) }
             )
+        }
+
+        val campaignsArray = data.optJSONArray("campaigns")
+        if (campaignsArray != null && campaignsArray.length() > 0) {
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeader(title = "Desempeño por Campaña", subtitle = "Promedios de calidad por operación")
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    for (i in 0 until campaignsArray.length()) {
+                        val camp = campaignsArray.optJSONObject(i) ?: continue
+                        val name = camp.optString("label", "Campaña")
+                        val avg = camp.optDouble("avg_score", 0.0)
+                        val count = camp.optInt("count", 0)
+                        
+                        ProgressLine(
+                            label = "$name ($count ev.)",
+                            score = avg,
+                            color = getScoreColor(avg)
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -201,6 +326,49 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 color = getScoreColor(0.0), // Red
                 modifier = Modifier.weight(1f)
             )
+        }
+
+        val rankingArray = data.optJSONArray("ranking")
+        if (rankingArray != null && rankingArray.length() > 0) {
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeader(title = "Competencia Mensual", subtitle = "Clasificación de asesores por calidad")
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val count = minOf(rankingArray.length(), 5)
+                    for (i in 0 until count) {
+                        val rItem = rankingArray.optJSONObject(i) ?: continue
+                        val rName = rItem.optString("label", "Asesor")
+                        val rScore = rItem.optString("score_label", "0.0%")
+                        val rLevel = rItem.optString("level", "Plata")
+                        
+                        RankingRow(
+                            name = rName,
+                            scoreLabel = rScore,
+                            level = rLevel,
+                            position = i + 1
+                        )
+                        
+                        if (i < count - 1) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -300,7 +468,6 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
         }
 
         // Recent evaluations list
-        val evaluationsArray = data.optJSONArray("evaluations")
         if (evaluationsArray != null && evaluationsArray.length() > 0) {
             Spacer(modifier = Modifier.height(20.dp))
             SectionHeader(title = "Últimas Evaluaciones")
@@ -989,6 +1156,149 @@ fun InsightsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
                 description = "Campaña: ${item.optString("campaign", "—")} | Rango: ${item.optString("date_range", "—")}",
                 chips = listOf(item.optString("summary", "Ver detalles")),
                 onClick = { onNavigate("insight", item) }
+            )
+        }
+    }
+}
+
+@Composable
+fun RankingRow(name: String, scoreLabel: String, level: String, position: Int) {
+    val positionColor = when (position) {
+        1 -> Color(0xFFFBBF24) // Gold
+        2 -> Color(0xFF9CA3AF) // Silver
+        3 -> Color(0xFFD97706) // Bronze
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    }
+    val positionTextColor = when (position) {
+        1, 2, 3 -> Color.White
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    
+    val levelColor = when (level.lowercase()) {
+        "superior", "excelente", "retador", "gran maestro", "maestro", "diamante", "esmeralda" -> Color(0xFF10B981) // Green
+        "solido", "platino", "oro", "plata" -> Color(0xFF6366F1) // Indigo/Blue
+        "en seguimiento", "bronce" -> Color(0xFFF59E0B) // Amber
+        else -> Color(0xFFEF4444) // Red
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(positionColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = position.toString(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = positionTextColor
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = name,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(levelColor.copy(alpha = 0.1f))
+                .border(width = 0.5.dp, color = levelColor.copy(alpha = 0.3f), shape = RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = level.uppercase(),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = levelColor
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = scoreLabel,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+fun AlertRowCard(title: String, description: String, severity: String, dateLabel: String, onClick: () -> Unit) {
+    val severityColor = when (severity.lowercase()) {
+        "critical", "danger", "error" -> Color(0xFFEF4444)
+        "warning", "alert" -> Color(0xFFF59E0B)
+        else -> Color(0xFF3B82F6)
+    }
+    val severityName = when (severity.lowercase()) {
+        "critical", "danger", "error" -> "Crítico"
+        "warning", "alert" -> "Advertencia"
+        else -> "Info"
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(severityColor.copy(alpha = 0.1f))
+                        .border(width = 0.5.dp, color = severityColor.copy(alpha = 0.3f), shape = RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = severityName.uppercase(),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = severityColor
+                    )
+                }
+                Text(
+                    text = dateLabel,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = description,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                lineHeight = 18.sp
             )
         }
     }
