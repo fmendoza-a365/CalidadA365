@@ -19,6 +19,8 @@ fun DashboardScreen(
     activeTab: String,
     token: String?,
     serverUrl: String,
+    themeMode: String,
+    onThemeChanged: (String) -> Unit,
     onTabSelected: (String) -> Unit,
     onLogout: () -> Unit,
     onRefresh: () -> Unit
@@ -33,11 +35,14 @@ fun DashboardScreen(
 
     if (navStack.isNotEmpty()) {
         val (currentType, currentData) = navStack.last()
+        val profile = data?.optJSONObject("profile") ?: JSONObject()
+        val isAgent = profile.optString("primary_view", "executive") == "agent"
         DetailScreen(
             type = currentType,
             data = currentData,
             token = token,
             serverUrl = serverUrl,
+            isAgent = isAgent,
             onNavigate = { type, itemData ->
                 navStack.add(Pair(type, itemData))
             },
@@ -103,7 +108,7 @@ fun DashboardScreen(
                     "transcripts" -> TranscriptsModule(data, onNavigate)
                     "evaluations" -> EvaluationsModule(data, onNavigate)
                     "campaigns" -> CampaignsModule(data, onNavigate)
-                    "more" -> ProfileModule(data, onLogout, onRefresh)
+                    "more" -> ProfileModule(data, themeMode, onThemeChanged, onLogout, onRefresh)
                     else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Módulo en construcción: $activeTab")
                     }

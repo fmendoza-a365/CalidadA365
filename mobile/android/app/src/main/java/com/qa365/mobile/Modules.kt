@@ -556,7 +556,7 @@ fun CampaignsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) 
 // PROFILE MODULE — Premium profile view
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit) {
+fun ProfileModule(data: JSONObject, themeMode: String, onThemeChanged: (String) -> Unit, onLogout: () -> Unit, onRefresh: () -> Unit) {
     val profile = data.optJSONObject("profile") ?: JSONObject()
     val name = profile.optString("name", "Usuario")
     val paternal = profile.optString("paternal_surname", "")
@@ -726,6 +726,73 @@ fun ProfileModule(data: JSONObject, onLogout: () -> Unit, onRefresh: () -> Unit)
                     "Ubicación" to location.ifEmpty { "No registrado" }
                 )
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Tema de la Aplicación",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val modes = listOf("light" to "Claro", "dark" to "Oscuro", "system" to "Sistema")
+                        modes.forEach { (modeKey, modeName) ->
+                            val selected = themeMode == modeKey
+                            val containerColor = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                            val contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            val borderStroke = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(containerColor)
+                                    .then(if (borderStroke != null) Modifier.border(borderStroke, RoundedCornerShape(8.dp)) else Modifier)
+                                    .clickable { onThemeChanged(modeKey) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = modeName,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = contentColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 

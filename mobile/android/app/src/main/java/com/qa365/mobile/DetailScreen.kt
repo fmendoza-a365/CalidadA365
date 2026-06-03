@@ -38,6 +38,7 @@ fun DetailScreen(
     data: JSONObject,
     token: String?,
     serverUrl: String,
+    isAgent: Boolean = false,
     onNavigate: (String, JSONObject) -> Unit,
     onBack: () -> Unit
 ) {
@@ -70,7 +71,7 @@ fun DetailScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             when (type) {
-                "evaluation" -> EvaluationDetail(data, token, serverUrl)
+                "evaluation" -> EvaluationDetail(data, token, serverUrl, isAgent)
                 "transcript" -> TranscriptDetail(data, token)
                 "campaign" -> CampaignDetail(data)
                 "quality_form_list" -> QualityFormsModule(data, onNavigate)
@@ -102,7 +103,7 @@ fun getDetailTitle(type: String): String {
 // EVALUATION DETAIL — Premium evaluation view
 // ─────────────────────────────────────────────────────────────────────
 @Composable
-fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) {
+fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, isAgent: Boolean) {
     val score = evaluation.optDouble("score", -1.0)
     var isSubmitting by remember { mutableStateOf(false) }
     var comment by remember { mutableStateOf("") }
@@ -214,28 +215,64 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
             AudioPlayer(url = audioUrl, token = token)
         }
 
-        // AI Summary (no emojis, uses AutoAwesome icon)
+        // AI Summary (collapsible, no emojis, uses AutoAwesome icon)
         val summary = evaluation.optString("summary", "")
         if (summary.isNotEmpty()) {
             Spacer(modifier = Modifier.height(20.dp))
-            SectionHeaderIcon(icon = Icons.Default.AutoAwesome, title = "Resumen de IA")
-            Spacer(modifier = Modifier.height(8.dp))
+            var aiSummaryExpanded by remember { mutableStateOf(false) }
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp))
+                    .clickable { aiSummaryExpanded = !aiSummaryExpanded },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 )
             ) {
-                Text(
-                    text = summary.replace("**", "").replace("###", "").replace("##", "").replace("#", "").trim(),
-                    modifier = Modifier.padding(16.dp),
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    lineHeight = 22.sp
-                )
+                Column(
+                    modifier = Modifier
+                        .animateContentSize()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Resumen de IA",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Icon(
+                            imageVector = if (aiSummaryExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (aiSummaryExpanded) "Colapsar" else "Expandir",
+                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                    if (aiSummaryExpanded) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = summary.replace("**", "").replace("###", "").replace("##", "").replace("#", "").trim(),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            lineHeight = 22.sp
+                        )
+                    }
+                }
             }
         }
 
@@ -287,7 +324,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String) 
         }
 
         // Accept / Dispute form matching web inputs and color outlines (no emojis)
-        if (!hasResponded && !showSuccess && evaluation.optString("status") == "published_to_agent") {
+        if (isAgent && !hasResponded && !showSuccess && evaluation.optString("status") == "published_to_agent") {
             Spacer(modifier = Modifier.height(20.dp))
             SectionHeaderIcon(icon = Icons.Default.RateReview, title = "Responder a la Evaluación")
             Spacer(modifier = Modifier.height(8.dp))
