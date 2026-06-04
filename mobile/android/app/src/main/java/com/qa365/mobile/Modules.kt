@@ -40,6 +40,10 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
     val modules = data.optJSONObject("modules") ?: JSONObject()
     val feedbackModule = modules.optJSONObject("feedback") ?: JSONObject()
     val feedbackSummary = feedbackModule.optJSONObject("summary") ?: JSONObject()
+    val transcriptSummary = modules.optJSONObject("transcripts")?.optJSONObject("summary") ?: JSONObject()
+    val evaluationSummary = modules.optJSONObject("evaluations")?.optJSONObject("summary") ?: JSONObject()
+    val formSummary = modules.optJSONObject("quality_forms")?.optJSONObject("summary") ?: JSONObject()
+    val insightSummary = modules.optJSONObject("insights")?.optJSONObject("summary") ?: JSONObject()
     val profile = data.optJSONObject("profile") ?: JSONObject()
     val isAgent = profile.optString("primary_view", "executive") == "agent"
     val agentData = data.optJSONObject("agent")
@@ -138,343 +142,36 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
         // Render tab contents
         when (selectedSubTab) {
             "resumen" -> {
-                val profileName = profile.optString("name", "Usuario")
-                val avgScore = overview.optDouble("average_score", 0.0)
+                DashboardExecutiveHero(
+                    profile = profile,
+                    isAgent = isAgent,
+                    overview = overview,
+                    summary = summary,
+                    feedbackSummary = feedbackSummary,
+                    transcriptSummary = transcriptSummary,
+                    league = league
+                )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "¡Hola, $profileName!",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = if (isAgent) "Vista de Asesor" else "Vista Ejecutiva",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
-                            
-                            if (league != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            text = league.optString("name", "Sin liga"),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+                DashboardKpiGrid(
+                    overview = overview,
+                    summary = summary,
+                    feedbackSummary = feedbackSummary,
+                    transcriptSummary = transcriptSummary
+                )
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Rendimiento General",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Nota de calidad acumulada",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = String.format("%.1f%%", avgScore),
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                Spacer(modifier = Modifier.height(18.dp))
 
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            DashboardQuickStat("Evaluaciones", overview.optString("total_evaluations", "0"), Icons.Default.Assessment)
-                            DashboardQuickStat("Alertas", summary.optString("open_alerts", "0"), Icons.Default.Warning)
-                            DashboardQuickStat("Críticas", summary.optString("critical_scores", "0"), Icons.Default.Error)
-                        }
-                    }
-                }
-
-                val agentObj = data.optJSONObject("agent")
-                val leagueObj = agentObj?.optJSONObject("league")
-                if (leagueObj != null) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "LIGA: " + leagueObj.optString("name", "Asesor").uppercase(),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Nivel de desempeño competitivo",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = leagueObj.optString("score_label", "0.0%"),
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                SectionHeader(title = "Módulos de Gestión", subtitle = "Accesos rápidos de la operación")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ModuleShortcutCard(
-                        title = "Fichas de Calidad",
-                        icon = Icons.Default.Assignment,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate("quality_form_list", data) }
-                    )
-                    ModuleShortcutCard(
-                        title = "Reportes IA",
-                        icon = Icons.Default.AutoAwesome,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onNavigate("insight_list", data) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // AI Recommendations Section
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Recomendaciones de la IA",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = "Tu desempeño general se mantiene estable. Para alcanzar el nivel Maestro, te sugerimos enfocar tu atención en la sección de cierre de llamada y confirmación de datos.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            lineHeight = 16.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF10B981).copy(alpha = 0.08f))
-                                    .padding(8.dp)
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Fortaleza",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF10B981)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Empatía & Escucha",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF59E0B).copy(alpha = 0.08f))
-                                    .padding(8.dp)
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Oportunidad",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF59E0B)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Cierre & Despedida",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    MetricCard(
-                        title = "Nota Promedio",
-                        value = String.format("%.1f%%", overview.optDouble("average_score", 0.0)),
-                        subtitle = "Periodo actual",
-                        color = getScoreColor(overview.optDouble("average_score", 0.0)),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MetricCard(
-                        title = "Disputadas",
-                        value = summary.optString("disputed", "0"),
-                        subtitle = "En revisión",
-                        color = getScoreColor(0.0),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                DashboardOperationalPanel(
+                    feedbackSummary = feedbackSummary,
+                    transcriptSummary = transcriptSummary,
+                    evaluationSummary = evaluationSummary
+                )
 
                 if (trendArray != null && trendArray.length() > 0) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    SectionHeader(title = "Tendencia de Calidad")
+                    Spacer(modifier = Modifier.height(18.dp))
+                    SectionHeader(title = "Tendencia de calidad", subtitle = "Últimos días con evaluaciones disponibles")
 
                     val trendPoints = mutableListOf<ChartPoint>()
                     for (i in 0 until trendArray.length()) {
@@ -506,9 +203,44 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                     }
                 }
 
+                if (campaignsArray != null && campaignsArray.length() > 0) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    DashboardCampaignSnapshot(campaignsArray)
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                DashboardSignalPanel(
+                    isAgent = isAgent,
+                    overview = overview,
+                    summary = summary,
+                    feedbackSummary = feedbackSummary,
+                    transcriptSummary = transcriptSummary,
+                    defectsArray = defectsArray
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+                DashboardModuleGrid(
+                    transcriptSummary = transcriptSummary,
+                    evaluationSummary = evaluationSummary,
+                    formSummary = formSummary,
+                    insightSummary = insightSummary,
+                    feedbackSummary = feedbackSummary,
+                    onNavigate = onNavigate,
+                    data = data
+                )
+
+                if (alertsArray != null && alertsArray.length() > 0) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    SectionHeader(title = "Alertas recientes", subtitle = "Riesgos que requieren atención")
+                    for (i in 0 until minOf(alertsArray.length(), 3)) {
+                        val alert = alertsArray.optJSONObject(i) ?: continue
+                        AlertPreviewCard(alert = alert, evaluationsArray = evaluationsArray, onNavigate = onNavigate)
+                    }
+                }
+
                 if (evaluationsArray != null && evaluationsArray.length() > 0) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    SectionHeader(title = "Últimas Evaluaciones")
+                    Spacer(modifier = Modifier.height(18.dp))
+                    SectionHeader(title = if (isAgent) "Mis últimas evaluaciones" else "Últimas evaluaciones")
                     for (i in 0 until minOf(evaluationsArray.length(), 4)) {
                         val eval = evaluationsArray.optJSONObject(i) ?: continue
                         DetailCard(
@@ -715,6 +447,741 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
 }
 
 @Composable
+private fun DashboardExecutiveHero(
+    profile: JSONObject,
+    isAgent: Boolean,
+    overview: JSONObject,
+    summary: JSONObject,
+    feedbackSummary: JSONObject,
+    transcriptSummary: JSONObject,
+    league: JSONObject?
+) {
+    val avgScore = overview.optDouble("average_score", 0.0)
+    val scoreColor = getScoreColor(avgScore)
+    val profileName = profile.optString("name", "Usuario")
+    val published = feedbackSummary.optDouble("published", 0.0).coerceAtLeast(0.0)
+    val responded = feedbackSummary.optDouble("responded", 0.0).coerceAtLeast(0.0)
+    val responsePct = if (published > 0) (responded / published * 100.0) else 0.0
+    val statusText = when {
+        avgScore < 70.0 -> "Riesgo alto"
+        avgScore < 85.0 -> "En seguimiento"
+        else -> "Operación saludable"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = scoreColor.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(22.dp)
+            ),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    LabelChip(
+                        text = if (isAgent) "Vista de asesor" else "Vista ejecutiva",
+                        color = MaterialTheme.colorScheme.primary,
+                        icon = if (isAgent) Icons.Default.Person else Icons.Default.Business
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = profileName,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isAgent) {
+                            "Tus resultados, feedback y próximas revisiones."
+                        } else {
+                            "Calidad, feedback, audios, alertas y operación."
+                        },
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(78.dp)
+                        .clip(CircleShape)
+                        .background(scoreColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = String.format("%.0f", avgScore),
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Black,
+                            color = scoreColor
+                        )
+                        Text(
+                            text = "%",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = scoreColor
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                HeroSignal(
+                    label = "Estado",
+                    value = statusText,
+                    color = scoreColor,
+                    modifier = Modifier.weight(1f)
+                )
+                HeroSignal(
+                    label = "Feedback",
+                    value = String.format("%.0f%%", responsePct),
+                    color = if (responsePct >= 80.0) Green else Amber,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                HeroSignal(
+                    label = "Audios",
+                    value = transcriptSummary.optString("audio", "0"),
+                    color = Cyan,
+                    modifier = Modifier.weight(1f)
+                )
+                HeroSignal(
+                    label = "Alertas",
+                    value = summary.optString("open_alerts", "0"),
+                    color = if (summary.optInt("open_alerts", 0) > 0) Rose else Green,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (league != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Liga ${league.optString("name", "Asesor")}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Text(
+                        text = league.optString("score_label", String.format("%.1f%%", avgScore)),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroSignal(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun DashboardKpiGrid(
+    overview: JSONObject,
+    summary: JSONObject,
+    feedbackSummary: JSONObject,
+    transcriptSummary: JSONObject
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            DashboardMiniMetric(
+                title = "Evaluaciones",
+                value = overview.optString("total_evaluations", "0"),
+                subtitle = "visibles",
+                icon = Icons.Default.Assessment,
+                color = Blue,
+                modifier = Modifier.weight(1f)
+            )
+            DashboardMiniMetric(
+                title = "Pend. monitor",
+                value = summary.optString("pending_reviews", summary.optString("monitor_pending", "0")),
+                subtitle = "por revisar",
+                icon = Icons.Default.RateReview,
+                color = Amber,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            DashboardMiniMetric(
+                title = "Feedback",
+                value = feedbackSummary.optString("pending_response", "0"),
+                subtitle = "sin respuesta",
+                icon = Icons.Default.Chat,
+                color = Violet,
+                modifier = Modifier.weight(1f)
+            )
+            DashboardMiniMetric(
+                title = "Audios IA",
+                value = transcriptSummary.optString("processing", "0"),
+                subtitle = "procesando",
+                icon = Icons.Default.Audiotrack,
+                color = Cyan,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardMiniMetric(
+    title: String,
+    value: String,
+    subtitle: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(9.dp))
+            Text(
+                text = value,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Black,
+                color = color,
+                maxLines = 1
+            )
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardOperationalPanel(
+    feedbackSummary: JSONObject,
+    transcriptSummary: JSONObject,
+    evaluationSummary: JSONObject
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(18.dp)
+            ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Dashboard, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "Pulso operativo",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            DashboardProgressMetric(
+                label = "Feedback respondido",
+                done = feedbackSummary.optDouble("responded", 0.0),
+                total = feedbackSummary.optDouble("published", 0.0),
+                color = Green
+            )
+            DashboardProgressMetric(
+                label = "Evaluaciones publicadas",
+                done = evaluationSummary.optDouble("published", 0.0),
+                total = evaluationSummary.optDouble("total", 0.0),
+                color = Blue
+            )
+            DashboardProgressMetric(
+                label = "Audios completados",
+                done = (transcriptSummary.optDouble("audio", 0.0) - transcriptSummary.optDouble("processing", 0.0) - transcriptSummary.optDouble("failed", 0.0)).coerceAtLeast(0.0),
+                total = transcriptSummary.optDouble("audio", 0.0),
+                color = Cyan
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardProgressMetric(label: String, done: Double, total: Double, color: Color) {
+    val pct = if (total > 0) (done / total).coerceIn(0.0, 1.0).toFloat() else 0f
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f)
+            )
+            Text(
+                text = "${done.toInt()}/${total.toInt()}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = color
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { pct },
+            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        )
+    }
+}
+
+@Composable
+private fun DashboardCampaignSnapshot(campaignsArray: JSONArray) {
+    SectionHeader(title = "Campañas", subtitle = "Promedio de calidad por operación")
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (i in 0 until minOf(campaignsArray.length(), 4)) {
+                val campaign = campaignsArray.optJSONObject(i) ?: continue
+                val score = campaign.optDouble("avg_score", 0.0)
+                ProgressLine(
+                    label = "${campaign.optString("label", "Campaña")} (${campaign.optInt("count", 0)} ev.)",
+                    score = score,
+                    color = getScoreColor(score)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardSignalPanel(
+    isAgent: Boolean,
+    overview: JSONObject,
+    summary: JSONObject,
+    feedbackSummary: JSONObject,
+    transcriptSummary: JSONObject,
+    defectsArray: JSONArray?
+) {
+    val avgScore = overview.optDouble("average_score", 0.0)
+    val pendingFeedback = feedbackSummary.optInt("pending_response", 0)
+    val openAlerts = summary.optInt("open_alerts", 0)
+    val processingAudios = transcriptSummary.optInt("processing", 0)
+    val primaryDefect = firstDefectLabel(defectsArray)
+    val recommendation = when {
+        openAlerts > 0 -> "Priorizar las alertas críticas antes de revisar casos normales."
+        pendingFeedback > 0 && isAgent -> "Responder el feedback pendiente para cerrar el ciclo de mejora."
+        pendingFeedback > 0 -> "Hacer seguimiento a asesores con feedback publicado y sin respuesta."
+        avgScore < 70.0 -> "Revisar evaluaciones críticas y reforzar calibración de criterios."
+        processingAudios > 0 -> "Monitorear la cola de audios para evitar acumulación en IA."
+        else -> "Mantener seguimiento preventivo y revisar tendencias por campaña."
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                shape = RoundedCornerShape(18.dp)
+            ),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.045f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "Lectura ejecutiva",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = recommendation,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                lineHeight = 18.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SignalChipBox(
+                    label = "Fortaleza",
+                    value = if (avgScore >= 85.0) "Calidad alta" else "Seguimiento activo",
+                    color = if (avgScore >= 85.0) Green else Blue,
+                    modifier = Modifier.weight(1f)
+                )
+                SignalChipBox(
+                    label = "Foco",
+                    value = primaryDefect,
+                    color = if (openAlerts > 0 || avgScore < 70.0) Rose else Amber,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignalChipBox(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.09f))
+            .padding(10.dp)
+    ) {
+        Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.Black, color = color)
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun DashboardModuleGrid(
+    transcriptSummary: JSONObject,
+    evaluationSummary: JSONObject,
+    formSummary: JSONObject,
+    insightSummary: JSONObject,
+    feedbackSummary: JSONObject,
+    onNavigate: (String, JSONObject) -> Unit,
+    data: JSONObject
+) {
+    SectionHeader(title = "Módulos", subtitle = "Accesos con lectura rápida")
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardModuleTile(
+                title = "Audios",
+                value = transcriptSummary.optString("audio", "0"),
+                detail = "${transcriptSummary.optString("processing", "0")} procesando",
+                icon = Icons.Default.Audiotrack,
+                color = Cyan,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("transcript_list", data) }
+            )
+            DashboardModuleTile(
+                title = "Evaluaciones",
+                value = evaluationSummary.optString("total", "0"),
+                detail = "${evaluationSummary.optString("critical", "0")} críticas",
+                icon = Icons.Default.Assessment,
+                color = Blue,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("evaluation_list", data) }
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardModuleTile(
+                title = "Fichas",
+                value = formSummary.optString("total", "0"),
+                detail = "${formSummary.optString("with_context", "0")} con contexto",
+                icon = Icons.Default.Assignment,
+                color = Amber,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("quality_form_list", data) }
+            )
+            DashboardModuleTile(
+                title = "Insights",
+                value = insightSummary.optString("last_30_days", "0"),
+                detail = "últimos 30 días",
+                icon = Icons.Default.AutoAwesome,
+                color = Violet,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("insight_list", data) }
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardModuleTile(
+                title = "Feedback",
+                value = feedbackSummary.optString("responded", "0"),
+                detail = "${feedbackSummary.optString("pending_response", "0")} pendiente",
+                icon = Icons.Default.Chat,
+                color = Green,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("feedback_list", data) }
+            )
+            DashboardModuleTile(
+                title = "Campañas",
+                value = data.optJSONArray("campaigns")?.length()?.toString() ?: "0",
+                detail = "con calidad agrupada",
+                icon = Icons.Default.Campaign,
+                color = Rose,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate("campaign_list", data) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardModuleTile(
+    title: String,
+    value: String,
+    detail: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                Text(text = value, fontSize = 21.sp, fontWeight = FontWeight.Black, color = color)
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = detail,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.52f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlertPreviewCard(
+    alert: JSONObject,
+    evaluationsArray: JSONArray?,
+    onNavigate: (String, JSONObject) -> Unit
+) {
+    val severity = alert.optString("severity", "info")
+    val color = when (severity.lowercase()) {
+        "critical", "high", "error" -> Rose
+        "warning", "medium" -> Amber
+        else -> Blue
+    }
+    val evalId = alert.optInt("evaluation_id", -1)
+    val fullEval = findEvaluationById(evaluationsArray, evalId)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .border(
+                width = 1.dp,
+                color = color.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(enabled = fullEval != null) {
+                if (fullEval != null) {
+                    onNavigate("evaluation", fullEval)
+                }
+            },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = alert.optString("title", "Alerta"),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = alert.optString("description", "Requiere revisión."),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+private fun firstDefectLabel(defectsArray: JSONArray?): String {
+    if (defectsArray == null || defectsArray.length() == 0) {
+        return "Sin hallazgos críticos"
+    }
+    return defectsArray.optJSONObject(0)?.optString("label", "Criterios de calidad") ?: "Criterios de calidad"
+}
+
+private fun findEvaluationById(evaluationsArray: JSONArray?, evalId: Int): JSONObject? {
+    if (evaluationsArray == null || evalId <= 0) {
+        return null
+    }
+    for (index in 0 until evaluationsArray.length()) {
+        val evaluation = evaluationsArray.optJSONObject(index) ?: continue
+        if (evaluation.optInt("id") == evalId) {
+            return evaluation
+        }
+    }
+    return null
+}
+
+@Composable
 fun DashboardQuickStat(label: String, value: String, icon: ImageVector) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -915,6 +1382,67 @@ fun EvaluationsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit
                 chips = listOf(
                     if (item.optJSONObject("feedback_response")?.optBoolean("responded") == true) "Respondido" else "Pendiente"
                 ),
+                onClick = { onNavigate("evaluation", item) }
+            )
+        }
+    }
+}
+
+@Composable
+fun FeedbackListModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
+    val module = data.optJSONObject("modules")?.optJSONObject("feedback") ?: JSONObject()
+    val summary = module.optJSONObject("summary") ?: JSONObject()
+    val evaluations = data.optJSONObject("modules")
+        ?.optJSONObject("evaluations")
+        ?.optJSONArray("items")
+        ?: data.optJSONArray("evaluations")
+        ?: JSONArray()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        SectionHeader("Feedback", "Seguimiento de respuestas de asesores")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Publicado", summary.optString("published", "0"), "Visible para asesor", Blue, Modifier.weight(1f))
+            MetricCard("Pendiente", summary.optString("pending_response", "0"), "Sin respuesta", Amber, Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard("Aceptado", summary.optString("accepted", "0"), "Compromisos", Green, Modifier.weight(1f))
+            MetricCard("Disputado", summary.optString("disputed", "0"), "En revisión", Rose, Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionHeader("Evaluaciones con feedback")
+
+        for (i in 0 until evaluations.length()) {
+            val item = evaluations.optJSONObject(i) ?: continue
+            val response = item.optJSONObject("feedback_response")
+            val responded = response?.optBoolean("responded") == true
+            val visible = item.optString("visible_to_agent_at", "").isNotEmpty()
+            val chip = when {
+                responded -> "Respondido"
+                visible -> "Pendiente"
+                else -> "No publicado"
+            }
+            DetailCard(
+                title = item.optString("campaign", "Sin campaña"),
+                scoreValue = item.optString("score_label", "0%"),
+                scoreColor = getScoreColor(item.optDouble("score", -1.0)),
+                description = "${item.optString("agent", "Sin asesor")} | ${item.optString("status_label", "Sin estado")}",
+                chips = listOf(chip),
                 onClick = { onNavigate("evaluation", item) }
             )
         }

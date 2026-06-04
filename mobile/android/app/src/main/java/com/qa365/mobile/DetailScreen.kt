@@ -74,6 +74,10 @@ fun DetailScreen(
                 "evaluation" -> EvaluationDetail(data, token, serverUrl, isAgent)
                 "transcript" -> TranscriptDetail(data, token)
                 "campaign" -> CampaignDetail(data)
+                "transcript_list" -> TranscriptsModule(data, onNavigate)
+                "evaluation_list" -> EvaluationsModule(data, onNavigate)
+                "campaign_list" -> CampaignsModule(data, onNavigate)
+                "feedback_list" -> FeedbackListModule(data, onNavigate)
                 "quality_form_list" -> QualityFormsModule(data, onNavigate)
                 "insight_list" -> InsightsModule(data, onNavigate)
                 "quality_form" -> QualityFormDetail(data)
@@ -91,6 +95,10 @@ fun getDetailTitle(type: String): String {
         "evaluation" -> "Evaluación"
         "transcript" -> "Transcripción"
         "campaign" -> "Campaña"
+        "transcript_list" -> "Audios"
+        "evaluation_list" -> "Evaluaciones"
+        "campaign_list" -> "Campañas"
+        "feedback_list" -> "Feedback"
         "quality_form_list" -> "Fichas de Calidad"
         "insight_list" -> "Insights de IA"
         "quality_form" -> "Detalle de Ficha"
