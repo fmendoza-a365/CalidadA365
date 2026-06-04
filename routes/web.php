@@ -207,6 +207,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('users/import', [\App\Http\Controllers\UserController::class, 'importStore'])->name('users.import.store');
         Route::get('users/import/template.csv', [\App\Http\Controllers\UserController::class, 'importTemplate'])->name('users.import.template');
         Route::get('users/import/template.xlsx', [\App\Http\Controllers\UserController::class, 'importTemplateExcel'])->name('users.import.template.excel');
+        Route::delete('users/bulk', [\App\Http\Controllers\UserController::class, 'bulkDestroy'])->name('users.bulk-destroy');
         Route::resource('users', \App\Http\Controllers\UserController::class)->except(['show']);
         Route::resource('roles', \App\Http\Controllers\RolePermissionController::class);
 

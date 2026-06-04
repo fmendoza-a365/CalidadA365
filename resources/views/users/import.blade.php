@@ -129,6 +129,34 @@
                             </div>
                         </div>
 
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="form-label">Campaña destino</label>
+                                <select name="default_campaign_id" class="form-select">
+                                    <option value="">Usar columna campaigns</option>
+                                    @foreach($campaigns as $campaign)
+                                        <option value="{{ $campaign->id }}" @selected((string) old('default_campaign_id') === (string) $campaign->id)>
+                                            {{ $campaign->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo. La columna campaigns puede agregar campañas adicionales.</p>
+                            </div>
+
+                            <div>
+                                <label class="form-label">Supervisor por defecto</label>
+                                <select name="default_supervisor_id" class="form-select">
+                                    <option value="">Usar columna supervisor</option>
+                                    @foreach($supervisors as $supervisor)
+                                        <option value="{{ $supervisor->id }}" @selected((string) old('default_supervisor_id') === (string) $supervisor->id)>
+                                            {{ $supervisor->name }} · {{ '@'.$supervisor->username }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Necesario para asignar asesores a campaña si el archivo no trae supervisor.</p>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <label class="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4 transition hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700">
                                 <input type="hidden" name="update_existing" value="0">
@@ -196,6 +224,10 @@
                                     </tr>
                                     <tr>
                                         <td class="font-mono text-xs">campaigns</td>
+                                        <td><span class="badge badge-neutral">Opcional</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="font-mono text-xs">supervisor_username</td>
                                         <td><span class="badge badge-neutral">Opcional</span></td>
                                     </tr>
                                 </tbody>

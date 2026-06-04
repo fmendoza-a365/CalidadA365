@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Campaign;
+use App\Models\CampaignUserAssignment;
 use App\Models\User;
 use App\Support\CsvImport;
 use Illuminate\Http\Request;
@@ -45,15 +47,16 @@ class UserController extends Controller
     public function import()
     {
         $roles = Role::orderBy('name')->get();
-        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->orderBy('name')->get();
+        $supervisors = $this->supervisorQuery()->orderBy('name')->get();
 
-        return view('users.import', compact('roles', 'campaigns'));
+        return view('users.import', compact('roles', 'campaigns', 'supervisors'));
     }
 
     public function create()
     {
         $roles = Role::all();
-        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->orderBy('name')->get();
         return view('users.create', compact('roles', 'campaigns'));
     }
 
@@ -63,6 +66,8 @@ class UserController extends Controller
             'csv_file' => 'required|file|max:10240|mimes:csv,txt,xlsx,xls,ods',
             'default_role' => 'nullable|string|exists:roles,name',
             'default_password' => 'nullable|string|min:8',
+            'default_campaign_id' => 'nullable|exists:campaigns,id',
+            'default_supervisor_id' => 'nullable|exists:users,id',
             'update_existing' => 'nullable|boolean',
             'sync_campaigns' => 'nullable|boolean',
         ]);
@@ -87,14 +92,23 @@ class UserController extends Controller
                 rows: $rows,
                 defaultRole: $validated['default_role'] ?? null,
                 defaultPassword: $validated['default_password'] ?? null,
+                defaultCampaignId: $validated['default_campaign_id'] ?? null,
+                defaultSupervisorId: $validated['default_supervisor_id'] ?? null,
                 updateExisting: $request->boolean('update_existing', true),
                 syncCampaigns: $request->boolean('sync_campaigns', true)
             );
         });
 
+        $assignmentMessage = $stats['assignments'] > 0
+            ? ", {$stats['assignments']} asignaciones"
+            : '';
+        $assignmentSkippedMessage = $stats['assignment_skipped'] > 0
+            ? ", {$stats['assignment_skipped']} sin asignar por falta de supervisor"
+            : '';
+
         return redirect()
             ->route('users.index')
-            ->with('success', "Importación completa: {$stats['created']} creados, {$stats['updated']} actualizados, {$stats['skipped']} omitidos.");
+            ->with('success', "Importación completa: {$stats['created']} creados, {$stats['updated']} actualizados, {$stats['skipped']} omitidos{$assignmentMessage}{$assignmentSkippedMessage}.");
     }
 
     public function importTemplate()
@@ -112,6 +126,7 @@ class UserController extends Controller
             'province' => 'Lima',
             'district' => 'Miraflores',
             'campaigns' => 'Atención;Ventas',
+            'supervisor_username' => 's001',
         ]];
 
         return CsvImport::download('plantilla_usuarios.csv', $rows);
@@ -132,6 +147,7 @@ class UserController extends Controller
             'province' => 'Lima',
             'district' => 'Miraflores',
             'campaigns' => 'Atención;Ventas',
+            'supervisor_username' => 's001',
         ]];
 
         return CsvImport::downloadSpreadsheet('plantilla_usuarios.xlsx', $rows);
@@ -178,7 +194,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::all();
-        $campaigns = \App\Models\Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->orderBy('name')->get();
         $user->load('managedCampaigns');
         return view('users.edit', compact('user', 'roles', 'campaigns'));
     }
@@ -239,17 +255,69 @@ class UserController extends Controller
             return back()->with('error', 'No puedes eliminar tu propia cuenta.');
         }
 
+        if ($this->userHasProtectedRecords($user)) {
+            return back()->with('error', 'No se puede eliminar este usuario porque tiene historial operativo asociado.');
+        }
+
         $user->delete();
 
         return redirect()->route('users.index')
             ->with('success', 'Usuario eliminado exitosamente.');
     }
 
-    private function importUsersFromRows(array $rows, ?string $defaultRole, ?string $defaultPassword, bool $updateExisting, bool $syncCampaigns): array
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'integer|exists:users,id',
+        ], [
+            'user_ids.required' => 'Selecciona al menos un usuario.',
+            'user_ids.min' => 'Selecciona al menos un usuario.',
+        ]);
+
+        $deleted = 0;
+        $skipped = 0;
+
+        DB::transaction(function () use ($validated, &$deleted, &$skipped) {
+            User::whereIn('id', $validated['user_ids'])
+                ->orderBy('id')
+                ->get()
+                ->each(function (User $user) use (&$deleted, &$skipped) {
+                    if ($user->id === Auth::id() || $this->userHasProtectedRecords($user)) {
+                        $skipped++;
+                        return;
+                    }
+
+                    $user->delete();
+                    $deleted++;
+                });
+        });
+
+        $message = "Eliminación masiva: {$deleted} eliminados";
+        if ($skipped > 0) {
+            $message .= ", {$skipped} omitidos por seguridad o historial asociado";
+        }
+
+        return redirect()
+            ->route('users.index')
+            ->with($deleted > 0 ? 'success' : 'error', $message.'.');
+    }
+
+    private function importUsersFromRows(
+        array $rows,
+        ?string $defaultRole,
+        ?string $defaultPassword,
+        ?int $defaultCampaignId,
+        ?int $defaultSupervisorId,
+        bool $updateExisting,
+        bool $syncCampaigns
+    ): array
     {
         $created = 0;
         $updated = 0;
         $skipped = 0;
+        $assignments = 0;
+        $assignmentSkipped = 0;
 
         foreach ($rows as $row) {
             $name = CsvImport::value($row, ['name', 'nombre', 'nombres']);
@@ -306,9 +374,21 @@ class UserController extends Controller
 
             $user->syncRoles([$role]);
 
-            if ($syncCampaigns && in_array($role, ['qa_monitor', 'qa_coordinator', 'manager'], true)) {
-                $campaignIds = $this->campaignIdsFromCsvValue(CsvImport::value($row, ['campaigns', 'campanias', 'campañas', 'campaign_ids']));
-                if (! empty($campaignIds)) {
+            if ($syncCampaigns) {
+                $campaignIds = $this->campaignIdsForImport($row, $defaultCampaignId);
+
+                if ($role === 'agent' && ! empty($campaignIds)) {
+                    $supervisorId = $this->supervisorIdForImport($row, $defaultSupervisorId);
+
+                    if ($supervisorId) {
+                        $user->forceFill(['supervisor_id' => $supervisorId])->save();
+                        $assignments += $this->syncAgentCampaignAssignments($user, $campaignIds, $supervisorId);
+                    } else {
+                        $assignmentSkipped++;
+                    }
+                }
+
+                if (in_array($role, ['qa_monitor', 'qa_coordinator', 'manager'], true) && ! empty($campaignIds)) {
                     $user->managedCampaigns()->sync($campaignIds);
                 }
             }
@@ -316,7 +396,118 @@ class UserController extends Controller
             $existing ? $updated++ : $created++;
         }
 
-        return compact('created', 'updated', 'skipped');
+        return [
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'assignments' => $assignments,
+            'assignment_skipped' => $assignmentSkipped,
+        ];
+    }
+
+    private function campaignIdsForImport(array $row, ?int $defaultCampaignId): array
+    {
+        $campaignIds = $this->campaignIdsFromCsvValue(CsvImport::value($row, [
+            'campaigns',
+            'campanias',
+            'campañas',
+            'campaign_ids',
+            'campania',
+            'campaña',
+            'campaign',
+        ]));
+
+        if ($defaultCampaignId) {
+            array_unshift($campaignIds, $defaultCampaignId);
+        }
+
+        return collect($campaignIds)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function supervisorIdForImport(array $row, ?int $defaultSupervisorId): ?int
+    {
+        $supervisorId = CsvImport::value($row, ['supervisor_id']);
+
+        if (filled($supervisorId) && $this->supervisorQuery()->whereKey((int) $supervisorId)->exists()) {
+            return (int) $supervisorId;
+        }
+
+        $supervisorCode = CsvImport::value($row, ['supervisor_username', 'supervisor_codigo', 'codigo_supervisor', 'supervisor_code']);
+        $supervisorEmail = CsvImport::value($row, ['supervisor_email', 'correo_supervisor']);
+        $supervisorName = CsvImport::value($row, ['supervisor', 'lider', 'jefe']);
+
+        if (filled($supervisorCode) || filled($supervisorEmail) || filled($supervisorName)) {
+            $supervisor = $this->supervisorQuery()
+                ->where(function ($query) use ($supervisorCode, $supervisorEmail, $supervisorName) {
+                    if (filled($supervisorCode)) {
+                        $query->where('username', trim($supervisorCode));
+                    }
+
+                    if (filled($supervisorEmail)) {
+                        $query->orWhere('email', trim($supervisorEmail));
+                    }
+
+                    if (filled($supervisorName)) {
+                        $query->orWhereRaw('LOWER(name) = ?', [Str::lower(trim($supervisorName))]);
+                    }
+                })
+                ->first();
+
+            if ($supervisor) {
+                return $supervisor->id;
+            }
+        }
+
+        return $defaultSupervisorId && $this->supervisorQuery()->whereKey($defaultSupervisorId)->exists()
+            ? $defaultSupervisorId
+            : null;
+    }
+
+    private function supervisorQuery()
+    {
+        return User::query()->whereHas('roles', fn ($query) => $query->where('name', 'supervisor'));
+    }
+
+    private function syncAgentCampaignAssignments(User $agent, array $campaignIds, int $supervisorId): int
+    {
+        $synced = 0;
+
+        foreach ($campaignIds as $campaignId) {
+            CampaignUserAssignment::updateOrCreate(
+                [
+                    'campaign_id' => $campaignId,
+                    'agent_id' => $agent->id,
+                ],
+                [
+                    'supervisor_id' => $supervisorId,
+                    'is_active' => true,
+                    'start_date' => now()->toDateString(),
+                    'end_date' => null,
+                ]
+            );
+            $synced++;
+        }
+
+        return $synced;
+    }
+
+    private function userHasProtectedRecords(User $user): bool
+    {
+        $userId = $user->id;
+
+        return DB::table('interactions')
+            ->where('agent_id', $userId)
+            ->orWhere('supervisor_id', $userId)
+            ->orWhere('uploaded_by', $userId)
+            ->exists()
+            || DB::table('evaluations')->where('agent_id', $userId)->exists()
+            || DB::table('agent_responses')->where('agent_id', $userId)->exists()
+            || DB::table('quality_forms')->where('created_by', $userId)->exists()
+            || DB::table('insight_reports')->where('generated_by', $userId)->exists();
     }
 
     private function makeUsername(string $value): string
@@ -368,7 +559,7 @@ class UserController extends Controller
             ->filter()
             ->values();
 
-        return \App\Models\Campaign::query()
+        return Campaign::query()
             ->whereIn('id', $tokens->filter(fn ($token) => ctype_digit($token))->map(fn ($token) => (int) $token))
             ->orWhereIn('name', $tokens)
             ->pluck('id')

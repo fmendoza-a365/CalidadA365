@@ -27,7 +27,10 @@
         $activeFilterCount = collect(request()->only(['q', 'role']))->filter(fn ($value) => filled($value))->count();
     @endphp
 
-    <div class="card overflow-hidden">
+    <div
+        class="card overflow-hidden"
+        x-data="{ selectedUsers: [], visibleUsers: @js($users->pluck('id')->reject(fn ($id) => $id === auth()->id())->map(fn ($id) => (string) $id)->values()) }"
+    >
         <div class="card-header">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -42,6 +45,14 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
+                    <button type="button"
+                        @click="$dispatch('open-modal', 'bulk-delete-users')"
+                        :disabled="selectedUsers.length === 0"
+                        class="btn-danger btn-md w-fit disabled:cursor-not-allowed disabled:opacity-40">
+                        Eliminar seleccionados
+                        <span x-show="selectedUsers.length > 0" x-text="selectedUsers.length"></span>
+                    </button>
+
                     <a href="{{ route('users.create') }}" class="btn-primary btn-md w-fit">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -86,10 +97,33 @@
             </form>
         </div>
 
+        <form id="bulk-users-delete-form" method="POST" action="{{ route('users.bulk-destroy') }}" class="hidden">
+            @csrf
+            @method('DELETE')
+        </form>
+
+        <div x-data="{}" x-on:confirm-action.window="if ($event.detail.name === 'bulk-delete-users') document.getElementById('bulk-users-delete-form').submit()">
+            <x-confirm-modal
+                name="bulk-delete-users"
+                title="¿Eliminar usuarios seleccionados?"
+                message="Se eliminarán los usuarios seleccionados que no tengan historial operativo. Los usuarios con transcripciones, evaluaciones o reportes asociados serán omitidos."
+                confirmText="Sí, eliminar seleccionados"
+                type="danger"
+            />
+        </div>
+
         <div class="table-container border-0">
             <table class="table">
                 <thead>
                     <tr>
+                        <th class="w-10">
+                            <input
+                                type="checkbox"
+                                class="form-checkbox"
+                                :checked="visibleUsers.length > 0 && visibleUsers.every(id => selectedUsers.includes(id))"
+                                @change="selectedUsers = $event.target.checked ? Array.from(new Set([...selectedUsers, ...visibleUsers])) : selectedUsers.filter(id => !visibleUsers.includes(id))"
+                            >
+                        </th>
                         <th>Usuario</th>
                         <th class="w-48">Rol</th>
                         <th class="w-72">Contacto</th>
@@ -104,6 +138,20 @@
                             $phone = $user->company_phone ?: $user->personal_phone;
                         @endphp
                         <tr>
+                            <td>
+                                @if(auth()->id() !== $user->id)
+                                    <input
+                                        type="checkbox"
+                                        name="user_ids[]"
+                                        value="{{ $user->id }}"
+                                        form="bulk-users-delete-form"
+                                        class="form-checkbox"
+                                        x-model="selectedUsers"
+                                    >
+                                @else
+                                    <span class="text-xs text-gray-300 dark:text-gray-700">—</span>
+                                @endif
+                            </td>
                             <td class="wrap-text">
                                 <div class="flex items-center gap-3">
                                     <img class="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
@@ -180,7 +228,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">
+                            <td colspan="6">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
