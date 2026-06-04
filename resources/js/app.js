@@ -1,6 +1,26 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 
+let qa365ChartsPromise = null;
+
+window.QA365LoadCharts = () => {
+    if (window.QA365Charts) {
+        return Promise.resolve(window.QA365Charts);
+    }
+
+    qa365ChartsPromise ??= import('./charts/qa365-echarts').then(() => window.QA365Charts);
+
+    return qa365ChartsPromise;
+};
+
+window.dispatchEvent(new CustomEvent('qa365:chart-loader-ready'));
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('[id^="chart-"]')) {
+        window.QA365LoadCharts();
+    }
+});
+
 // Theme Management
 const ThemeManager = {
     init() {

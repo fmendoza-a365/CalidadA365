@@ -1,10 +1,6 @@
 <x-app-layout>
     <x-slot name="header">Perfil de Agente: Calidad</x-slot>
 
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    @endpush
-
     <div class="space-y-6 w-full mx-auto">
 
         {{-- Controls & Date Filter (Hextech Style) --}}

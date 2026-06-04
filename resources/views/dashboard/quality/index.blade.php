@@ -1,10 +1,6 @@
 <x-app-layout>
     <x-slot name="header">Dashboard Calidad</x-slot>
 
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    @endpush
-
     <div x-data="{ tab: 'calidad' }" class="space-y-5">
 
         {{-- Filters --}}
@@ -522,137 +518,109 @@
         </style>
 
         <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const isDark = document.documentElement.classList.contains('dark');
-            const txt = isDark ? '#94a3b8' : '#64748b';
-            const grid = isDark ? '#1e293b' : '#f1f5f9';
+        (function() {
+            let chartsBooted = false;
 
-            const base = {
-                chart: { toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
-                grid: { borderColor: grid, strokeDashArray: 3 },
-                xaxis: { labels: { style: { colors: txt, fontSize: '10px' } } },
-                yaxis: { labels: { style: { colors: txt, fontSize: '10px' } } },
-                dataLabels: { enabled: true, style: { fontSize: '9px', fontWeight: 600 } },
-                legend: { labels: { colors: txt }, fontSize: '10px' },
-                tooltip: { theme: isDark ? 'dark' : 'light' }
-            };
+            function bootQualityCharts() {
+                const charts = window.QA365Charts;
 
-            const colors = {
-                indigo: '#6366f1', sky: '#0ea5e9', teal: '#14b8a6', rose: '#f43f5e',
-                amber: '#f59e0b', violet: '#8b5cf6', emerald: '#10b981', pink: '#ec4899',
-                cyan: '#06b6d4', orange: '#f97316', slate: '#64748b'
-            };
+                if (!charts) {
+                    if (typeof window.QA365LoadCharts === 'function') {
+                        window.QA365LoadCharts().then(bootQualityCharts);
+                        return;
+                    }
 
-            function render(el, opts) {
-                const node = document.querySelector(el);
-                if (!node) return;
-                new ApexCharts(node, { ...base, ...opts }).render();
-            }
+                    window.addEventListener('qa365:chart-loader-ready', bootQualityCharts, { once: true });
+                    window.addEventListener('qa365:charts-ready', bootQualityCharts, { once: true });
+                    return;
+                }
 
-            function comboChart(el, data, c1, c2) {
-                if (!data.length) return;
-                render(el, {
-                    series: [
-                        { name: 'Nota %', type: 'column', data: data.map(d => d.avg_score) },
-                        { name: 'Cantidad', type: 'line', data: data.map(d => d.count) }
-                    ],
-                    chart: { type: 'line', height: 224 },
-                    stroke: { width: [0, 2.5], curve: 'smooth' },
-                    colors: [c1, c2],
-                    plotOptions: { bar: { borderRadius: 3, columnWidth: '50%' } },
-                    xaxis: { categories: data.map(d => d.label), labels: { style: { colors: txt, fontSize: '9px' } } },
-                    yaxis: [
-                        { max: 100, labels: { style: { colors: txt, fontSize: '9px' } } },
-                        { opposite: true, labels: { style: { colors: txt, fontSize: '9px' } } }
-                    ],
+                if (chartsBooted) {
+                    return;
+                }
+
+                chartsBooted = true;
+                const colors = charts.colors();
+
+                charts.combo('#chart-quality-month', @json($qualityMonth), {
+                    barColor: colors.indigo,
+                    lineColor: colors.cyan,
                 });
-            }
-
-            function barChart(el, data, color, h = 224) {
-                if (!data.length) return;
-                render(el, {
-                    series: [{ name: 'Total', data: data.map(d => d.count) }],
-                    chart: { type: 'bar', height: h },
-                    plotOptions: { bar: { borderRadius: 3, columnWidth: '55%' } },
-                    colors: [color],
-                    xaxis: { categories: data.map(d => d.label), labels: { style: { colors: txt, fontSize: '9px' } } },
+                charts.combo('#chart-quality-week', @json($qualityWeek), {
+                    barColor: colors.sky,
+                    lineColor: colors.violet,
                 });
-            }
-
-            function areaChart(el, data, color) {
-                if (!data.length) return;
-                render(el, {
-                    series: [{ name: 'Nota %', data: data.map(d => d.avg_score) }],
-                    chart: { type: 'area', height: 224 },
-                    stroke: { width: 2.5, curve: 'smooth' },
-                    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05 } },
-                    colors: [color],
-                    xaxis: { categories: data.map(d => d.label), labels: { style: { colors: txt, fontSize: '9px' } } },
-                    yaxis: { max: 100, labels: { style: { colors: txt, fontSize: '9px' } } },
-                    dataLabels: { enabled: false },
+                charts.bar('#chart-quality-campaign', @json($qualityCampaign), {
+                    color: colors.indigo,
+                    metric: 'avg_score',
+                    valueName: 'Nota %',
+                    max: 100,
                 });
-            }
-
-            function hBar(el, data, color) {
-                if (!data.length) return;
-                render(el, {
-                    series: [{ name: 'Total', data: data.map(d => d.count) }],
-                    chart: { type: 'bar', height: 256 },
-                    plotOptions: { bar: { borderRadius: 3, horizontal: true } },
-                    colors: [color],
-                    xaxis: { categories: data.map(d => d.label), labels: { style: { colors: txt, fontSize: '9px' } } },
+                charts.area('#chart-quality-daily', @json($qualityDaily), {
+                    color: colors.indigo,
                 });
-            }
-
-            function stackBar(el, data, c) {
-                if (!data.length) return;
-                render(el, {
-                    series: [
-                        { name: 'Realizado', data: data.map(d => d.done) },
-                        { name: 'Pendiente', data: data.map(d => d.pending || (d.total - d.done)) }
-                    ],
-                    chart: { type: 'bar', height: 256, stacked: true },
-                    plotOptions: { bar: { borderRadius: 2, columnWidth: '50%' } },
-                    colors: c,
-                    xaxis: { categories: data.map(d => d.label), labels: { style: { colors: txt, fontSize: '9px' } } },
+                charts.combo('#chart-quality-supervisor', @json($qualitySupervisor), {
+                    barColor: colors.teal,
+                    lineColor: colors.amber,
                 });
-            }
-
-            // Tab 1
-            comboChart('#chart-quality-month', @json($qualityMonth), colors.indigo, colors.cyan);
-            comboChart('#chart-quality-week', @json($qualityWeek), colors.sky, colors.violet);
-            barChart('#chart-quality-campaign', @json($qualityCampaign), colors.indigo);
-            areaChart('#chart-quality-daily', @json($qualityDaily), colors.indigo);
-            comboChart('#chart-quality-supervisor', @json($qualitySupervisor), colors.teal, colors.amber);
-            hBar('#chart-defects', @json($topDefects), colors.rose);
-
-            // Tab 2
-            barChart('#chart-mp-month', @json($mpMonth), colors.rose);
-            barChart('#chart-mp-week', @json($mpWeek), colors.pink);
-            barChart('#chart-mp-campaign', @json($mpCampaign), colors.orange);
-            barChart('#chart-mp-daily', @json($mpDaily), colors.amber);
-            barChart('#chart-mp-supervisor', @json($mpSupervisor), colors.rose, 256);
-
-            // Tab 3
-            stackBar('#chart-feedback-supervisor', @json($feedbackSupervisor), [colors.teal, colors.amber]);
-            stackBar('#chart-feedback-week', @json($feedbackWeek), [colors.indigo, colors.orange]);
-
-            // Tab 5
-            hBar('#chart-evals-campaign', @json($evalsByCampaign), colors.violet);
-
-            const ranking = @json($agentRanking);
-            if (document.querySelector('#chart-quality-agent') && ranking.length) {
-                render('#chart-quality-agent', {
-                    series: [{ name: 'Nota %', data: ranking.map(d => d.avg_score) }],
-                    chart: { type: 'bar', height: 288 },
-                    plotOptions: { bar: { borderRadius: 3, horizontal: true, barHeight: '55%' } },
-                    colors: [colors.indigo],
-                    xaxis: { categories: ranking.map(d => d.label), max: 100, labels: { style: { colors: txt, fontSize: '9px' } } },
+                charts.horizontalBar('#chart-defects', @json($topDefects), {
+                    color: colors.rose,
+                    valueName: 'Incidencias',
                 });
+
+                charts.bar('#chart-mp-month', @json($mpMonth), {
+                    color: colors.rose,
+                    valueName: 'Monitoreos',
+                });
+                charts.bar('#chart-mp-week', @json($mpWeek), {
+                    color: colors.pink,
+                    valueName: 'Monitoreos',
+                });
+                charts.bar('#chart-mp-campaign', @json($mpCampaign), {
+                    color: colors.orange,
+                    valueName: 'Monitoreos',
+                });
+                charts.bar('#chart-mp-daily', @json($mpDaily), {
+                    color: colors.amber,
+                    valueName: 'Monitoreos',
+                });
+                charts.bar('#chart-mp-supervisor', @json($mpSupervisor), {
+                    color: colors.rose,
+                    valueName: 'Monitoreos',
+                });
+
+                charts.stacked('#chart-feedback-supervisor', @json($feedbackSupervisor), {
+                    doneColor: colors.teal,
+                    pendingColor: colors.amber,
+                });
+                charts.stacked('#chart-feedback-week', @json($feedbackWeek), {
+                    doneColor: colors.indigo,
+                    pendingColor: colors.orange,
+                });
+
+                charts.horizontalBar('#chart-evals-campaign', @json($evalsByCampaign), {
+                    color: colors.violet,
+                    valueName: 'Evaluaciones',
+                });
+                charts.horizontalBar('#chart-quality-agent', @json($agentRanking), {
+                    color: colors.indigo,
+                    metric: 'avg_score',
+                    valueName: 'Nota %',
+                    max: 100,
+                });
+                charts.area('#chart-gestion-daily', @json($qualityDaily), {
+                    color: colors.violet,
+                });
+
+                charts.resizeAll();
             }
 
-            areaChart('#chart-gestion-daily', @json($qualityDaily), colors.violet);
-        });
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bootQualityCharts);
+            } else {
+                bootQualityCharts();
+            }
+        })();
         </script>
     @endpush
 </x-app-layout>
