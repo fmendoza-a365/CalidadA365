@@ -20,16 +20,16 @@ const registry = new Map();
 let resizeObserver = null;
 
 const colorTokens = {
-    indigo: '#6366f1',
-    sky: '#0ea5e9',
-    teal: '#14b8a6',
-    rose: '#f43f5e',
-    amber: '#f59e0b',
-    violet: '#8b5cf6',
-    emerald: '#10b981',
-    pink: '#ec4899',
-    cyan: '#06b6d4',
-    orange: '#f97316',
+    indigo: '#818cf8',
+    sky: '#38bdf8',
+    teal: '#2dd4bf',
+    rose: '#fb7185',
+    amber: '#fbbf24',
+    violet: '#a78bfa',
+    emerald: '#34d399',
+    pink: '#f472b6',
+    cyan: '#22d3ee',
+    orange: '#fb923c',
     slate: '#64748b',
 };
 
@@ -43,10 +43,10 @@ function themeTokens() {
     return {
         text: dark ? '#e5e7eb' : '#111827',
         muted: dark ? '#94a3b8' : '#64748b',
-        grid: dark ? '#1f2937' : '#e5e7eb',
-        border: dark ? '#374151' : '#d1d5db',
-        tooltipBg: dark ? '#111827' : '#ffffff',
-        axisLine: dark ? '#334155' : '#cbd5e1',
+        grid: dark ? '#2a2a2a' : '#e5e7eb',
+        border: dark ? '#2a2a2a' : '#d1d5db',
+        tooltipBg: dark ? '#1c1c1c' : '#ffffff',
+        axisLine: dark ? '#404040' : '#cbd5e1',
         empty: dark ? '#64748b' : '#94a3b8',
     };
 }
@@ -135,6 +135,7 @@ function baseOption() {
             containLabel: true,
         },
         legend: {
+            show: false,
             top: 0,
             right: 0,
             itemWidth: 10,
@@ -146,7 +147,7 @@ function baseOption() {
             },
         },
         tooltip: {
-            trigger: 'axis',
+            trigger: 'item',
             confine: true,
             backgroundColor: tokens.tooltipBg,
             borderColor: tokens.border,
@@ -157,13 +158,13 @@ function baseOption() {
                 fontSize: 11,
             },
             axisPointer: {
-                show: false,
+                type: 'none',
             },
         },
     };
 }
 
-function valueAxis(max = null) {
+function valueAxis(max = null, showLabels = false) {
     const tokens = themeTokens();
 
     return {
@@ -179,6 +180,7 @@ function valueAxis(max = null) {
             show: false,
         },
         axisLabel: {
+            show: showLabels,
             color: tokens.muted,
             fontFamily: 'Inter, sans-serif',
             fontSize: 10,
@@ -186,7 +188,7 @@ function valueAxis(max = null) {
     };
 }
 
-function categoryAxis(data, inverse = false) {
+function categoryAxis(data, inverse = false, options = {}) {
     const tokens = themeTokens();
     const list = rows(data);
 
@@ -200,7 +202,12 @@ function categoryAxis(data, inverse = false) {
         axisLine: {
             show: false,
         },
-        axisLabel: axisLabelConfig(list.length),
+        axisLabel: {
+            ...axisLabelConfig(list.length),
+            show: options.showLabels ?? true,
+            rotate: options.rotate ?? (inverse ? 0 : axisLabelConfig(list.length).rotate),
+            width: options.width ?? (inverse ? 160 : 92),
+        },
     };
 }
 
@@ -295,9 +302,7 @@ function refreshAll() {
 function combo(selector, data, options = {}) {
     const list = rows(data);
     const barColor = options.barColor ?? colorTokens.indigo;
-    const lineColor = options.lineColor ?? colorTokens.cyan;
     const barName = options.barName ?? 'Nota %';
-    const lineName = options.lineName ?? 'Cantidad';
 
     return render(selector, () => {
         if (!list.length) {
@@ -306,15 +311,21 @@ function combo(selector, data, options = {}) {
 
         return {
             ...baseOption(),
-            color: [barColor, lineColor],
-            xAxis: categoryAxis(list),
-            yAxis: [
-                valueAxis(100),
-                {
-                    ...valueAxis(),
-                    splitLine: { show: false },
+            color: [barColor],
+            tooltip: {
+                ...baseOption().tooltip,
+                formatter(params) {
+                    const item = list[params.dataIndex] ?? {};
+
+                    return [
+                        `<strong>${labelOf(item)}</strong>`,
+                        `${barName}: <strong>${formatValue(numberOf(item, 'avg_score'), '%')}</strong>`,
+                        `Cantidad: <strong>${formatValue(numberOf(item, 'count'))}</strong>`,
+                    ].join('<br>');
                 },
-            ],
+            },
+            xAxis: categoryAxis(list),
+            yAxis: valueAxis(100),
             series: [
                 {
                     name: barName,
@@ -325,21 +336,6 @@ function combo(selector, data, options = {}) {
                         borderRadius: [4, 4, 0, 0],
                     },
                     label: dataLabel({ suffix: '%' }),
-                    labelLayout: {
-                        hideOverlap: true,
-                    },
-                },
-                {
-                    name: lineName,
-                    type: 'line',
-                    yAxisIndex: 1,
-                    data: list.map((item) => numberOf(item, 'count')),
-                    smooth: true,
-                    symbolSize: 6,
-                    lineStyle: {
-                        width: 2.5,
-                    },
-                    label: dataLabel({ position: 'top', distance: 8 }),
                     labelLayout: {
                         hideOverlap: true,
                     },
