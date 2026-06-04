@@ -150,11 +150,11 @@
                 Módulo — Seguimiento Calidad
             </h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Mes</h4><div id="chart-quality-month" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Semana</h4><div id="chart-quality-week" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Diario</h4><div id="chart-quality-daily" class="h-56"></div></div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Mes</h4><div id="chart-quality-month" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Semana</h4><div id="chart-quality-week" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Diario</h4><div id="chart-quality-daily" class="h-64"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -176,11 +176,11 @@
                 Módulo — Detalle MP
             </h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div class="qd-card"><h4 class="qd-card-title">MP — Mes</h4><div id="chart-mp-month" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Semana</h4><div id="chart-mp-week" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Campaña</h4><div id="chart-mp-campaign" class="h-56"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Diario</h4><div id="chart-mp-daily" class="h-56"></div></div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div class="qd-card"><h4 class="qd-card-title">MP — Mes</h4><div id="chart-mp-month" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">MP — Semana</h4><div id="chart-mp-week" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">MP — Campaña</h4><div id="chart-mp-campaign" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">MP — Diario</h4><div id="chart-mp-daily" class="h-64"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -510,10 +510,36 @@
     @push('scripts')
         <style>
             .qd-card {
-                @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4;
+                min-width: 0;
+                border: 1px solid #e5e7eb;
+                border-radius: 0.875rem;
+                background: #ffffff;
+                padding: 1rem;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
             }
+
+            .dark .qd-card {
+                border-color: #1f2937;
+                background: #111827;
+                box-shadow: none;
+            }
+
             .qd-card-title {
-                @apply text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide;
+                margin: 0 0 0.75rem;
+                color: #6b7280;
+                font-size: 0.75rem;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                line-height: 1rem;
+                text-transform: uppercase;
+            }
+
+            .dark .qd-card-title {
+                color: #d1d5db;
+            }
+
+            .qd-card [id^="chart-"] {
+                min-width: 0;
             }
         </style>
 
@@ -555,6 +581,7 @@
                     metric: 'avg_score',
                     valueName: 'Nota %',
                     max: 100,
+                    suffix: '%',
                 });
                 charts.area('#chart-quality-daily', @json($qualityDaily), {
                     color: colors.indigo,
@@ -607,6 +634,7 @@
                     metric: 'avg_score',
                     valueName: 'Nota %',
                     max: 100,
+                    suffix: '%',
                 });
                 charts.area('#chart-gestion-daily', @json($qualityDaily), {
                     color: colors.violet,

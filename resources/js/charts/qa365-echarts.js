@@ -1,6 +1,7 @@
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
 import { GraphicComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
+import { LabelLayout } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 
 echarts.use([
@@ -8,6 +9,7 @@ echarts.use([
     LineChart,
     GraphicComponent,
     GridComponent,
+    LabelLayout,
     LegendComponent,
     TooltipComponent,
     CanvasRenderer,
@@ -63,6 +65,42 @@ function numberOf(item, key) {
     return Number.isFinite(value) ? value : 0;
 }
 
+function formatValue(value, suffix = '') {
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) {
+        return suffix ? `0${suffix}` : '0';
+    }
+
+    const formatted = Number.isInteger(number) ? number.toString() : number.toFixed(1);
+
+    return suffix ? `${formatted}${suffix}` : formatted;
+}
+
+function dataLabel(options = {}) {
+    const tokens = themeTokens();
+    const suffix = options.suffix ?? '';
+
+    return {
+        show: true,
+        position: options.position ?? 'top',
+        distance: options.distance ?? 6,
+        color: options.color ?? tokens.text,
+        fontFamily: 'Inter, sans-serif',
+        fontSize: options.fontSize ?? 10,
+        fontWeight: 700,
+        formatter(params) {
+            const value = Array.isArray(params.value) ? params.value.at(-1) : params.value;
+
+            if (options.hideZero && Number(value) === 0) {
+                return '';
+            }
+
+            return formatValue(value, suffix);
+        },
+    };
+}
+
 function axisLabelConfig(dataLength) {
     const tokens = themeTokens();
 
@@ -91,8 +129,8 @@ function baseOption() {
         },
         grid: {
             left: 8,
-            right: 12,
-            top: 32,
+            right: 20,
+            top: 42,
             bottom: 16,
             containLabel: true,
         },
@@ -119,12 +157,7 @@ function baseOption() {
                 fontSize: 11,
             },
             axisPointer: {
-                type: 'line',
-                lineStyle: {
-                    color: colorTokens.indigo,
-                    width: 1,
-                    type: 'dashed',
-                },
+                show: false,
             },
         },
     };
@@ -137,15 +170,13 @@ function valueAxis(max = null) {
         type: 'value',
         max,
         splitLine: {
-            lineStyle: {
-                color: tokens.grid,
-                type: 'dashed',
-            },
+            show: false,
         },
         axisLine: {
-            lineStyle: {
-                color: tokens.axisLine,
-            },
+            show: false,
+        },
+        axisTick: {
+            show: false,
         },
         axisLabel: {
             color: tokens.muted,
@@ -167,9 +198,7 @@ function categoryAxis(data, inverse = false) {
             show: false,
         },
         axisLine: {
-            lineStyle: {
-                color: tokens.axisLine,
-            },
+            show: false,
         },
         axisLabel: axisLabelConfig(list.length),
     };
@@ -295,6 +324,10 @@ function combo(selector, data, options = {}) {
                     itemStyle: {
                         borderRadius: [4, 4, 0, 0],
                     },
+                    label: dataLabel({ suffix: '%' }),
+                    labelLayout: {
+                        hideOverlap: true,
+                    },
                 },
                 {
                     name: lineName,
@@ -305,6 +338,10 @@ function combo(selector, data, options = {}) {
                     symbolSize: 6,
                     lineStyle: {
                         width: 2.5,
+                    },
+                    label: dataLabel({ position: 'top', distance: 8 }),
+                    labelLayout: {
+                        hideOverlap: true,
                     },
                 },
             ],
@@ -326,6 +363,13 @@ function bar(selector, data, options = {}) {
 
         return {
             ...baseOption(),
+            grid: {
+                left: 8,
+                right: 20,
+                top: 36,
+                bottom: 16,
+                containLabel: true,
+            },
             color: [color],
             xAxis: categoryAxis(list),
             yAxis: valueAxis(max),
@@ -337,6 +381,10 @@ function bar(selector, data, options = {}) {
                     barWidth: '52%',
                     itemStyle: {
                         borderRadius: [4, 4, 0, 0],
+                    },
+                    label: dataLabel({ suffix: options.suffix ?? '' }),
+                    labelLayout: {
+                        hideOverlap: true,
                     },
                 },
             ],
@@ -360,8 +408,8 @@ function horizontalBar(selector, data, options = {}) {
             ...baseOption(),
             grid: {
                 left: 8,
-                right: 16,
-                top: 24,
+                right: 56,
+                top: 30,
                 bottom: 8,
                 containLabel: true,
             },
@@ -376,6 +424,14 @@ function horizontalBar(selector, data, options = {}) {
                     barWidth: '52%',
                     itemStyle: {
                         borderRadius: [0, 4, 4, 0],
+                    },
+                    label: dataLabel({
+                        suffix: options.suffix ?? '',
+                        position: 'right',
+                        distance: 8,
+                    }),
+                    labelLayout: {
+                        hideOverlap: true,
                     },
                 },
             ],
@@ -397,6 +453,13 @@ function area(selector, data, options = {}) {
 
         return {
             ...baseOption(),
+            grid: {
+                left: 8,
+                right: 20,
+                top: 38,
+                bottom: 16,
+                containLabel: true,
+            },
             color: [color],
             xAxis: categoryAxis(list),
             yAxis: valueAxis(max),
@@ -412,6 +475,10 @@ function area(selector, data, options = {}) {
                     },
                     areaStyle: {
                         opacity: 0.16,
+                    },
+                    label: dataLabel({ suffix: options.suffix ?? '%', position: 'top' }),
+                    labelLayout: {
+                        hideOverlap: true,
                     },
                 },
             ],
@@ -431,6 +498,13 @@ function stacked(selector, data, options = {}) {
 
         return {
             ...baseOption(),
+            grid: {
+                left: 8,
+                right: 20,
+                top: 36,
+                bottom: 16,
+                containLabel: true,
+            },
             color: [doneColor, pendingColor],
             xAxis: categoryAxis(list),
             yAxis: valueAxis(),
@@ -444,6 +518,7 @@ function stacked(selector, data, options = {}) {
                     itemStyle: {
                         borderRadius: [3, 3, 0, 0],
                     },
+                    label: dataLabel({ position: 'inside', color: '#ffffff', hideZero: true }),
                 },
                 {
                     name: 'Pendiente',
@@ -454,6 +529,7 @@ function stacked(selector, data, options = {}) {
                     itemStyle: {
                         borderRadius: [3, 3, 0, 0],
                     },
+                    label: dataLabel({ position: 'inside', color: '#ffffff', hideZero: true }),
                 },
             ],
         };
