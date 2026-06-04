@@ -20,16 +20,16 @@ const registry = new Map();
 let resizeObserver = null;
 
 const colorTokens = {
-    indigo: '#818cf8',
-    sky: '#38bdf8',
-    teal: '#2dd4bf',
+    indigo: '#8b8cf6',
+    sky: '#7dd3fc',
+    teal: '#5eead4',
     rose: '#fb7185',
     amber: '#fbbf24',
     violet: '#a78bfa',
     emerald: '#34d399',
-    pink: '#f472b6',
-    cyan: '#22d3ee',
-    orange: '#fb923c',
+    pink: '#f9a8d4',
+    cyan: '#67e8f9',
+    orange: '#fdba74',
     slate: '#64748b',
 };
 
@@ -164,7 +164,7 @@ function baseOption() {
     };
 }
 
-function valueAxis(max = null, showLabels = false) {
+function valueAxis(max = null, showLabels = true) {
     const tokens = themeTokens();
 
     return {
@@ -174,7 +174,10 @@ function valueAxis(max = null, showLabels = false) {
             show: false,
         },
         axisLine: {
-            show: false,
+            show: true,
+            lineStyle: {
+                color: tokens.axisLine,
+            },
         },
         axisTick: {
             show: false,
@@ -200,7 +203,10 @@ function categoryAxis(data, inverse = false, options = {}) {
             show: false,
         },
         axisLine: {
-            show: false,
+            show: true,
+            lineStyle: {
+                color: tokens.axisLine,
+            },
         },
         axisLabel: {
             ...axisLabelConfig(list.length),
@@ -332,6 +338,7 @@ function combo(selector, data, options = {}) {
                     type: 'bar',
                     data: list.map((item) => numberOf(item, 'avg_score')),
                     barWidth: '46%',
+                    barMaxWidth: 104,
                     itemStyle: {
                         borderRadius: [4, 4, 0, 0],
                     },
@@ -375,6 +382,7 @@ function bar(selector, data, options = {}) {
                     type: 'bar',
                     data: list.map((item) => numberOf(item, metric)),
                     barWidth: '52%',
+                    barMaxWidth: 104,
                     itemStyle: {
                         borderRadius: [4, 4, 0, 0],
                     },
@@ -418,6 +426,7 @@ function horizontalBar(selector, data, options = {}) {
                     type: 'bar',
                     data: list.map((item) => numberOf(item, metric)),
                     barWidth: '52%',
+                    barMaxWidth: 34,
                     itemStyle: {
                         borderRadius: [0, 4, 4, 0],
                     },
@@ -511,6 +520,7 @@ function stacked(selector, data, options = {}) {
                     stack: 'feedback',
                     data: list.map((item) => numberOf(item, 'done')),
                     barWidth: '50%',
+                    barMaxWidth: 104,
                     itemStyle: {
                         borderRadius: [3, 3, 0, 0],
                     },
@@ -522,6 +532,7 @@ function stacked(selector, data, options = {}) {
                     stack: 'feedback',
                     data: list.map((item) => numberOf(item, 'pending') || Math.max(0, numberOf(item, 'total') - numberOf(item, 'done'))),
                     barWidth: '50%',
+                    barMaxWidth: 104,
                     itemStyle: {
                         borderRadius: [3, 3, 0, 0],
                     },

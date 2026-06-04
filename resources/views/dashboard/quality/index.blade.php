@@ -150,11 +150,11 @@
                 Módulo — Seguimiento Calidad
             </h3>
 
-            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Mes</h4><div id="chart-quality-month" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Semana</h4><div id="chart-quality-week" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Diario</h4><div id="chart-quality-daily" class="h-64"></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Mes</h4><div id="chart-quality-month" class="h-60"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Semana del Mes</h4><div id="chart-quality-week" class="h-60"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-60"></div></div>
+                <div class="qd-card lg:col-span-3"><h4 class="qd-card-title">Tendencia Diaria de Calidad</h4><div id="chart-quality-daily" class="h-72"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -178,7 +178,7 @@
 
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <div class="qd-card"><h4 class="qd-card-title">MP — Mes</h4><div id="chart-mp-month" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Semana</h4><div id="chart-mp-week" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">MP — Semana del Mes</h4><div id="chart-mp-week" class="h-64"></div></div>
                 <div class="qd-card"><h4 class="qd-card-title">MP — Campaña</h4><div id="chart-mp-campaign" class="h-64"></div></div>
                 <div class="qd-card"><h4 class="qd-card-title">MP — Diario</h4><div id="chart-mp-daily" class="h-64"></div></div>
             </div>
@@ -256,7 +256,7 @@
                 @if(!auth()->user()->hasRole('agent'))
                 <div class="qd-card"><h4 class="qd-card-title">Feedback — Supervisor(a)</h4><div id="chart-feedback-supervisor" class="h-64"></div></div>
                 @endif
-                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif"><h4 class="qd-card-title">Feedback — Semanal</h4><div id="chart-feedback-week" class="h-64"></div></div>
+                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif"><h4 class="qd-card-title">Feedback — Semana del Mes</h4><div id="chart-feedback-week" class="h-64"></div></div>
             </div>
 
             @if(!auth()->user()->hasRole('agent'))

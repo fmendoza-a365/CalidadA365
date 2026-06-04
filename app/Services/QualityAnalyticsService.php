@@ -98,9 +98,9 @@ class QualityAnalyticsService
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'week':
-                $label = $this->getDateFormatSql('evaluations.created_at', 'week');
-                $query->selectRaw("'Sem. ' || $label as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
-                    ->groupByRaw($label)->orderByRaw($label);
+                $weekBucket = $this->getWeekOfMonthSql('evaluations.created_at');
+                $query->selectRaw("$weekBucket as week_bucket, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                    ->groupByRaw($weekBucket)->orderByRaw($weekBucket);
                 break;
             case 'campaign':
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
@@ -127,7 +127,7 @@ class QualityAnalyticsService
         }
 
         return $query->get()->map(fn($item) => [
-            'label' => $item->label,
+            'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
             'avg_score' => round((float) $item->avg_score, 2),
             'count' => (int) $item->count,
         ])->toArray();
@@ -150,9 +150,9 @@ class QualityAnalyticsService
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'week':
-                $label = $this->getDateFormatSql('evaluations.created_at', 'week');
-                $query->selectRaw("'Sem. ' || $label as label, COUNT(*) as count")
-                    ->groupByRaw($label)->orderByRaw($label);
+                $weekBucket = $this->getWeekOfMonthSql('evaluations.created_at');
+                $query->selectRaw("$weekBucket as week_bucket, COUNT(*) as count")
+                    ->groupByRaw($weekBucket)->orderByRaw($weekBucket);
                 break;
             case 'campaign':
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
@@ -179,7 +179,7 @@ class QualityAnalyticsService
         }
 
         return $query->get()->map(fn($item) => [
-            'label' => $item->label,
+            'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
             'count' => (int) $item->count,
         ])->toArray();
     }
@@ -248,15 +248,15 @@ class QualityAnalyticsService
      */
     public function getFeedbackByWeek(array $filters = []): array
     {
-        $label = $this->getDateFormatSql('evaluations.created_at', 'week');
+        $weekBucket = $this->getWeekOfMonthSql('evaluations.created_at');
         return Evaluation::query()
             ->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->selectRaw("'Sem. ' || $label as label, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
-            ->groupByRaw($label)
-            ->orderByRaw($label)
+            ->selectRaw("$weekBucket as week_bucket, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
+            ->groupByRaw($weekBucket)
+            ->orderByRaw($weekBucket)
             ->get()
             ->map(fn($item) => [
-                'label' => $item->label,
+                'label' => 'Semana ' . (int) $item->week_bucket,
                 'total' => (int) $item->total,
                 'done' => (int) $item->done,
                 'done_pct' => $item->total > 0 ? round(($item->done / $item->total) * 100, 1) : 0,
@@ -386,6 +386,21 @@ class QualityAnalyticsService
             'day' => "TO_CHAR($column, 'YYYY-MM-DD')", // or $column::date
             default => $column,
         };
+    }
+
+    private function getWeekOfMonthSql(string $column): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            return "CAST(((CAST(strftime('%d', $column) AS INTEGER) + 6) / 7) AS INTEGER)";
+        }
+
+        if ($driver === 'mysql') {
+            return "CEIL(DAY($column) / 7)";
+        }
+
+        return "CEIL(EXTRACT(DAY FROM $column)::numeric / 7)";
     }
 
     /**
