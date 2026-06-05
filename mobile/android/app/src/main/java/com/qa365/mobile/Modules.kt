@@ -76,9 +76,11 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
         ) {
             val tabs = listOf(
                 Pair("resumen", Pair("Resumen", Icons.Default.Assessment)),
+                Pair("evolutivos", Pair("Evolutivos", Icons.Default.ShowChart)),
                 Pair("campaigns", Pair("Campañas", Icons.Default.Campaign)),
                 Pair("feedback", Pair("Feedback", Icons.Default.Chat)),
                 Pair("ranking", Pair("Ranking", Icons.Default.Star)),
+                Pair("operacion", Pair("Operación", Icons.Default.Speed)),
                 Pair("alerts", Pair("Alertas", Icons.Default.Warning))
             )
             tabs.forEach { (id, info) ->
@@ -256,6 +258,7 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                     }
                 }
             }
+            "evolutivos" -> DashboardEvolutivosModule(data)
             "campaigns" -> {
                 if (campaignsArray != null && campaignsArray.length() > 0) {
                     SectionHeader(title = "Desempeño por Campaña", subtitle = "Promedios de calidad por operación")
@@ -393,6 +396,7 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                     }
                 }
             }
+            "operacion" -> DashboardOperationsModule(data, onNavigate)
             "alerts" -> {
                 if (alertsArray != null && alertsArray.length() > 0) {
                     SectionHeader(title = "Alertas Operativas", subtitle = "Incidencias críticas detectadas")
@@ -444,6 +448,335 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun DashboardEvolutivosModule(data: JSONObject) {
+    val charts = data.optJSONObject("charts") ?: JSONObject()
+    val qualitySeries = charts.optJSONObject("quality") ?: JSONObject()
+    val mpSeries = charts.optJSONObject("malas_practicas") ?: JSONObject()
+    val feedbackSeries = charts.optJSONObject("feedback") ?: JSONObject()
+    val defectsArray = data.optJSONArray("top_defects")
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SectionHeader(title = "Evolutivos", subtitle = "Día, semana y mes en una sola lectura")
+        DashboardPeriodChartCard(
+            title = "Calidad",
+            subtitle = "Nota promedio evaluada",
+            series = qualitySeries,
+            metric = "avg_score",
+            valueSuffix = "%",
+            fixedMax = 100.0,
+            color = Blue
+        )
+        DashboardPeriodChartCard(
+            title = "Malas prácticas",
+            subtitle = "Incidencias críticas detectadas",
+            series = mpSeries,
+            metric = "count",
+            valueSuffix = "",
+            fixedMax = null,
+            color = Rose
+        )
+        DashboardPeriodChartCard(
+            title = "Feedback respondido",
+            subtitle = "Porcentaje de feedback visto/respondido",
+            series = feedbackSeries,
+            metric = "done_pct",
+            valueSuffix = "%",
+            fixedMax = 100.0,
+            color = Green,
+            defaultPeriod = "week"
+        )
+
+        if (defectsArray != null && defectsArray.length() > 0) {
+            val defectPoints = jsonArrayToPoints(
+                array = defectsArray,
+                metric = "count",
+                fallbackColor = Rose,
+                maxLabelLength = 28
+            )
+            SectionHeader(title = "Criterios con más fallos")
+            ChartSurface {
+                TopDefectsBarChart(defects = defectPoints)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardOperationsModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
+    val audio = data.optJSONObject("audio_productivity") ?: JSONObject()
+    val summary = audio.optJSONObject("summary") ?: JSONObject()
+    val monitors = audio.optJSONArray("by_monitor") ?: JSONArray()
+    val recent = audio.optJSONArray("recent") ?: JSONArray()
+    val modules = data.optJSONObject("modules") ?: JSONObject()
+    val transcriptSummary = modules.optJSONObject("transcripts")?.optJSONObject("summary") ?: JSONObject()
+    val evaluationSummary = modules.optJSONObject("evaluations")?.optJSONObject("summary") ?: JSONObject()
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SectionHeader(title = "Operación", subtitle = "Ritmo de carga, IA y revisión")
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardMiniMetric(
+                title = "Audios",
+                value = summary.optString("total_audio", "0"),
+                subtitle = "periodo",
+                icon = Icons.Default.Audiotrack,
+                color = Cyan,
+                modifier = Modifier.weight(1f)
+            )
+            DashboardMiniMetric(
+                title = "Monitores",
+                value = summary.optString("monitors", "0"),
+                subtitle = "con cargas",
+                icon = Icons.Default.Groups,
+                color = Violet,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        ChartSurface {
+            OperationMetricRow("Prom. entre cargas", summary.optString("avg_gap_label", "Sin datos"), Icons.Default.Schedule)
+            OperationMetricRow("Carga a transcripción", summary.optString("avg_transcription_label", "Sin datos"), Icons.Default.GraphicEq)
+            OperationMetricRow("Carga a IA", summary.optString("avg_ai_label", "Sin datos"), Icons.Default.AutoAwesome)
+            OperationMetricRow("Carga a revisión", summary.optString("avg_review_label", "Sin datos"), Icons.Default.RateReview)
+        }
+
+        SectionHeader(title = "Ritmo por monitor")
+        ChartSurface {
+            if (monitors.length() == 0) {
+                EmptyInlineText("No hay audios cargados en el periodo.")
+            } else {
+                for (i in 0 until minOf(monitors.length(), 5)) {
+                    val monitor = monitors.optJSONObject(i) ?: continue
+                    MonitorPerformanceRow(monitor)
+                    if (i < minOf(monitors.length(), 5) - 1) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
+                    }
+                }
+            }
+        }
+
+        SectionHeader(title = "Últimas cargas")
+        if (recent.length() == 0) {
+            ChartSurface { EmptyInlineText("Aún no hay cargas recientes para mostrar.") }
+        } else {
+            for (i in 0 until minOf(recent.length(), 4)) {
+                val item = recent.optJSONObject(i) ?: continue
+                DetailCard(
+                    title = item.optString("campaign", "Sin campaña"),
+                    scoreValue = item.optString("since_previous_label", "Sin datos"),
+                    scoreColor = Cyan,
+                    description = "${item.optString("monitor", "Sin monitor")} | ${item.optString("file_name", "Audio")}",
+                    chips = listOf(
+                        "IA ${item.optString("upload_to_ai_label", "Sin datos")}",
+                        item.optString("status", "estado")
+                    ),
+                    onClick = { onNavigate("transcript_list", data) }
+                )
+            }
+        }
+
+        ChartSurface {
+            OperationMetricRow("Transcripciones procesando", transcriptSummary.optString("processing", "0"), Icons.Default.Sync)
+            OperationMetricRow("Transcripciones fallidas", transcriptSummary.optString("failed", "0"), Icons.Default.Report)
+            OperationMetricRow("Evaluaciones pendientes", evaluationSummary.optString("pending_monitor", "0"), Icons.Default.PendingActions)
+            OperationMetricRow("Evaluaciones críticas", evaluationSummary.optString("critical", "0"), Icons.Default.Warning)
+        }
+    }
+}
+
+@Composable
+private fun DashboardPeriodChartCard(
+    title: String,
+    subtitle: String,
+    series: JSONObject,
+    metric: String,
+    valueSuffix: String,
+    fixedMax: Double?,
+    color: Color,
+    defaultPeriod: String = "day"
+) {
+    var period by remember { mutableStateOf(defaultPeriod) }
+    val data = series.optJSONArray(period) ?: JSONArray()
+    val points = jsonArrayToPoints(data, metric, color)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                    Text(subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                }
+                PeriodSelector(period = period, onPeriodChanged = { period = it })
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            if (points.isEmpty()) {
+                EmptyInlineText("Sin datos para este periodo.")
+            } else {
+                TrendLineChart(
+                    points = points,
+                    valueSuffix = valueSuffix,
+                    maxValue = fixedMax
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeriodSelector(period: String, onPeriodChanged: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        listOf("day" to "D", "week" to "S", "month" to "M").forEach { (id, label) ->
+            val selected = period == id
+            Box(
+                modifier = Modifier
+                    .size(width = 30.dp, height = 26.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable { onPeriodChanged(id) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartSurface(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), content = content)
+    }
+}
+
+@Composable
+private fun OperationMetricRow(label: String, value: String, icon: ImageVector) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(17.dp))
+            Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
+        }
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun MonitorPerformanceRow(monitor: JSONObject) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                text = monitor.optString("label", "Sin monitor"),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${monitor.optInt("audio_count", 0)} audios",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = Cyan
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SignalChipBox("Entre cargas", monitor.optString("avg_gap_label", "Sin datos"), Cyan, Modifier.weight(1f))
+            SignalChipBox("A IA", monitor.optString("avg_ai_label", "Sin datos"), Blue, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun EmptyInlineText(text: String) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+        Text(text, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+    }
+}
+
+private fun jsonArrayToPoints(
+    array: JSONArray?,
+    metric: String,
+    fallbackColor: Color,
+    maxLabelLength: Int = 12
+): List<ChartPoint> {
+    if (array == null) {
+        return emptyList()
+    }
+
+    val points = mutableListOf<ChartPoint>()
+    for (i in 0 until array.length()) {
+        val item = array.optJSONObject(i) ?: continue
+        val value = item.optDouble(metric, 0.0)
+        val rawLabel = item.optString("label", "Dato")
+        val label = if (rawLabel.length > maxLabelLength) {
+            rawLabel.take(maxLabelLength - 1) + "…"
+        } else {
+            rawLabel
+        }
+
+        val displayLabel = if (rawLabel.length == 10 && rawLabel[4] == '-' && rawLabel[7] == '-') {
+            rawLabel.takeLast(5)
+        } else {
+            label
+        }
+
+        points.add(
+            ChartPoint(
+                label = displayLabel,
+                value = value,
+                color = if (metric == "avg_score" || metric == "done_pct") getScoreColor(value) else fallbackColor
+            )
+        )
+    }
+
+    return points
 }
 
 @Composable

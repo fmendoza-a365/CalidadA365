@@ -63,7 +63,13 @@ class TranscribeAudioJob implements ShouldQueue
             return;
         }
 
-        $interaction->update(['transcription_status' => 'processing']);
+        $metadata = $interaction->metadata ?? [];
+        $metadata['transcription_started_at'] = now()->toIso8601String();
+
+        $interaction->update([
+            'transcription_status' => 'processing',
+            'metadata' => $metadata,
+        ]);
 
         try {
             $result = $transcriptionService->transcribe($interaction->file_path);
@@ -94,6 +100,10 @@ class TranscribeAudioJob implements ShouldQueue
                 $metadata['audio_analysis_version'] = 2;
                 $updateData['metadata'] = $metadata;
             }
+
+            $metadata = $updateData['metadata'] ?? ($interaction->metadata ?? []);
+            $metadata['transcription_completed_at'] = now()->toIso8601String();
+            $updateData['metadata'] = $metadata;
 
             $interaction->update($updateData);
 

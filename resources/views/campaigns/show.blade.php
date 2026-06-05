@@ -48,6 +48,15 @@
                     @endif
                 </div>
                 <div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Jerarquía</div>
+                    @if($campaign->parent)
+                        <p class="text-gray-900 dark:text-white">{{ $campaign->parent->name }} / {{ $campaign->name }}</p>
+                        <span class="badge badge-info">Subcampaña</span>
+                    @else
+                        <p class="text-gray-900 dark:text-white">Campaña general</p>
+                    @endif
+                </div>
+                <div>
                     <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Descripción</div>
                     <p class="text-gray-900 dark:text-white">{{ $campaign->description ?: 'Sin descripción' }}</p>
                 </div>
@@ -84,8 +93,52 @@
             </div>
         </div>
 
+        @if(!$campaign->parent && $campaign->children->isNotEmpty())
+            <div class="card lg:col-span-2">
+                <div class="card-header">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">Subcampañas</h3>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Subcampaña</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center">Ficha Activa</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($campaign->children as $subcampaign)
+                                <tr>
+                                    <td class="font-medium text-gray-900 dark:text-white">{{ $subcampaign->name }}</td>
+                                    <td class="text-center">
+                                        @if($subcampaign->is_active)
+                                            <span class="badge badge-success">Activa</span>
+                                        @else
+                                            <span class="badge badge-neutral">Inactiva</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        @if($subcampaign->activeFormVersion)
+                                            <span class="badge badge-info">v{{ $subcampaign->activeFormVersion->version_number }}</span>
+                                        @else
+                                            <span class="text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="{{ route('campaigns.show', $subcampaign) }}" class="btn-ghost btn-sm">Ver</a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
         <!-- Asignaciones -->
-        <div class="card lg:col-span-2">
+        <div class="card {{ !$campaign->parent && $campaign->children->isNotEmpty() ? 'lg:col-span-3' : 'lg:col-span-2' }}">
             <div class="card-header flex items-center justify-between">
                 <h3 class="font-semibold text-gray-900 dark:text-white">Asignaciones de Asesores</h3>
                 <div class="flex gap-2">

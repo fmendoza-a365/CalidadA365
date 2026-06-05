@@ -12,20 +12,26 @@ class CampaignController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $campaigns = Campaign::forUser($user)->with('activeFormVersion')->latest()->paginate(15);
+        $campaigns = Campaign::forUser($user)
+            ->with(['activeFormVersion', 'parent'])
+            ->latest()
+            ->paginate(15);
         return view('campaigns.index', compact('campaigns'));
     }
 
     public function create()
     {
         $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
-        return view('campaigns.create', compact('monitors'));
+        $parentCampaigns = Campaign::active()->parents()->orderBy('name')->get();
+
+        return view('campaigns.create', compact('monitors', 'parentCampaigns'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:campaigns,id',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'logo' => 'nullable|image|max:2048', // 2MB Max
@@ -41,6 +47,7 @@ class CampaignController extends Controller
         ]);
 
         $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
+        $this->ensureValidParent($validated['parent_id'] ?? null);
 
         if ($request->hasFile('logo')) {
             $path = $request->file('logo')->store('campaigns/logos', 'public');
@@ -61,7 +68,7 @@ class CampaignController extends Controller
     {
         $this->ensureCampaignAccess($campaign);
 
-        $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor', 'managers']);
+        $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor', 'managers', 'parent', 'children.activeFormVersion']);
 
         $stats = [
             'total_interactions' => $campaign->interactions()->count(),
@@ -79,7 +86,13 @@ class CampaignController extends Controller
 
         $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
         $campaign->load('managers');
-        return view('campaigns.edit', compact('campaign', 'monitors'));
+        $parentCampaigns = Campaign::active()
+            ->parents()
+            ->whereKeyNot($campaign->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('campaigns.edit', compact('campaign', 'monitors', 'parentCampaigns'));
     }
 
     public function update(Request $request, Campaign $campaign)
@@ -88,6 +101,7 @@ class CampaignController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:campaigns,id',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'logo' => 'nullable|image|max:2048',
@@ -103,6 +117,7 @@ class CampaignController extends Controller
         ]);
 
         $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
+        $this->ensureValidParent($validated['parent_id'] ?? null, $campaign);
 
         if ($request->hasFile('logo')) {
             // Delete old logo
@@ -206,6 +221,33 @@ class CampaignController extends Controller
         if (!empty($invalidNames)) {
             throw ValidationException::withMessages([
                 'monitor_ids' => 'Solo se pueden asignar monitores, coordinadores QA o managers a una campaña. Usuarios inválidos: ' . implode(', ', $invalidNames),
+            ]);
+        }
+    }
+
+    private function ensureValidParent(?int $parentId, ?Campaign $campaign = null): void
+    {
+        if (! $parentId) {
+            return;
+        }
+
+        if ($campaign && $campaign->id === $parentId) {
+            throw ValidationException::withMessages([
+                'parent_id' => 'Una campaña no puede ser su propia campaña general.',
+            ]);
+        }
+
+        $parent = Campaign::query()->find($parentId);
+
+        if (! $parent) {
+            throw ValidationException::withMessages([
+                'parent_id' => 'La campaña general seleccionada no existe.',
+            ]);
+        }
+
+        if ($parent->parent_id !== null) {
+            throw ValidationException::withMessages([
+                'parent_id' => 'Selecciona una campaña general, no otra subcampaña.',
             ]);
         }
     }

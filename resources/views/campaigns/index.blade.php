@@ -26,6 +26,7 @@
                 <thead class="sticky top-0 z-10">
                     <tr>
                         <th class="w-1/4">Nombre</th>
+                        <th class="text-center w-40">Jerarquía</th>
                         <th class="w-1/3">Descripción</th>
                         <th class="text-center w-32">Estado</th>
                         <th class="text-center w-40">Ficha Activa</th>
@@ -51,6 +52,13 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $campaign->type }}</div>
                                     </div>
                                 </div>
+                            </td>
+                            <td class="text-center">
+                                @if($campaign->parent)
+                                    <span class="badge badge-info">{{ $campaign->parent->name }}</span>
+                                @else
+                                    <span class="badge badge-neutral">General</span>
+                                @endif
                             </td>
                             <td>
                                 <p class="text-gray-500 dark:text-gray-400 truncate max-w-xs">
@@ -121,7 +129,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5">
+                            <td colspan="6">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24"

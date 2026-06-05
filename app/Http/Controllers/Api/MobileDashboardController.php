@@ -34,6 +34,10 @@ class MobileDashboardController extends Controller
         $summary = $this->summaryPayload($user);
         $overview = $this->analytics->getOverviewStats($filters);
         $feedback = $this->analytics->getFeedbackStats($filters);
+        $qualityTrendSeries = $this->analytics->getQualityTrendSeries($filters);
+        $mpTrendSeries = $this->analytics->getMpTrendSeries($filters);
+        $feedbackTrendSeries = $this->analytics->getFeedbackTrendSeries($filters);
+        $audioPerformance = $this->analytics->getAudioUploadPerformance($filters, 6);
         $ranking = collect($this->analytics->getAgentRanking($filters, 8))
             ->map(fn (array $agent, int $index) => [
                 ...$agent,
@@ -80,13 +84,20 @@ class MobileDashboardController extends Controller
             'summary' => $summary,
             'overview' => $overview,
             'feedback' => $feedback,
-            'quality_trend' => collect($this->analytics->getQualityGrouped('daily', $filters))->take(-7)->values(),
+            'quality_trend' => collect($qualityTrendSeries['day'])->take(-7)->values(),
             'campaigns' => collect($this->analytics->getQualityGrouped('campaign', $filters))->take(6)->values(),
             'top_defects' => collect($this->analytics->getTopDefects($filters, 6))->values(),
             'ranking' => $ranking,
             'alerts' => $alerts,
             'evaluations' => $recentEvaluations,
             'modules' => $this->modulesPayload($user, $filters),
+            'charts' => [
+                'quality' => $qualityTrendSeries,
+                'malas_practicas' => $mpTrendSeries,
+                'feedback' => $feedbackTrendSeries,
+                'evals_by_campaign' => $this->analytics->getEvalsByCampaign($filters),
+            ],
+            'audio_productivity' => $audioPerformance,
             'generated_at' => now()->toIso8601String(),
         ];
 

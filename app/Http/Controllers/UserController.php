@@ -47,10 +47,17 @@ class UserController extends Controller
     public function import()
     {
         $roles = Role::orderBy('name')->get();
-        $campaigns = Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->parents()->orderBy('name')->get();
+        $subcampaigns = Campaign::active()
+            ->subcampaigns()
+            ->with('parent')
+            ->orderBy('name')
+            ->get()
+            ->sortBy(fn (Campaign $campaign) => $campaign->displayName())
+            ->values();
         $supervisors = $this->supervisorQuery()->orderBy('name')->get();
 
-        return view('users.import', compact('roles', 'campaigns', 'supervisors'));
+        return view('users.import', compact('roles', 'campaigns', 'subcampaigns', 'supervisors'));
     }
 
     public function create()
@@ -67,10 +74,35 @@ class UserController extends Controller
             'default_role' => 'nullable|string|exists:roles,name',
             'default_password' => 'nullable|string|min:8',
             'default_campaign_id' => 'nullable|exists:campaigns,id',
+            'default_subcampaign_id' => 'nullable|exists:campaigns,id',
             'default_supervisor_id' => 'nullable|exists:users,id',
             'update_existing' => 'nullable|boolean',
             'sync_campaigns' => 'nullable|boolean',
         ]);
+
+        if (! empty($validated['default_subcampaign_id']) && ! empty($validated['default_campaign_id'])) {
+            $subcampaignBelongsToCampaign = Campaign::query()
+                ->whereKey($validated['default_subcampaign_id'])
+                ->where('parent_id', $validated['default_campaign_id'])
+                ->exists();
+
+            if (! $subcampaignBelongsToCampaign) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['default_subcampaign_id' => 'La subcampaña seleccionada no pertenece a la campaña general indicada.']);
+            }
+        } elseif (! empty($validated['default_subcampaign_id'])) {
+            $isSubcampaign = Campaign::query()
+                ->whereKey($validated['default_subcampaign_id'])
+                ->whereNotNull('parent_id')
+                ->exists();
+
+            if (! $isSubcampaign) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['default_subcampaign_id' => 'Selecciona una subcampaña operativa válida.']);
+            }
+        }
 
         try {
             $contents = CsvImport::contentsFromRequest($request);
@@ -93,6 +125,7 @@ class UserController extends Controller
                 defaultRole: $validated['default_role'] ?? null,
                 defaultPassword: $validated['default_password'] ?? null,
                 defaultCampaignId: $validated['default_campaign_id'] ?? null,
+                defaultSubcampaignId: $validated['default_subcampaign_id'] ?? null,
                 defaultSupervisorId: $validated['default_supervisor_id'] ?? null,
                 updateExisting: $request->boolean('update_existing', true),
                 syncCampaigns: $request->boolean('sync_campaigns', true)
@@ -125,7 +158,7 @@ class UserController extends Controller
             'department' => 'Lima',
             'province' => 'Lima',
             'district' => 'Miraflores',
-            'campaigns' => 'Atención;Ventas',
+            'campaigns' => 'Claro Upgrade',
             'supervisor_username' => 's001',
         ]];
 
@@ -146,7 +179,7 @@ class UserController extends Controller
             'department' => 'Lima',
             'province' => 'Lima',
             'district' => 'Miraflores',
-            'campaigns' => 'Atención;Ventas',
+            'campaigns' => 'Claro Upgrade',
             'supervisor_username' => 's001',
         ]];
 
@@ -308,6 +341,7 @@ class UserController extends Controller
         ?string $defaultRole,
         ?string $defaultPassword,
         ?int $defaultCampaignId,
+        ?int $defaultSubcampaignId,
         ?int $defaultSupervisorId,
         bool $updateExisting,
         bool $syncCampaigns
@@ -375,7 +409,7 @@ class UserController extends Controller
             $user->syncRoles([$role]);
 
             if ($syncCampaigns) {
-                $campaignIds = $this->campaignIdsForImport($row, $defaultCampaignId);
+                $campaignIds = $this->campaignIdsForImport($row, $defaultCampaignId, $defaultSubcampaignId);
 
                 if ($role === 'agent' && ! empty($campaignIds)) {
                     $supervisorId = $this->supervisorIdForImport($row, $defaultSupervisorId);
@@ -405,7 +439,7 @@ class UserController extends Controller
         ];
     }
 
-    private function campaignIdsForImport(array $row, ?int $defaultCampaignId): array
+    private function campaignIdsForImport(array $row, ?int $defaultCampaignId, ?int $defaultSubcampaignId): array
     {
         $campaignIds = $this->campaignIdsFromCsvValue(CsvImport::value($row, [
             'campaigns',
@@ -415,9 +449,19 @@ class UserController extends Controller
             'campania',
             'campaña',
             'campaign',
+            'subcampaigns',
+            'sub_campaigns',
+            'subcampanias',
+            'subcampañas',
+            'subcampania',
+            'subcampaña',
+            'subcampaign',
+            'sub_campaign',
         ]));
 
-        if ($defaultCampaignId) {
+        if ($defaultSubcampaignId) {
+            array_unshift($campaignIds, $defaultSubcampaignId);
+        } elseif ($defaultCampaignId) {
             array_unshift($campaignIds, $defaultCampaignId);
         }
 
@@ -559,10 +603,26 @@ class UserController extends Controller
             ->filter()
             ->values();
 
-        return Campaign::query()
+        $campaignIds = Campaign::query()
             ->whereIn('id', $tokens->filter(fn ($token) => ctype_digit($token))->map(fn ($token) => (int) $token))
             ->orWhereIn('name', $tokens)
             ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $matchedIds = collect($campaignIds);
+        $matchedLabels = Campaign::query()
+            ->with('parent')
+            ->active()
+            ->get()
+            ->filter(function (Campaign $campaign) use ($tokens) {
+                return $tokens->contains(fn ($token) => Str::lower($token) === Str::lower($campaign->displayName()));
+            })
+            ->pluck('id');
+
+        return $matchedIds
+            ->merge($matchedLabels)
             ->unique()
             ->values()
             ->all();

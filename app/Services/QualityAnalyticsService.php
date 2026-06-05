@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Models\Evaluation;
 use App\Models\EvaluationItem;
+use App\Models\Interaction;
 use App\Models\User;
 use App\Models\Campaign;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class QualityAnalyticsService
@@ -264,6 +266,186 @@ class QualityAnalyticsService
             ->toArray();
     }
 
+    public function getFeedbackByPeriod(string $period, array $filters = []): array
+    {
+        $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
+
+        return Evaluation::query()
+            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->selectRaw("$bucket as bucket, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
+            ->groupByRaw($bucket)
+            ->orderByRaw($bucket)
+            ->get()
+            ->map(fn($item) => [
+                'label' => $this->periodLabel((string) $item->bucket, $period),
+                'total' => (int) $item->total,
+                'done' => (int) $item->done,
+                'pending' => (int) $item->total - (int) $item->done,
+                'done_pct' => $item->total > 0 ? round(($item->done / $item->total) * 100, 1) : 0,
+            ])
+            ->toArray();
+    }
+
+    public function getQualityTrendSeries(array $filters = []): array
+    {
+        return [
+            'day' => $this->getQualityGrouped('daily', $filters),
+            'week' => $this->getQualityGrouped('week', $filters),
+            'month' => $this->getQualityGrouped('month', $filters),
+        ];
+    }
+
+    public function getMpTrendSeries(array $filters = []): array
+    {
+        return [
+            'day' => $this->getMPGrouped('daily', $filters),
+            'week' => $this->getMPGrouped('week', $filters),
+            'month' => $this->getMPGrouped('month', $filters),
+        ];
+    }
+
+    public function getFeedbackTrendSeries(array $filters = []): array
+    {
+        return [
+            'day' => $this->getFeedbackByPeriod('day', $filters),
+            'week' => $this->getFeedbackByPeriod('week', $filters),
+            'month' => $this->getFeedbackByPeriod('month', $filters),
+        ];
+    }
+
+    public function getAudioUploadPerformance(array $filters = [], int $recentLimit = 10): array
+    {
+        $query = Interaction::query()
+            ->with([
+                'uploadedBy:id,name,username',
+                'campaign:id,parent_id,name',
+                'campaign.parent:id,name',
+                'aiEvaluation:id,interaction_id,status,ai_processed_at,reviewed_at,visible_to_agent_at',
+            ])
+            ->where('source_type', 'audio');
+
+        $this->applyInteractionFilters($query, $filters);
+
+        $interactions = $query
+            ->orderBy('uploaded_by')
+            ->orderBy('uploaded_at')
+            ->orderBy('id')
+            ->get();
+
+        $monitorRows = $interactions
+            ->groupBy('uploaded_by')
+            ->map(function (Collection $items) {
+                $items = $items->values();
+                $gaps = collect();
+
+                $items->each(function (Interaction $interaction, int $index) use ($items, $gaps) {
+                    if ($index === 0) {
+                        return;
+                    }
+
+                    $previous = $items[$index - 1];
+                    $gap = $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at);
+
+                    if ($gap !== null) {
+                        $gaps->push($gap);
+                    }
+                });
+
+                $aiDurations = $items
+                    ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at))
+                    ->filter(fn ($seconds) => $seconds !== null)
+                    ->values();
+
+                $reviewDurations = $items
+                    ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at))
+                    ->filter(fn ($seconds) => $seconds !== null)
+                    ->values();
+
+                $transcriptionDurations = $items
+                    ->map(fn (Interaction $interaction) => $this->secondsBetween(
+                        $interaction->uploaded_at,
+                        $this->metadataTimestamp($interaction, 'transcription_completed_at')
+                    ))
+                    ->filter(fn ($seconds) => $seconds !== null)
+                    ->values();
+
+                $monitor = $items->first()?->uploadedBy;
+
+                return [
+                    'id' => $monitor?->id,
+                    'label' => $monitor?->name ?? 'Sin monitor',
+                    'username' => $monitor?->username,
+                    'audio_count' => $items->count(),
+                    'avg_gap_seconds' => $this->average($gaps),
+                    'avg_gap_label' => $this->formatSeconds($this->average($gaps)),
+                    'max_gap_seconds' => $gaps->max(),
+                    'max_gap_label' => $this->formatSeconds($gaps->max()),
+                    'avg_transcription_seconds' => $this->average($transcriptionDurations),
+                    'avg_transcription_label' => $this->formatSeconds($this->average($transcriptionDurations)),
+                    'avg_ai_seconds' => $this->average($aiDurations),
+                    'avg_ai_label' => $this->formatSeconds($this->average($aiDurations)),
+                    'avg_review_seconds' => $this->average($reviewDurations),
+                    'avg_review_label' => $this->formatSeconds($this->average($reviewDurations)),
+                    'last_upload_at' => optional($items->last()?->uploaded_at)->toIso8601String(),
+                ];
+            })
+            ->sortByDesc('audio_count')
+            ->values();
+
+        $allGaps = collect($monitorRows)->pluck('avg_gap_seconds')->filter(fn ($value) => $value !== null);
+        $allAi = collect($monitorRows)->pluck('avg_ai_seconds')->filter(fn ($value) => $value !== null);
+        $allReview = collect($monitorRows)->pluck('avg_review_seconds')->filter(fn ($value) => $value !== null);
+        $allTranscription = collect($monitorRows)->pluck('avg_transcription_seconds')->filter(fn ($value) => $value !== null);
+
+        $recent = $interactions
+            ->sortByDesc('uploaded_at')
+            ->take($recentLimit)
+            ->values()
+            ->map(function (Interaction $interaction) use ($interactions) {
+                $previous = $interactions
+                    ->where('uploaded_by', $interaction->uploaded_by)
+                    ->where('uploaded_at', '<', $interaction->uploaded_at)
+                    ->sortByDesc('uploaded_at')
+                    ->first();
+
+                $gap = $previous ? $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at) : null;
+                $aiSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at);
+                $reviewSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at);
+
+                return [
+                    'id' => $interaction->id,
+                    'monitor' => $interaction->uploadedBy?->name ?? 'Sin monitor',
+                    'campaign' => $interaction->campaign?->displayName() ?? $interaction->campaign?->name ?? 'Sin campaña',
+                    'file_name' => $interaction->file_name,
+                    'uploaded_at' => optional($interaction->uploaded_at)->toIso8601String(),
+                    'since_previous_seconds' => $gap,
+                    'since_previous_label' => $this->formatSeconds($gap),
+                    'upload_to_ai_seconds' => $aiSeconds,
+                    'upload_to_ai_label' => $this->formatSeconds($aiSeconds),
+                    'upload_to_review_seconds' => $reviewSeconds,
+                    'upload_to_review_label' => $this->formatSeconds($reviewSeconds),
+                    'status' => $interaction->transcription_status ?? $interaction->status,
+                ];
+            });
+
+        return [
+            'summary' => [
+                'total_audio' => $interactions->count(),
+                'monitors' => $monitorRows->count(),
+                'avg_gap_seconds' => $this->average($allGaps),
+                'avg_gap_label' => $this->formatSeconds($this->average($allGaps)),
+                'avg_transcription_seconds' => $this->average($allTranscription),
+                'avg_transcription_label' => $this->formatSeconds($this->average($allTranscription)),
+                'avg_ai_seconds' => $this->average($allAi),
+                'avg_ai_label' => $this->formatSeconds($this->average($allAi)),
+                'avg_review_seconds' => $this->average($allReview),
+                'avg_review_label' => $this->formatSeconds($this->average($allReview)),
+            ],
+            'by_monitor' => $monitorRows,
+            'recent' => $recent,
+        ];
+    }
+
     /**
      * Agent ranking with detailed metrics
      */
@@ -403,6 +585,23 @@ class QualityAnalyticsService
         return "CEIL(EXTRACT(DAY FROM $column)::numeric / 7)";
     }
 
+    private function getPeriodBucketSql(string $column, string $period): string
+    {
+        return match ($period) {
+            'week' => $this->getWeekOfMonthSql($column),
+            'month' => $this->getDateFormatSql($column, 'month'),
+            default => $this->getDateFormatSql($column, 'day'),
+        };
+    }
+
+    private function periodLabel(string $bucket, string $period): string
+    {
+        return match ($period) {
+            'week' => 'Semana '.(int) $bucket,
+            default => $bucket,
+        };
+    }
+
     /**
      * Apply common query filters
      */
@@ -430,6 +629,78 @@ class QualityAnalyticsService
         if (!empty($filters['agent_id'])) {
             $query->where('evaluations.agent_id', $filters['agent_id']);
         }
+    }
+
+    protected function applyInteractionFilters($query, array $filters): void
+    {
+        if (auth()->check()) {
+            $query->forUser(auth()->user());
+        }
+
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->whereBetween('interactions.uploaded_at', [
+                Carbon::parse($filters['start_date'])->startOfDay(),
+                Carbon::parse($filters['end_date'])->endOfDay()
+            ]);
+        }
+
+        if (!empty($filters['campaign_id'])) {
+            $query->where('interactions.campaign_id', $filters['campaign_id']);
+        }
+
+        if (!empty($filters['agent_id'])) {
+            $query->where('interactions.agent_id', $filters['agent_id']);
+        }
+    }
+
+    private function secondsBetween($start, $end): ?int
+    {
+        if (! $start || ! $end) {
+            return null;
+        }
+
+        return (int) max(0, Carbon::parse($start)->diffInSeconds(Carbon::parse($end), false));
+    }
+
+    private function metadataTimestamp(Interaction $interaction, string $key): ?string
+    {
+        $metadata = $interaction->metadata ?? [];
+        $value = is_array($metadata) ? ($metadata[$key] ?? null) : null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function average($values): ?int
+    {
+        $collection = collect($values)->filter(fn ($value) => $value !== null);
+
+        if ($collection->isEmpty()) {
+            return null;
+        }
+
+        return (int) round($collection->avg());
+    }
+
+    private function formatSeconds(?int $seconds): string
+    {
+        if ($seconds === null) {
+            return 'Sin datos';
+        }
+
+        $seconds = max(0, $seconds);
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $remaining = $seconds % 60;
+
+        if ($hours > 0) {
+            return sprintf('%dh %02dm', $hours, $minutes);
+        }
+
+        if ($minutes > 0) {
+            return sprintf('%dm %02ds', $minutes, $remaining);
+        }
+
+        return sprintf('%ds', $remaining);
     }
 
     /**

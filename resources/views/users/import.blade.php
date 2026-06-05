@@ -39,14 +39,15 @@
                 <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ number_format($roles->count()) }}</div>
             </div>
             <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-                <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Campañas activas</div>
+                <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Campañas generales</div>
                 <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ number_format($campaigns->count()) }}</div>
             </div>
             <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-                <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Formato</div>
+                <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Subcampañas</div>
                 <div class="mt-2 flex flex-wrap gap-2">
-                    <span class="badge badge-info">CSV</span>
-                    <span class="badge badge-info">Excel</span>
+                    <span class="badge badge-info">{{ number_format($subcampaigns->count()) }}</span>
+                    <span class="badge badge-neutral">CSV</span>
+                    <span class="badge badge-neutral">Excel</span>
                 </div>
             </div>
         </div>
@@ -129,18 +130,31 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
-                                <label class="form-label">Campaña destino</label>
+                                <label class="form-label">Campaña general</label>
                                 <select name="default_campaign_id" class="form-select">
-                                    <option value="">Usar columna campaigns</option>
+                                    <option value="">Sin campaña general fija</option>
                                     @foreach($campaigns as $campaign)
                                         <option value="{{ $campaign->id }}" @selected((string) old('default_campaign_id') === (string) $campaign->id)>
                                             {{ $campaign->name }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo. La columna campaigns puede agregar campañas adicionales.</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Úsala como agrupador. Si eliges subcampaña, esa será la asignación operativa.</p>
+                            </div>
+
+                            <div>
+                                <label class="form-label">Subcampaña destino</label>
+                                <select name="default_subcampaign_id" class="form-select">
+                                    <option value="">Usar campaña general o columna campaigns</option>
+                                    @foreach($subcampaigns as $subcampaign)
+                                        <option value="{{ $subcampaign->id }}" @selected((string) old('default_subcampaign_id') === (string) $subcampaign->id)>
+                                            {{ $subcampaign->displayName() }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo. Ejemplo: Claro / Upgrade.</p>
                             </div>
 
                             <div>
@@ -172,7 +186,7 @@
                                 <input type="checkbox" name="sync_campaigns" value="1" class="form-checkbox mt-1" @checked(old('sync_campaigns', '1'))>
                                 <span>
                                     <span class="block text-sm font-semibold text-gray-900 dark:text-white">Asignar campañas</span>
-                                    <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">Usa la columna campaigns en roles de gestión.</span>
+                                    <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">Usa destino seleccionado o columna campaigns/subcampaigns.</span>
                                 </span>
                             </label>
                         </div>
@@ -227,6 +241,10 @@
                                         <td><span class="badge badge-neutral">Opcional</span></td>
                                     </tr>
                                     <tr>
+                                        <td class="font-mono text-xs">subcampaigns</td>
+                                        <td><span class="badge badge-neutral">Opcional</span></td>
+                                    </tr>
+                                    <tr>
                                         <td class="font-mono text-xs">supervisor_username</td>
                                         <td><span class="badge badge-neutral">Opcional</span></td>
                                     </tr>
@@ -253,15 +271,18 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Campañas activas</h3>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Campañas y subcampañas</h3>
                     </div>
                     <div class="card-body">
                         <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
                             @forelse($campaigns as $campaign)
                                 <span class="badge badge-neutral">{{ $campaign->name }}</span>
                             @empty
-                                <span class="text-sm text-gray-500 dark:text-gray-400">No hay campañas activas.</span>
+                                <span class="text-sm text-gray-500 dark:text-gray-400">No hay campañas generales activas.</span>
                             @endforelse
+                            @foreach($subcampaigns as $subcampaign)
+                                <span class="badge badge-info">{{ $subcampaign->displayName() }}</span>
+                            @endforeach
                         </div>
                     </div>
                 </div>

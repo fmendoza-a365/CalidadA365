@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">Dashboard Calidad</x-slot>
 
-    <div x-data="{ tab: 'calidad' }" class="space-y-5">
+    <div x-data="{ tab: 'calidad', qualityPeriod: 'day', mpPeriod: 'day', feedbackPeriod: 'week' }" class="space-y-5">
 
         {{-- Filters --}}
         <form method="GET" action="{{ route('dashboard.quality') }}" class="flex flex-wrap items-center gap-3">
@@ -144,17 +144,25 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 1: DASHBOARD CALIDAD                  --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'calidad'" class="space-y-5">
+        <div x-show="tab === 'calidad'" x-cloak class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Módulo — Seguimiento Calidad
             </h3>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Mes</h4><div id="chart-quality-month" class="h-60"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Semana del Mes</h4><div id="chart-quality-week" class="h-60"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-60"></div></div>
-                <div class="qd-card lg:col-span-3"><h4 class="qd-card-title">Tendencia Diaria de Calidad</h4><div id="chart-quality-daily" class="h-72"></div></div>
+                <div class="qd-card lg:col-span-2">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h4 class="qd-card-title mb-0">Evolutivo de Calidad</h4>
+                        <div class="qd-period-control">
+                            <button type="button" @click="qualityPeriod = 'day'; window.QA365DashboardCharts?.renderQualityTrend(qualityPeriod)" :class="qualityPeriod === 'day' ? 'is-active' : ''">Día</button>
+                            <button type="button" @click="qualityPeriod = 'week'; window.QA365DashboardCharts?.renderQualityTrend(qualityPeriod)" :class="qualityPeriod === 'week' ? 'is-active' : ''">Semana</button>
+                            <button type="button" @click="qualityPeriod = 'month'; window.QA365DashboardCharts?.renderQualityTrend(qualityPeriod)" :class="qualityPeriod === 'month' ? 'is-active' : ''">Mes</button>
+                        </div>
+                    </div>
+                    <div id="chart-quality-trend" class="h-72"></div>
+                </div>
+                <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Campaña</h4><div id="chart-quality-campaign" class="h-72"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -170,17 +178,25 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 2: MALAS PRÁCTICAS                    --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'mp'" class="space-y-5">
+        <div x-show="tab === 'mp'" x-cloak class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 Módulo — Detalle MP
             </h3>
 
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div class="qd-card"><h4 class="qd-card-title">MP — Mes</h4><div id="chart-mp-month" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Semana del Mes</h4><div id="chart-mp-week" class="h-64"></div></div>
+                <div class="qd-card">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h4 class="qd-card-title mb-0">Evolutivo de Malas Prácticas</h4>
+                        <div class="qd-period-control">
+                            <button type="button" @click="mpPeriod = 'day'; window.QA365DashboardCharts?.renderMpTrend(mpPeriod)" :class="mpPeriod === 'day' ? 'is-active' : ''">Día</button>
+                            <button type="button" @click="mpPeriod = 'week'; window.QA365DashboardCharts?.renderMpTrend(mpPeriod)" :class="mpPeriod === 'week' ? 'is-active' : ''">Semana</button>
+                            <button type="button" @click="mpPeriod = 'month'; window.QA365DashboardCharts?.renderMpTrend(mpPeriod)" :class="mpPeriod === 'month' ? 'is-active' : ''">Mes</button>
+                        </div>
+                    </div>
+                    <div id="chart-mp-trend" class="h-64"></div>
+                </div>
                 <div class="qd-card"><h4 class="qd-card-title">MP — Campaña</h4><div id="chart-mp-campaign" class="h-64"></div></div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Diario</h4><div id="chart-mp-daily" class="h-64"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -224,7 +240,7 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 3: SEGUIMIENTO FEEDBACK               --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'feedback'" class="space-y-5">
+        <div x-show="tab === 'feedback'" x-cloak class="space-y-5">
             {{-- Feedback KPIs --}}
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
@@ -256,7 +272,17 @@
                 @if(!auth()->user()->hasRole('agent'))
                 <div class="qd-card"><h4 class="qd-card-title">Feedback — Supervisor(a)</h4><div id="chart-feedback-supervisor" class="h-64"></div></div>
                 @endif
-                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif"><h4 class="qd-card-title">Feedback — Semana del Mes</h4><div id="chart-feedback-week" class="h-64"></div></div>
+                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h4 class="qd-card-title mb-0">Evolutivo de Feedback</h4>
+                        <div class="qd-period-control">
+                            <button type="button" @click="feedbackPeriod = 'day'; window.QA365DashboardCharts?.renderFeedbackTrend(feedbackPeriod)" :class="feedbackPeriod === 'day' ? 'is-active' : ''">Día</button>
+                            <button type="button" @click="feedbackPeriod = 'week'; window.QA365DashboardCharts?.renderFeedbackTrend(feedbackPeriod)" :class="feedbackPeriod === 'week' ? 'is-active' : ''">Semana</button>
+                            <button type="button" @click="feedbackPeriod = 'month'; window.QA365DashboardCharts?.renderFeedbackTrend(feedbackPeriod)" :class="feedbackPeriod === 'month' ? 'is-active' : ''">Mes</button>
+                        </div>
+                    </div>
+                    <div id="chart-feedback-trend" class="h-64"></div>
+                </div>
             </div>
 
             @if(!auth()->user()->hasRole('agent'))
@@ -302,7 +328,7 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: CALIBRACION IA                     --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'calibracion'" class="space-y-5">
+        <div x-show="tab === 'calibracion'" x-cloak class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
                 Calibración IA vs Monitor
@@ -378,7 +404,7 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: RANKING ASESORES                   --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'ranking'" class="space-y-5">
+        <div x-show="tab === 'ranking'" x-cloak class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                 Módulo — Ranking de Asesores
@@ -461,7 +487,7 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 5: DASHBOARD GESTIÓN                  --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'gestion'" class="space-y-5">
+        <div x-show="tab === 'gestion'" x-cloak class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                 Módulo — Gestión General
@@ -500,6 +526,61 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="qd-card"><h4 class="qd-card-title">Calidad — Por Agente</h4><div id="chart-quality-agent" class="h-72"></div></div>
                 <div class="qd-card"><h4 class="qd-card-title">Tendencia Diaria</h4><div id="chart-gestion-daily" class="h-72"></div></div>
+            </div>
+
+            <div class="qd-card">
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 class="qd-card-title mb-0">Productividad de carga de audios</h4>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ number_format($audioPerformance['summary']['total_audio']) }} audios en el periodo</span>
+                </div>
+
+                <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <p class="text-[11px] font-semibold uppercase text-gray-400">Entre cargas</p>
+                        <p class="mt-1 text-lg font-extrabold text-gray-900 dark:text-white">{{ $audioPerformance['summary']['avg_gap_label'] }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <p class="text-[11px] font-semibold uppercase text-gray-400">Carga a transcripción</p>
+                        <p class="mt-1 text-lg font-extrabold text-gray-900 dark:text-white">{{ $audioPerformance['summary']['avg_transcription_label'] }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <p class="text-[11px] font-semibold uppercase text-gray-400">Carga a IA</p>
+                        <p class="mt-1 text-lg font-extrabold text-gray-900 dark:text-white">{{ $audioPerformance['summary']['avg_ai_label'] }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <p class="text-[11px] font-semibold uppercase text-gray-400">Carga a revisión</p>
+                        <p class="mt-1 text-lg font-extrabold text-gray-900 dark:text-white">{{ $audioPerformance['summary']['avg_review_label'] }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="border-b border-gray-200 dark:border-gray-700">
+                                <th class="text-left py-2 px-2 font-semibold text-gray-400 uppercase">Monitor</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase">Audios</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase">Prom. entre cargas</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase">Prom. a transcripción</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase">Prom. a IA</th>
+                                <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase">Prom. a revisión</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($audioPerformance['by_monitor'] as $monitor)
+                                <tr class="border-b border-gray-100 dark:border-gray-800">
+                                    <td class="py-2 px-2 font-medium text-gray-800 dark:text-gray-200">{{ $monitor['label'] }}</td>
+                                    <td class="py-2 px-2 text-center font-bold text-gray-900 dark:text-white">{{ $monitor['audio_count'] }}</td>
+                                    <td class="py-2 px-2 text-center text-gray-600 dark:text-gray-400">{{ $monitor['avg_gap_label'] }}</td>
+                                    <td class="py-2 px-2 text-center text-gray-600 dark:text-gray-400">{{ $monitor['avg_transcription_label'] }}</td>
+                                    <td class="py-2 px-2 text-center text-gray-600 dark:text-gray-400">{{ $monitor['avg_ai_label'] }}</td>
+                                    <td class="py-2 px-2 text-center text-gray-600 dark:text-gray-400">{{ $monitor['avg_review_label'] }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="py-6 text-center text-gray-400">Sin audios cargados en el periodo.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         @endif
@@ -541,6 +622,40 @@
             .qd-card [id^="chart-"] {
                 min-width: 0;
             }
+
+            .qd-period-control {
+                display: inline-flex;
+                gap: 0.25rem;
+                padding: 0.25rem;
+                border: 1px solid #e5e7eb;
+                border-radius: 0.625rem;
+                background: #f9fafb;
+            }
+
+            .dark .qd-period-control {
+                border-color: #2a2a2a;
+                background: #0f0f0f;
+            }
+
+            .qd-period-control button {
+                min-width: 4rem;
+                border-radius: 0.45rem;
+                padding: 0.35rem 0.7rem;
+                color: #64748b;
+                font-size: 0.7rem;
+                font-weight: 700;
+                line-height: 1rem;
+                transition: background-color 150ms ease, color 150ms ease;
+            }
+
+            .dark .qd-period-control button {
+                color: #94a3b8;
+            }
+
+            .qd-period-control button.is-active {
+                background: #4f46e5;
+                color: #ffffff;
+            }
         </style>
 
         <script>
@@ -567,22 +682,39 @@
 
                 chartsBooted = true;
                 const colors = charts.colors();
+                const qualityTrendSeries = @json($qualityTrendSeries);
+                const mpTrendSeries = @json($mpTrendSeries);
+                const feedbackTrendSeries = @json($feedbackTrendSeries);
 
-                charts.combo('#chart-quality-month', @json($qualityMonth), {
-                    barColor: colors.indigo,
+                const renderQualityTrend = (period = 'day') => charts.area('#chart-quality-trend', qualityTrendSeries[period] || [], {
+                    color: colors.indigo,
+                    valueName: 'Nota %',
+                    suffix: '%',
                 });
-                charts.combo('#chart-quality-week', @json($qualityWeek), {
-                    barColor: colors.sky,
+
+                const renderMpTrend = (period = 'day') => charts.bar('#chart-mp-trend', mpTrendSeries[period] || [], {
+                    color: colors.rose,
+                    valueName: 'Monitoreos',
                 });
+
+                const renderFeedbackTrend = (period = 'week') => charts.stacked('#chart-feedback-trend', feedbackTrendSeries[period] || [], {
+                    doneColor: colors.teal,
+                    pendingColor: colors.amber,
+                });
+
+                window.QA365DashboardCharts = {
+                    renderQualityTrend,
+                    renderMpTrend,
+                    renderFeedbackTrend,
+                };
+
+                renderQualityTrend('day');
                 charts.bar('#chart-quality-campaign', @json($qualityCampaign), {
                     color: colors.indigo,
                     metric: 'avg_score',
                     valueName: 'Nota %',
                     max: 100,
                     suffix: '%',
-                });
-                charts.area('#chart-quality-daily', @json($qualityDaily), {
-                    color: colors.indigo,
                 });
                 charts.combo('#chart-quality-supervisor', @json($qualitySupervisor), {
                     barColor: colors.teal,
@@ -592,20 +724,9 @@
                     valueName: 'Incidencias',
                 });
 
-                charts.bar('#chart-mp-month', @json($mpMonth), {
-                    color: colors.rose,
-                    valueName: 'Monitoreos',
-                });
-                charts.bar('#chart-mp-week', @json($mpWeek), {
-                    color: colors.pink,
-                    valueName: 'Monitoreos',
-                });
+                renderMpTrend('day');
                 charts.bar('#chart-mp-campaign', @json($mpCampaign), {
                     color: colors.orange,
-                    valueName: 'Monitoreos',
-                });
-                charts.bar('#chart-mp-daily', @json($mpDaily), {
-                    color: colors.amber,
                     valueName: 'Monitoreos',
                 });
                 charts.bar('#chart-mp-supervisor', @json($mpSupervisor), {
@@ -617,10 +738,7 @@
                     doneColor: colors.teal,
                     pendingColor: colors.amber,
                 });
-                charts.stacked('#chart-feedback-week', @json($feedbackWeek), {
-                    doneColor: colors.indigo,
-                    pendingColor: colors.orange,
-                });
+                renderFeedbackTrend('week');
 
                 charts.horizontalBar('#chart-evals-campaign', @json($evalsByCampaign), {
                     color: colors.violet,

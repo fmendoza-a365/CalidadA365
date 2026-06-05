@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Campaign extends Model
 {
     protected $fillable = [
+        'parent_id',
         'name',
         'description',
         'active_form_version_id',
@@ -41,6 +42,16 @@ class Campaign extends Model
     public function activeFormVersion(): BelongsTo
     {
         return $this->belongsTo(QualityFormVersion::class, 'active_form_version_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
     }
 
     public function forms(): HasMany
@@ -88,8 +99,14 @@ class Campaign extends Model
 
         // 2. Manager: View only explicitly managed campaigns
         if ($user->hasRole('manager')) {
-            return $query->whereHas('managers', function ($q) use ($user) {
-                $q->whereKey($user->id);
+            return $query->where(function ($query) use ($user) {
+                $query
+                    ->whereHas('managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
+                    })
+                    ->orWhereHas('parent.managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
+                    });
             });
         }
 
@@ -104,12 +121,35 @@ class Campaign extends Model
 
         // 4. QA Monitor / Coordinator: View only their assigned campaigns
         if ($user->hasAnyRole(['qa_monitor', 'qa_coordinator'])) {
-            return $query->whereHas('managers', function ($q) use ($user) {
-                $q->whereKey($user->id);
+            return $query->where(function ($query) use ($user) {
+                $query
+                    ->whereHas('managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
+                    })
+                    ->orWhereHas('parent.managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
+                    });
             });
         }
 
         // Default: No access
         return $query->whereRaw('1 = 0');
+    }
+
+    public function scopeParents($query)
+    {
+        return $query->whereNull('parent_id');
+    }
+
+    public function scopeSubcampaigns($query)
+    {
+        return $query->whereNotNull('parent_id');
+    }
+
+    public function displayName(): string
+    {
+        return $this->parent
+            ? $this->parent->name.' / '.$this->name
+            : $this->name;
     }
 }

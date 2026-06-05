@@ -1,5 +1,7 @@
 package com.qa365.mobile
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
@@ -18,15 +20,23 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 data class ChartPoint(val label: String, val value: Double, val color: Color)
 
 @Composable
-fun TrendLineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
+fun TrendLineChart(
+    points: List<ChartPoint>,
+    modifier: Modifier = Modifier,
+    valueSuffix: String = "%",
+    maxValue: Double? = 100.0
+) {
     if (points.isEmpty()) return
 
     val animationProgress = remember { Animatable(0f) }
@@ -48,7 +58,7 @@ fun TrendLineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
         Canvas(modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp)) {
             val width = size.width
             val height = size.height
-            val maxVal = 100.0
+            val maxVal = max(1.0, maxValue ?: ((points.maxOfOrNull { it.value } ?: 1.0) * 1.2))
 
             // Draw horizontal dashed grid lines (25%, 50%, 75%, 100%)
             val gridLevels = listOf(0.25f, 0.5f, 0.75f, 1.0f)
@@ -116,6 +126,24 @@ fun TrendLineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
                         color = points[index].color,
                         radius = 3.5.dp.toPx(),
                         center = offset
+                    )
+                }
+            }
+
+            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = primaryColor.toArgb()
+                textAlign = Paint.Align.CENTER
+                textSize = 11.sp.toPx()
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+
+            pointOffsets.forEachIndexed { index, offset ->
+                if (animationProgress.value > (index.toFloat() / points.size)) {
+                    drawContext.canvas.nativeCanvas.drawText(
+                        "${points[index].value.roundToInt()}$valueSuffix",
+                        offset.x,
+                        (offset.y - 10.dp.toPx()).coerceAtLeast(12.dp.toPx()),
+                        labelPaint
                     )
                 }
             }

@@ -87,7 +87,13 @@ class ScoreTranscriptJob implements ShouldQueue
             ]);
         }
 
-        $interaction->update(['status' => 'scoring']);
+        $metadata = $interaction->metadata ?? [];
+        $metadata['scoring_started_at'] = now()->toIso8601String();
+
+        $interaction->update([
+            'status' => 'scoring',
+            'metadata' => $metadata,
+        ]);
 
         $fromStatus = $existingAiEvaluation->status;
         $existingAiEvaluation->update(['status' => Evaluation::STATUS_AI_PROCESSING]);
@@ -99,7 +105,13 @@ class ScoreTranscriptJob implements ShouldQueue
             $evaluation = $aiService->evaluateInteraction($interaction, $existingAiEvaluation);
 
             if ($evaluation) {
-                $interaction->update(['status' => 'scored']);
+                $metadata = $interaction->metadata ?? [];
+                $metadata['scoring_completed_at'] = now()->toIso8601String();
+
+                $interaction->update([
+                    'status' => 'scored',
+                    'metadata' => $metadata,
+                ]);
                 Log::info("Evaluation completed for interaction {$this->interactionId}");
             } else {
                 if ($this->shouldRetryNullResponse()) {

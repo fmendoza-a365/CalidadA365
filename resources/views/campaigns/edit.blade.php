@@ -76,6 +76,20 @@
                     </div>
 
                     <div class="form-group mb-4">
+                        <label for="parent_id" class="form-label">Campaña general</label>
+                        <select name="parent_id" id="parent_id" class="form-select">
+                            <option value="">Es campaña general</option>
+                            @foreach($parentCampaigns as $parentCampaign)
+                                <option value="{{ $parentCampaign->id }}" @selected((string) old('parent_id', $campaign->parent_id) === (string) $parentCampaign->id)>
+                                    {{ $parentCampaign->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Si seleccionas una campaña general, esta campaña se tratará como subcampaña operativa.</p>
+                        <x-input-error :messages="$errors->get('parent_id')" class="mt-1" />
+                    </div>
+
+                    <div class="form-group mb-4">
                         <label for="type" class="form-label">Tipo de Campaña <span
                                 class="text-rose-500">*</span></label>
                         <select name="type" id="type" class="form-select">

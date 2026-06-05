@@ -80,7 +80,7 @@ class UserBulkImportTest extends TestCase
             ->assertOk()
             ->assertSee('Archivo y reglas')
             ->assertSee('Seleccionar archivo')
-            ->assertSee('Campaña destino')
+            ->assertSee('Subcampaña destino')
             ->assertSee('Columnas esperadas')
             ->assertSee('Nuevo usuario');
     }
@@ -140,6 +140,42 @@ class UserBulkImportTest extends TestCase
             'agent_id' => $agent->id,
             'supervisor_id' => $supervisor->id,
             'is_active' => true,
+        ]);
+    }
+
+    public function test_admin_can_bulk_import_agents_into_selected_subcampaign(): void
+    {
+        $admin = $this->userWithRole('admin');
+        Role::firstOrCreate(['name' => 'agent', 'guard_name' => 'web']);
+        $supervisor = $this->userWithRole('supervisor', ['username' => 's001', 'name' => 'Rosa Díaz']);
+        $parent = Campaign::create(['name' => 'Claro']);
+        $subcampaign = Campaign::create(['name' => 'Claro Upgrade', 'parent_id' => $parent->id]);
+
+        $csv = "username,name,email,role,password\na001,Ana Pérez,ana.perez@empresa.com,agent,Password123";
+
+        $this->actingAs($admin)
+            ->post(route('users.import.store'), [
+                'csv_file' => $this->csvFile($csv, 'usuarios.csv'),
+                'default_campaign_id' => $parent->id,
+                'default_subcampaign_id' => $subcampaign->id,
+                'default_supervisor_id' => $supervisor->id,
+                'update_existing' => '1',
+                'sync_campaigns' => '1',
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $agent = User::where('username', 'a001')->firstOrFail();
+
+        $this->assertDatabaseHas('campaign_user_assignments', [
+            'campaign_id' => $subcampaign->id,
+            'agent_id' => $agent->id,
+            'supervisor_id' => $supervisor->id,
+            'is_active' => true,
+        ]);
+
+        $this->assertDatabaseMissing('campaign_user_assignments', [
+            'campaign_id' => $parent->id,
+            'agent_id' => $agent->id,
         ]);
     }
 

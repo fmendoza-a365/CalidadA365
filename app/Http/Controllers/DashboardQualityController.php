@@ -34,6 +34,7 @@ class DashboardQualityController extends Controller
         $qualityCampaign = $this->analytics->getQualityGrouped('campaign', $filters);
         $qualitySupervisor = $this->analytics->getQualityGrouped('supervisor', $filters);
         $qualityDaily = $this->analytics->getQualityGrouped('daily', $filters);
+        $qualityTrendSeries = $this->analytics->getQualityTrendSeries($filters);
 
         // Tab 2: Malas Prácticas
         $mpMonth = $this->analytics->getMPGrouped('month', $filters);
@@ -41,16 +42,19 @@ class DashboardQualityController extends Controller
         $mpCampaign = $this->analytics->getMPGrouped('campaign', $filters);
         $mpSupervisor = $this->analytics->getMPGrouped('supervisor', $filters);
         $mpDaily = $this->analytics->getMPGrouped('daily', $filters);
+        $mpTrendSeries = $this->analytics->getMpTrendSeries($filters);
 
         // Tab 3: Seguimiento Feedback
         $feedbackStats = $this->analytics->getFeedbackStats($filters);
         $feedbackSupervisor = $this->analytics->getFeedbackBySupervisor($filters);
         $feedbackWeek = $this->analytics->getFeedbackByWeek($filters);
+        $feedbackTrendSeries = $this->analytics->getFeedbackTrendSeries($filters);
 
         // Tab 4/5: Rankings & Defects
         $agentRanking = $this->analytics->getAgentRanking($filters);
         $topDefects = $this->analytics->getTopDefects($filters);
         $evalsByCampaign = $this->analytics->getEvalsByCampaign($filters);
+        $audioPerformance = $this->analytics->getAudioUploadPerformance($filters);
         $calibrationSummary = $this->calibration->summary($filters, auth()->user());
         $calibrationPairs = $this->calibration->recentPairs($filters, auth()->user());
 
@@ -63,17 +67,21 @@ class DashboardQualityController extends Controller
             'qualityCampaign',
             'qualitySupervisor',
             'qualityDaily',
+            'qualityTrendSeries',
             'mpMonth',
             'mpWeek',
             'mpCampaign',
             'mpSupervisor',
             'mpDaily',
+            'mpTrendSeries',
             'feedbackStats',
             'feedbackSupervisor',
             'feedbackWeek',
+            'feedbackTrendSeries',
             'agentRanking',
             'topDefects',
             'evalsByCampaign',
+            'audioPerformance',
             'calibrationSummary',
             'calibrationPairs',
             'filters',
