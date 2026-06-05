@@ -330,6 +330,12 @@ Adicionalmente, genera un "general_feedback" CONSTRUCTIVO y ESTRUCTURADO que inc
 - Fortalezas detectadas
 - Oportunidades de mejora
 
+REGLAS CRÍTICAS DEL JSON:
+- No uses Markdown, bullets, emojis ni encabezados dentro de general_feedback o notes.
+- No uses comillas dobles dentro de los valores de texto. Si necesitas citar algo, usa comillas simples o reformula la frase.
+- Mantén general_feedback, notes y evidence_quote en una sola línea cada uno.
+- Todos los saltos de línea o caracteres especiales deben estar escapados correctamente para JSON válido.
+
 ## FORMATO DE RESPUESTA
 Responde ÚNICAMENTE con el siguiente JSON estructurado:
 
@@ -343,7 +349,7 @@ Responde ÚNICAMENTE con el siguiente JSON estructurado:
             "notes": "notas opcionales"
         }
     ],
-    "general_feedback": "Texto en formato MARKDOWN limpio. Estructura requerida:\n\n### 🤖 Resumen del Desempeño\n[Resumen]\n\n### 🧠 Conocimiento del Producto\n[Análisis sobre dominio del tema]\n\n### ❤️ Manejo de Emociones y Empatía\n[Análisis sobre tono y empatía]\n\n### ✅ Fortalezas\n- [Fortaleza 1]: [Detalle]\n\n### ⚠️ Oportunidades de Mejora\n- [Oportunidad 1]: [Detalle]"
+    "general_feedback": "Resumen: síntesis breve del desempeño. Conocimiento del producto: análisis de precisión y dominio. Manejo emocional y empatía: análisis de tono, conexión y objeciones. Fortalezas: puntos concretos bien ejecutados. Oportunidades: mejoras accionables para el asesor."
 }
 PROMPT;
     }
@@ -575,11 +581,83 @@ PROMPT;
             }
         }
 
+        $recovered = $this->recoverEvaluationJsonPayload($content);
+        if ($recovered) {
+            Log::warning('Respuesta JSON de IA recuperada con parser tolerante.');
+
+            return $recovered;
+        }
+
         Log::error('Error parseando respuesta JSON: '.json_last_error_msg());
         // Log truncated content to avoid flooding logs if it's huge
         Log::error('Content snippet: '.substr($content, 0, 500).' ... '.substr($content, -500));
 
         return null;
+    }
+
+    protected function recoverEvaluationJsonPayload(string $content): ?array
+    {
+        if (! preg_match_all('/"id"\s*:\s*(\d+)\s*,\s*"status"\s*:\s*"(compliant|non_compliant|not_found)"/i', $content, $matches, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $items = [];
+        $ids = $matches[1];
+        $statuses = $matches[2];
+
+        foreach ($ids as $index => $idMatch) {
+            $itemStart = max(0, $matches[0][$index][1] - 1);
+            $nextStart = isset($matches[0][$index + 1])
+                ? max(0, $matches[0][$index + 1][1] - 1)
+                : strlen($content);
+            $slice = substr($content, $itemStart, max(1, $nextStart - $itemStart));
+
+            $confidence = $this->extractJsonLikeNumber($slice, 'confidence');
+
+            $items[] = [
+                'id' => (int) $idMatch[0],
+                'status' => strtolower($statuses[$index][0]),
+                'evidence_quote' => $this->extractJsonLikeString($slice, 'evidence_quote') ?? '',
+                'confidence' => $confidence !== null ? max(0, min(1, $confidence)) : null,
+                'notes' => $this->extractJsonLikeString($slice, 'notes'),
+            ];
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        return [
+            'items' => $items,
+            'general_feedback' => $this->extractJsonLikeString($content, 'general_feedback')
+                ?? 'Evaluación generada por IA. Revise los criterios y evidencias recuperadas en el detalle.',
+        ];
+    }
+
+    protected function extractJsonLikeString(string $source, string $field): ?string
+    {
+        $fieldPattern = preg_quote($field, '/');
+        if (! preg_match('/"'.$fieldPattern.'"\s*:\s*"(.*?)(?<!\\\\)"\s*(?:,|\})/s', $source, $matches)) {
+            return null;
+        }
+
+        $value = $matches[1];
+        $decoded = json_decode('"'.$value.'"', true);
+        if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
+            return trim(preg_replace('/\s+/', ' ', $decoded));
+        }
+
+        return trim(preg_replace('/\s+/', ' ', str_replace(["\r", "\n", "\t"], ' ', $value)));
+    }
+
+    protected function extractJsonLikeNumber(string $source, string $field): ?float
+    {
+        $fieldPattern = preg_quote($field, '/');
+        if (! preg_match('/"'.$fieldPattern.'"\s*:\s*(-?(?:\d*\.\d+|\d+))/', $source, $matches)) {
+            return null;
+        }
+
+        return (float) $matches[1];
     }
 
     /**
