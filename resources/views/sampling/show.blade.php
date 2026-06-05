@@ -49,7 +49,7 @@
                             {{ $samplingPlan->name ?: 'Muestreo aleatorio QA' }}
                         </h2>
                         <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <span>{{ $samplingPlan->campaign?->name ?? 'Todas las campañas' }}</span>
+                            <span>{{ $samplingPlan->campaign?->displayName() ?? 'Todas las campañas' }}</span>
                             <span>·</span>
                             <span>{{ $samplingPlan->staff_count }} asesores</span>
                             <span>·</span>

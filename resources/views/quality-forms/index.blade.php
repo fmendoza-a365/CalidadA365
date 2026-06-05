@@ -26,7 +26,7 @@
                 <thead class="sticky top-0 z-10">
                     <tr>
                         <th>Nombre</th>
-                        <th>Campaña</th>
+                        <th>Campaña / Subcampaña</th>
                         <th class="text-center w-40">Contexto IA</th>
                         <th class="text-center w-32">Versión</th>
                         <th class="text-center w-32">Estado</th>
@@ -40,7 +40,7 @@
                                 <span class="font-medium text-gray-900 dark:text-white">{{ $form->name }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
-                                {{ $form->campaign->name }}
+                                {{ $form->campaign?->displayName() ?? '—' }}
                             </td>
                             <td class="text-center">
                                 @if($form->operational_context_markdown || $form->context_file_path)

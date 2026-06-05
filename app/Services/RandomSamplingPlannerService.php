@@ -416,9 +416,16 @@ class RandomSamplingPlannerService
             return null;
         }
 
+        $target = Str::lower(trim($campaignName));
+
         return Campaign::query()
-            ->whereRaw('LOWER(name) = ?', [Str::lower(trim($campaignName))])
-            ->first();
+            ->active()
+            ->with('parent')
+            ->get()
+            ->first(function (Campaign $campaign) use ($target) {
+                return Str::lower($campaign->name) === $target
+                    || Str::lower($campaign->displayName()) === $target;
+            });
     }
 
     private function resolveUser(?string $code, ?string $name, ?string $role = null): ?User

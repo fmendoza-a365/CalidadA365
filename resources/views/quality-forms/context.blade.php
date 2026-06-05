@@ -7,7 +7,7 @@
                 <div>
                     <h3 class="font-semibold text-gray-900 dark:text-white">Contexto operativo completo</h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ $qualityForm->campaign->name }} · usado por la IA al evaluar esta ficha.
+                        {{ $qualityForm->campaign?->displayName() ?? 'Sin campaña' }} · usado por la IA al evaluar esta ficha.
                     </p>
                 </div>
                 <div class="flex flex-wrap gap-2">

@@ -28,6 +28,7 @@ class ManualEvaluationController extends Controller
             return back()->with('error', 'No hay una ficha de calidad activa para evaluar esta campaña.');
         }
 
+        $interaction->loadMissing(['agent', 'campaign.parent']);
         $formVersion->load('formAttributes.subAttributes');
 
         $aiEvaluation = $interaction->aiEvaluation()->with('items')->first();

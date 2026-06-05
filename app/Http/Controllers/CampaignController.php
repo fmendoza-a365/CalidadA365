@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Campaign;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CampaignController extends Controller
@@ -14,7 +15,7 @@ class CampaignController extends Controller
         $user = auth()->user();
         $campaigns = Campaign::forUser($user)
             ->with(['activeFormVersion', 'parent'])
-            ->latest()
+            ->orderedForSelect()
             ->paginate(15);
         return view('campaigns.index', compact('campaigns'));
     }
@@ -42,23 +43,32 @@ class CampaignController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'script_url' => 'nullable|url',
+            'subcampaign_names' => 'nullable|string|max:4000',
             'monitor_ids' => 'nullable|array',
             'monitor_ids.*' => 'exists:users,id',
         ]);
 
         $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
         $this->ensureValidParent($validated['parent_id'] ?? null);
+        $subcampaignNames = $validated['subcampaign_names'] ?? null;
+        unset($validated['subcampaign_names']);
 
         if ($request->hasFile('logo')) {
             $path = $request->file('logo')->store('campaigns/logos', 'public');
             $validated['logo_path'] = $path;
         }
 
-        $campaign = Campaign::create($validated);
+        $campaign = DB::transaction(function () use ($request, $validated, $subcampaignNames) {
+            $campaign = Campaign::create($validated);
 
-        if ($request->has('monitor_ids')) {
-            $campaign->managers()->sync($request->monitor_ids);
-        }
+            if ($request->has('monitor_ids')) {
+                $campaign->managers()->sync($request->monitor_ids);
+            }
+
+            $this->syncSubcampaignNames($campaign, $subcampaignNames);
+
+            return $campaign;
+        });
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campaña creada exitosamente.');
@@ -70,14 +80,23 @@ class CampaignController extends Controller
 
         $campaign->load(['activeFormVersion', 'assignments.agent', 'assignments.supervisor', 'managers', 'parent', 'children.activeFormVersion']);
 
+        $campaignIds = Campaign::idsForFilter($campaign->id);
+
         $stats = [
-            'total_interactions' => $campaign->interactions()->count(),
-            'total_evaluations' => $campaign->evaluations()->count(),
-            'avg_score' => round($campaign->evaluations()->avg('percentage_score') ?? 0, 2),
-            'active_agents' => $campaign->assignments()->active()->count(),
+            'total_interactions' => \App\Models\Interaction::whereIn('campaign_id', $campaignIds)->count(),
+            'total_evaluations' => \App\Models\Evaluation::whereIn('campaign_id', $campaignIds)->count(),
+            'avg_score' => round(\App\Models\Evaluation::whereIn('campaign_id', $campaignIds)->avg('percentage_score') ?? 0, 2),
+            'active_agents' => \App\Models\CampaignUserAssignment::whereIn('campaign_id', $campaignIds)->active()->count(),
         ];
 
-        return view('campaigns.show', compact('campaign', 'stats'));
+        $assignmentsPreview = \App\Models\CampaignUserAssignment::query()
+            ->whereIn('campaign_id', $campaignIds)
+            ->with(['campaign.parent', 'agent', 'supervisor'])
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        return view('campaigns.show', compact('campaign', 'stats', 'assignmentsPreview'));
     }
 
     public function edit(Campaign $campaign)
@@ -112,12 +131,21 @@ class CampaignController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'script_url' => 'nullable|url',
+            'subcampaign_names' => 'nullable|string|max:4000',
             'monitor_ids' => 'nullable|array',
             'monitor_ids.*' => 'exists:users,id',
         ]);
 
         $this->ensureCampaignManagerRoles($validated['monitor_ids'] ?? []);
         $this->ensureValidParent($validated['parent_id'] ?? null, $campaign);
+        $subcampaignNames = $validated['subcampaign_names'] ?? null;
+        unset($validated['subcampaign_names']);
+
+        if (! empty($validated['parent_id']) && $campaign->children()->exists()) {
+            throw ValidationException::withMessages([
+                'parent_id' => 'No puedes convertir una campaña con subcampañas en subcampaña. Primero reubica o elimina sus subcampañas.',
+            ]);
+        }
 
         if ($request->hasFile('logo')) {
             // Delete old logo
@@ -128,13 +156,17 @@ class CampaignController extends Controller
             $validated['logo_path'] = $path;
         }
 
-        $campaign->update($validated);
+        DB::transaction(function () use ($request, $campaign, $validated, $subcampaignNames) {
+            $campaign->update($validated);
 
-        if ($request->has('monitor_ids')) {
-            $campaign->managers()->sync($request->monitor_ids);
-        } else {
-            $campaign->managers()->detach();
-        }
+            if ($request->has('monitor_ids')) {
+                $campaign->managers()->sync($request->monitor_ids);
+            } else {
+                $campaign->managers()->detach();
+            }
+
+            $this->syncSubcampaignNames($campaign->fresh(), $subcampaignNames);
+        });
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campaña actualizada exitosamente.');
@@ -250,5 +282,57 @@ class CampaignController extends Controller
                 'parent_id' => 'Selecciona una campaña general, no otra subcampaña.',
             ]);
         }
+    }
+
+    private function syncSubcampaignNames(Campaign $campaign, ?string $rawNames): void
+    {
+        $names = $this->parseSubcampaignNames($rawNames);
+
+        if (empty($names)) {
+            return;
+        }
+
+        if ($campaign->parent_id !== null) {
+            throw ValidationException::withMessages([
+                'subcampaign_names' => 'Solo una campaña general puede crear subcampañas.',
+            ]);
+        }
+
+        $managerIds = $campaign->managers()->pluck('users.id')->all();
+
+        foreach ($names as $name) {
+            $child = $campaign->children()->firstOrCreate(
+                ['name' => $name],
+                [
+                    'description' => $campaign->description,
+                    'is_active' => $campaign->is_active,
+                    'color' => $campaign->color,
+                    'target_quality' => $campaign->target_quality,
+                    'target_aht' => $campaign->target_aht,
+                    'type' => $campaign->type,
+                    'start_date' => $campaign->start_date,
+                    'end_date' => $campaign->end_date,
+                    'script_url' => $campaign->script_url,
+                ]
+            );
+
+            if (! empty($managerIds)) {
+                $child->managers()->sync($managerIds);
+            }
+        }
+    }
+
+    private function parseSubcampaignNames(?string $rawNames): array
+    {
+        if (! filled($rawNames)) {
+            return [];
+        }
+
+        return collect(preg_split('/[\r\n,;]+/', $rawNames))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn ($name) => mb_strtolower($name))
+            ->values()
+            ->all();
     }
 }

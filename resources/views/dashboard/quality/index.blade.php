@@ -20,9 +20,9 @@
             <select name="campaign_id"
                     class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
                     onchange="this.form.submit()">
-                <option value="">Todas las Campañas</option>
+                <option value="">Todas las campañas</option>
                 @foreach($campaigns as $campaign)
-                    <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->name }}</option>
+                    <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->displayName() }}</option>
                 @endforeach
             </select>
             @if(!auth()->user()->hasRole('agent'))

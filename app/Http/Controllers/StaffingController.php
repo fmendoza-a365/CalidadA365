@@ -46,8 +46,14 @@ class StaffingController extends Controller
         }
 
         $campaign = ! empty($validated['campaign_id'])
-            ? Campaign::find($validated['campaign_id'])
+            ? Campaign::active()->operational()->whereKey($validated['campaign_id'])->first()
             : null;
+
+        if (! empty($validated['campaign_id']) && ! $campaign) {
+            return back()
+                ->withInput()
+                ->withErrors(['campaign_id' => 'Selecciona una subcampaña operativa o una campaña general sin subcampañas.']);
+        }
 
         $stats = DB::transaction(function () use ($validated, $request, $rows, $campaign) {
             $batch = StaffingBatch::create([
@@ -55,7 +61,7 @@ class StaffingController extends Controller
                 'period_start' => $validated['period_start'] ?? null,
                 'period_end' => $validated['period_end'] ?? null,
                 'campaign_id' => $campaign?->id,
-                'campaign_name' => $campaign?->name,
+                'campaign_name' => $campaign?->displayName(),
                 'status' => StaffingBatch::STATUS_ACTIVE,
                 'source_filename' => $request->file('csv_file')?->getClientOriginalName(),
                 'notes' => $validated['notes'] ?? null,
@@ -85,6 +91,7 @@ class StaffingController extends Controller
                 'supervisor_codigo' => 'S001',
                 'supervisor' => 'Rosa Díaz',
                 'campania' => 'Atención',
+                'subcampania' => 'Atención / Ventas',
                 'cuartil' => 'Q2',
                 'estado' => 'Activo',
             ],
@@ -103,6 +110,7 @@ class StaffingController extends Controller
                 'supervisor_codigo' => 'S001',
                 'supervisor' => 'Rosa Díaz',
                 'campania' => 'Atención',
+                'subcampania' => 'Atención / Ventas',
                 'cuartil' => 'Q2',
                 'estado' => 'Activo',
             ],
@@ -137,7 +145,7 @@ class StaffingController extends Controller
 
             $supervisorCode = CsvImport::value($row, ['supervisor_codigo', 'codigo_supervisor', 'supervisor_code']);
             $supervisorName = CsvImport::value($row, ['supervisor', 'lider', 'jefe']);
-            $campaignName = $forcedCampaign?->name ?: CsvImport::value($row, ['campania', 'campana', 'campaign']);
+            $campaignName = $forcedCampaign?->displayName() ?: CsvImport::value($row, ['subcampania', 'subcampaña', 'subcampaign', 'campania', 'campana', 'campaign']);
             $campaign = $forcedCampaign ?: $this->resolveCampaign($campaignName);
             $quartile = $this->normalizeQuartile(CsvImport::value($row, ['cuartil', 'quartile', 'q']));
             $status = $this->normalizeStatus(CsvImport::value($row, ['estado', 'status'], 'Activo'));
@@ -152,7 +160,7 @@ class StaffingController extends Controller
                 'supervisor_name' => $supervisorName,
                 'supervisor_id' => $supervisor?->id,
                 'campaign_id' => $campaign?->id,
-                'campaign_name' => $campaign?->name ?? $campaignName,
+                'campaign_name' => $campaign?->displayName() ?? $campaignName,
                 'quartile' => $quartile,
                 'status' => $status,
                 'metadata' => $row,
@@ -192,9 +200,17 @@ class StaffingController extends Controller
             return null;
         }
 
+        $target = Str::lower(trim($name));
+
         return Campaign::query()
-            ->whereRaw('LOWER(name) = ?', [Str::lower(trim($name))])
-            ->first();
+            ->active()
+            ->operational()
+            ->with('parent')
+            ->get()
+            ->first(function (Campaign $campaign) use ($target) {
+                return Str::lower($campaign->name) === $target
+                    || Str::lower($campaign->displayName()) === $target;
+            });
     }
 
     private function resolveUser(?string $code, ?string $email, ?string $name): ?User

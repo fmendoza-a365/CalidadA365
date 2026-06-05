@@ -67,7 +67,7 @@
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="badge badge-primary">{{ $typeLabel }}</span>
-                            <span class="badge badge-neutral">{{ data_get($scope, 'campaign_name', $insight->campaign->name ?? 'Todas las campañas visibles') }}</span>
+                            <span class="badge badge-neutral">{{ data_get($scope, 'campaign_name', $insight->campaign?->displayName() ?? 'Todas las campañas visibles') }}</span>
                         </div>
                         <h1 class="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">Informe ejecutivo de calidad</h1>
                         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">

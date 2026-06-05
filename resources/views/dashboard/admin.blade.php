@@ -81,7 +81,7 @@
                             </div>
                             <div>
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->agent->name }}</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign->name }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</p>
                             </div>
                         </div>
                         <div class="text-right">

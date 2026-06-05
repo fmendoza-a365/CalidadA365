@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Services\EvaluationCalibrationService;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class ExportController extends Controller
         }
 
         $query = Evaluation::with([
-            'campaign',
+            'campaign.parent',
             'agent',
             'evaluator',
             'interaction' => function ($query) {
@@ -23,7 +24,7 @@ class ExportController extends Controller
             },
         ])
             ->forUser(auth()->user())
-            ->when($request->filled('campaign_id'), fn ($query) => $query->where('campaign_id', $request->integer('campaign_id')))
+            ->when($request->filled('campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('campaign_id'))))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('start_date'), fn ($query) => $query->whereDate('evaluations.created_at', '>=', $request->date('start_date')->format('Y-m-d')))
@@ -63,7 +64,7 @@ class ExportController extends Controller
                     $this->putCsv($handle, [
                         $evaluation->id,
                         $evaluation->created_at?->toDateTimeString(),
-                        $evaluation->campaign?->name,
+                        $evaluation->campaign?->displayName(),
                         $evaluation->agent?->name,
                         $evaluation->type,
                         $evaluation->evaluator?->name,

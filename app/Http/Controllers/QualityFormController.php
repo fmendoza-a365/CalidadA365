@@ -17,7 +17,7 @@ class QualityFormController extends Controller
     public function index()
     {
         $forms = QualityForm::forUser(auth()->user())
-            ->with(['campaign', 'latestVersion'])
+            ->with(['campaign.parent', 'latestVersion'])
             ->latest()
             ->paginate(15);
 
@@ -26,7 +26,12 @@ class QualityFormController extends Controller
 
     public function create()
     {
-        $campaigns = Campaign::forUser(auth()->user())->active()->get();
+        $campaigns = Campaign::forUser(auth()->user())
+            ->active()
+            ->operational()
+            ->orderedForSelect()
+            ->get();
+
         return view('quality-forms.create', compact('campaigns'));
     }
 
@@ -38,8 +43,8 @@ class QualityFormController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        if (!Campaign::forUser(auth()->user())->whereKey($validated['campaign_id'])->exists()) {
-            abort(403, 'No tiene permiso para crear fichas en esta campaña.');
+        if (! Campaign::forUser(auth()->user())->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para crear fichas en esta campaña o subcampaña.');
         }
 
         $validated['created_by'] = auth()->id();
@@ -60,7 +65,7 @@ class QualityFormController extends Controller
     {
         $this->ensureFormAccess($qualityForm);
 
-        $qualityForm->load(['campaign', 'versions.formAttributes.subAttributes', 'contextUploadedBy']);
+        $qualityForm->load(['campaign.parent', 'versions.formAttributes.subAttributes', 'contextUploadedBy']);
         return view('quality-forms.show', compact('qualityForm'));
     }
 
@@ -68,8 +73,13 @@ class QualityFormController extends Controller
     {
         $this->ensureFormAccess($qualityForm);
 
-        $qualityForm->load(['latestVersion.formAttributes.subAttributes', 'contextUploadedBy']);
-        $campaigns = Campaign::forUser(auth()->user())->active()->get();
+        $qualityForm->load(['campaign.parent', 'latestVersion.formAttributes.subAttributes', 'contextUploadedBy']);
+        $campaigns = Campaign::forUser(auth()->user())
+            ->active()
+            ->operational()
+            ->orderedForSelect()
+            ->get();
+
         return view('quality-forms.edit', compact('qualityForm', 'campaigns'));
     }
 
@@ -78,9 +88,27 @@ class QualityFormController extends Controller
         $this->ensureFormAccess($qualityForm);
 
         $validated = $request->validate([
+            'campaign_id' => 'required|exists:campaigns,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
+
+        if (! Campaign::forUser(auth()->user())->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para mover esta ficha a esa campaña o subcampaña.');
+        }
+
+        if ((int) $validated['campaign_id'] !== (int) $qualityForm->campaign_id) {
+            $hasEvaluations = \App\Models\Evaluation::whereIn(
+                'form_version_id',
+                $qualityForm->versions()->pluck('id')
+            )->exists();
+
+            if ($hasEvaluations) {
+                return back()
+                    ->withErrors(['campaign_id' => 'No se puede cambiar la campaña de una ficha que ya tiene evaluaciones.'])
+                    ->withInput();
+            }
+        }
 
         $qualityForm->update($validated);
 
@@ -148,7 +176,7 @@ class QualityFormController extends Controller
     {
         $this->ensureFormAccess($qualityForm);
 
-        $qualityForm->load(['campaign', 'contextUploadedBy']);
+        $qualityForm->load(['campaign.parent', 'contextUploadedBy']);
 
         return view('quality-forms.context', compact('qualityForm'));
     }

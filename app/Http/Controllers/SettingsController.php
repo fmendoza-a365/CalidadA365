@@ -201,7 +201,7 @@ class SettingsController extends Controller
             'campaign_id' => $request->input('campaign_id'),
         ];
         $performance = $aiPerformance->summary($filters, auth()->user());
-        $campaigns = Campaign::forUser(auth()->user())->orderBy('name')->get();
+        $campaigns = Campaign::forUser(auth()->user())->orderedForSelect()->get();
 
         return view('settings.ai-performance', compact('performance', 'filters', 'campaigns'));
     }

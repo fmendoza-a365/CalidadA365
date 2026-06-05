@@ -19,7 +19,7 @@ class EvaluationWorkQueueController extends Controller
             abort(403);
         }
 
-        $pendingReviewQuery = Evaluation::with(['agent', 'campaign', 'interaction', 'reviewClaimer'])
+        $pendingReviewQuery = Evaluation::with(['agent', 'campaign.parent', 'interaction', 'reviewClaimer'])
             ->forUser($user)
             ->availableForReviewBy($user)
             ->whereIn('status', [
@@ -28,7 +28,7 @@ class EvaluationWorkQueueController extends Controller
             ])
             ->whereDoesntHave('interaction.manualEvaluation');
 
-        $aiQueueQuery = Evaluation::with(['agent', 'campaign', 'interaction'])
+        $aiQueueQuery = Evaluation::with(['agent', 'campaign.parent', 'interaction'])
             ->forUser($user)
             ->whereIn('status', [
                 Evaluation::STATUS_PENDING_AI,
@@ -39,7 +39,7 @@ class EvaluationWorkQueueController extends Controller
 
         $disputesQuery = DisputeResolution::with([
             'evaluation.agent',
-            'evaluation.campaign',
+            'evaluation.campaign.parent',
             'evaluation.interaction',
         ])
             ->whereHas('evaluation', function ($query) use ($user) {
@@ -57,7 +57,15 @@ class EvaluationWorkQueueController extends Controller
             ->filter(fn (array $pair) => $pair['absolute_score_delta'] >= 10)
             ->values();
         $productivity = $operationalMetrics->summary($filters, $user);
-        $campaigns = Campaign::active()->forUser($user)->orderBy('name')->get();
+        if ($request->filled('campaign_id')) {
+            $campaignIds = Campaign::idsForFilter($request->input('campaign_id'));
+
+            $pendingReviewQuery->whereIn('campaign_id', $campaignIds);
+            $aiQueueQuery->whereIn('campaign_id', $campaignIds);
+            $disputesQuery->whereHas('evaluation', fn ($query) => $query->whereIn('campaign_id', $campaignIds));
+        }
+
+        $campaigns = Campaign::active()->forUser($user)->orderedForSelect()->get();
 
         $counts = [
             'pending_review' => (clone $pendingReviewQuery)->count(),

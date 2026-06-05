@@ -188,7 +188,7 @@
                         <select name="campaign_id" class="form-select">
                             <option value="">Todas las campañas visibles</option>
                             @foreach($campaigns as $campaign)
-                                <option value="{{ $campaign->id }}">{{ $campaign->name }}</option>
+                                <option value="{{ $campaign->id }}">{{ $campaign->displayName() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -232,7 +232,7 @@
                     <thead>
                         <tr>
                             <th>Fecha</th>
-                            <th>Campaña</th>
+                            <th>Campaña / Subcampaña</th>
                             <th>Tipo</th>
                             <th>Periodo Analizado</th>
                             <th>Generado Por</th>
@@ -243,7 +243,7 @@
                         @forelse($reports as $report)
                             <tr>
                                 <td class="whitespace-nowrap">{{ $report->created_at->format('d/m/Y H:i') }}</td>
-                                <td>{{ $report->campaign->name ?? 'N/A' }}</td>
+                                <td>{{ $report->campaign?->displayName() ?? 'N/A' }}</td>
                                 <td>
                                     @if($report->type === 'operational')
                                         <span class="badge badge-primary">Operacional</span>

@@ -44,11 +44,11 @@
                         ">
                             <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                                 <div class="form-group">
-                                    <label for="campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
+                                    <label for="campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
                                     <select name="campaign_id" id="campaign_id" class="form-select" required x-model="selectedCampaign">
-                                        <option value="">Seleccione una campaña</option>
+                                        <option value="">Seleccione campaña o subcampaña</option>
                                         @foreach($campaigns as $campaign)
-                                            <option value="{{ $campaign->id }}">{{ $campaign->name }}</option>
+                                            <option value="{{ $campaign->id }}">{{ $campaign->displayName() }}</option>
                                         @endforeach
                                     </select>
                                     <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />

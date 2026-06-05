@@ -48,7 +48,7 @@
                                         @endif
                                     </div>
                                     <div>
-                                        <div class="font-medium text-gray-900 dark:text-white">{{ $campaign->name }}</div>
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $campaign->displayName() }}</div>
                                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $campaign->type }}</div>
                                     </div>
                                 </div>

@@ -47,9 +47,12 @@ class DisputeOpened extends Notification
      */
     public function toArray(object $notifiable): array
     {
+        $this->evaluation->loadMissing('campaign.parent');
+        $campaignName = $this->evaluation->campaign?->displayName() ?? 'N/A';
+
         return [
             'title' => 'Nueva Disputa Abierta',
-            'message' => "El agente {$this->agent->name} ha disputado una evaluación en la campaña {$this->evaluation->campaign->name}.",
+            'message' => "El agente {$this->agent->name} ha disputado una evaluación en la campaña {$campaignName}.",
             'action_url' => route('evaluations.show', $this->evaluation),
             'icon' => 'exclamation-circle',
             'type' => 'warning',

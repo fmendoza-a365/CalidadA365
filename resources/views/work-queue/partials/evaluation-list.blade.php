@@ -38,7 +38,7 @@
                             {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                         </span>
                     </div>
-                    <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->name ?? 'Sin campaña' }}</div>
+                    <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</div>
                     <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                         <span>{{ $evaluation->type === 'ai' ? 'Evaluación IA' : 'Evaluación manual' }}</span>
                         <span>·</span>

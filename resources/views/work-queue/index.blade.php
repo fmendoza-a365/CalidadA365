@@ -22,11 +22,11 @@
                             <input type="date" name="end_date" value="{{ $filters['end_date'] }}" class="form-input">
                         </div>
                         <div>
-                            <label class="form-label">Campaña</label>
+                            <label class="form-label">Campaña / Subcampaña</label>
                             <select name="campaign_id" class="form-select">
                                 <option value="">Todas</option>
                                 @foreach($campaigns as $campaign)
-                                    <option value="{{ $campaign->id }}" {{ (string) $filters['campaign_id'] === (string) $campaign->id ? 'selected' : '' }}>{{ $campaign->name }}</option>
+                                    <option value="{{ $campaign->id }}" {{ (string) $filters['campaign_id'] === (string) $campaign->id ? 'selected' : '' }}>{{ $campaign->displayName() }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -198,7 +198,7 @@
                                 <div class="flex items-center justify-between gap-3">
                                     <div class="min-w-0">
                                         <div class="font-semibold text-gray-900 dark:text-white">{{ $dispute->evaluation->agent?->name ?? 'N/A' }}</div>
-                                        <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $dispute->evaluation->campaign?->name ?? 'N/A' }}</div>
+                                        <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $dispute->evaluation->campaign?->displayName() ?? 'N/A' }}</div>
                                         <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ $dispute->created_at->diffForHumans() }}</div>
                                     </div>
                                     <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">

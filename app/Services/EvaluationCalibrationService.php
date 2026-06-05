@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Evaluation;
+use App\Models\Campaign;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -102,7 +103,7 @@ class EvaluationCalibrationService
             'interaction_id' => $manualEvaluation->interaction_id,
             'ai_evaluation_id' => $aiEvaluation->id,
             'manual_evaluation_id' => $manualEvaluation->id,
-            'campaign' => $manualEvaluation->campaign?->name ?? $aiEvaluation->campaign?->name ?? 'N/A',
+            'campaign' => $manualEvaluation->campaign?->displayName() ?? $aiEvaluation->campaign?->displayName() ?? 'N/A',
             'agent' => $manualEvaluation->agent?->name ?? $aiEvaluation->agent?->name ?? 'N/A',
             'ai_score' => round($aiScore, 2),
             'manual_score' => round($manualScore, 2),
@@ -162,7 +163,7 @@ class EvaluationCalibrationService
         }
 
         if (! empty($filters['campaign_id'])) {
-            $query->where('campaign_id', $filters['campaign_id']);
+            $query->whereIn('campaign_id', Campaign::idsForFilter($filters['campaign_id']));
         }
 
         return $query;

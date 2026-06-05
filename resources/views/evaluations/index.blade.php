@@ -174,11 +174,11 @@
                     </div>
 
                     <div>
-                        <label for="campaign_id" class="form-label">Campaña</label>
+                        <label for="campaign_id" class="form-label">Campaña / Subcampaña</label>
                         <select name="campaign_id" id="campaign_id" class="form-select">
                             <option value="">Todas</option>
                             @foreach($campaigns ?? [] as $campaign)
-                                <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->name }}</option>
+                                <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->displayName() }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -241,7 +241,7 @@
                             <th class="w-12">#</th>
                             <th class="min-w-[150px]">Agente</th>
                             <th class="w-16 text-center">Tipo</th>
-                            <th class="min-w-[140px]">Campaña</th>
+                            <th class="min-w-[160px]">Campaña / Subcampaña</th>
                             <th class="w-28">Score</th>
                             <th class="w-36">Canal</th>
                             <th class="w-10 text-center">Gold</th>
@@ -295,8 +295,8 @@
 
                                 {{-- Columna Campaña --}}
                                 <td>
-                                    <div class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="{{ $evaluation->campaign?->name }}">
-                                        {{ $evaluation->campaign?->name ?? 'Sin campaña' }}
+                                    <div class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[160px]" title="{{ $evaluation->campaign?->displayName() }}">
+                                        {{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}
                                     </div>
                                 </td>
 
@@ -420,7 +420,7 @@
                                         <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                     @endif
                                 </div>
-                                <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->name ?? 'Sin campaña' }}</div>
+                                <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</div>
                                 @if($interaction)
                                     <div class="mt-1 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                                         <span class="flex items-center gap-1">

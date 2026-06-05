@@ -58,7 +58,7 @@ class DashboardQualityController extends Controller
         $calibrationSummary = $this->calibration->summary($filters, auth()->user());
         $calibrationPairs = $this->calibration->recentPairs($filters, auth()->user());
 
-        $campaigns = Campaign::forUser(auth()->user())->orderBy('name')->get();
+        $campaigns = Campaign::forUser(auth()->user())->orderedForSelect()->get();
 
         return view('dashboard.quality.index', compact(
             'stats',

@@ -6,7 +6,7 @@
                     Evaluación Manual Final
                 </h2>
                 <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {{ $interaction->agent->name }} • {{ $interaction->campaign->name }}
+                    {{ $interaction->agent->name }} • {{ $interaction->campaign?->displayName() ?? 'Sin campaña' }}
                 </div>
             </div>
             

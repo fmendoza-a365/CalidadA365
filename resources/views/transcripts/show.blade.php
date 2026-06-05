@@ -22,9 +22,9 @@
             <div class="card-body">
                 <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña / Subcampaña</div>
                         <p class="font-medium text-gray-900 dark:text-white">
-                            {{ $interaction->campaign?->name ?? 'Campaña no disponible' }}
+                            {{ $interaction->campaign?->displayName() ?? 'Campaña no disponible' }}
                         </p>
                     </div>
                     <div>

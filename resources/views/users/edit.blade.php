@@ -98,7 +98,7 @@
                                             class="form-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
                                         <div class="flex flex-col">
                                             <span class="text-sm font-medium text-gray-700 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                {{ $campaign->name }}
+                                                {{ $campaign->displayName() }}
                                             </span>
                                             <span class="text-[10px] text-gray-400 uppercase tracking-wider">{{ $campaign->type }}</span>
                                         </div>

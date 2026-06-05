@@ -113,9 +113,16 @@ class Campaign extends Model
         // 3. Supervisor, Agent: View only campaigns they are assigned to
         // Supervisors and Agents use CampaignUserAssignment
         if ($user->hasAnyRole(['supervisor', 'agent'])) {
-            return $query->whereHas('assignments', function ($q) use ($user) {
-                $q->where('agent_id', $user->id)
-                    ->orWhere('supervisor_id', $user->id);
+            return $query->where(function ($query) use ($user) {
+                $query
+                    ->whereHas('assignments', function ($q) use ($user) {
+                        $q->where('agent_id', $user->id)
+                            ->orWhere('supervisor_id', $user->id);
+                    })
+                    ->orWhereHas('parent.assignments', function ($q) use ($user) {
+                        $q->where('agent_id', $user->id)
+                            ->orWhere('supervisor_id', $user->id);
+                    });
             });
         }
 
@@ -146,10 +153,76 @@ class Campaign extends Model
         return $query->whereNotNull('parent_id');
     }
 
+    public function scopeOperational($query)
+    {
+        return $query->where(function ($query) {
+            $query
+                ->whereNotNull('parent_id')
+                ->orWhereDoesntHave('children');
+        });
+    }
+
+    public function scopeOrderedForSelect($query)
+    {
+        return $query
+            ->with('parent')
+            ->orderByRaw('COALESCE(parent_id, id)')
+            ->orderByRaw('CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('name');
+    }
+
+    public function isSubcampaign(): bool
+    {
+        return filled($this->parent_id);
+    }
+
+    public function isGeneralCampaign(): bool
+    {
+        return ! $this->isSubcampaign();
+    }
+
     public function displayName(): string
     {
         return $this->parent
             ? $this->parent->name.' / '.$this->name
             : $this->name;
+    }
+
+    public static function idsWithChildren($campaignIds): array
+    {
+        $ids = collect($campaignIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $childIds = static::query()
+            ->whereIn('parent_id', $ids)
+            ->pluck('id');
+
+        return $ids
+            ->merge($childIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public static function idsForFilter($campaignId): array
+    {
+        return static::idsWithChildren([$campaignId]);
+    }
+
+    public static function visibleIdsForUser($user): array
+    {
+        if ($user->hasAnyRole(['admin', 'qa_manager'])) {
+            return static::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        return static::idsWithChildren($user->managedCampaigns()->pluck('campaigns.id'));
     }
 }

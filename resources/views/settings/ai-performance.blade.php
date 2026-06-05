@@ -22,11 +22,11 @@
                             <input type="date" name="end_date" value="{{ $filters['end_date'] }}" class="form-input">
                         </div>
                         <div>
-                            <label class="form-label">Campaña</label>
+                            <label class="form-label">Campaña / Subcampaña</label>
                             <select name="campaign_id" class="form-select">
                                 <option value="">Todas</option>
                                 @foreach($campaigns as $campaign)
-                                    <option value="{{ $campaign->id }}" {{ (string) $filters['campaign_id'] === (string) $campaign->id ? 'selected' : '' }}>{{ $campaign->name }}</option>
+                                    <option value="{{ $campaign->id }}" {{ (string) $filters['campaign_id'] === (string) $campaign->id ? 'selected' : '' }}>{{ $campaign->displayName() }}</option>
                                 @endforeach
                             </select>
                         </div>

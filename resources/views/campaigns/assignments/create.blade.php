@@ -1,11 +1,24 @@
 <x-app-layout>
-    <x-slot name="header">Nueva Asignación - {{ $campaign->name }}</x-slot>
+    <x-slot name="header">Nueva Asignación - {{ $campaign->displayName() }}</x-slot>
 
     <div class="form-container">
         <div class="form-card">
             <div class="form-body">
                 <form method="POST" action="{{ route('campaigns.assignments.store', $campaign) }}" class="form-section">
                     @csrf
+
+                    <div class="form-group">
+                        <label for="target_campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
+                        <select name="target_campaign_id" id="target_campaign_id" class="form-select" required>
+                            @foreach($assignmentCampaigns as $assignmentCampaign)
+                                <option value="{{ $assignmentCampaign->id }}" @selected((string) old('target_campaign_id', $assignmentCampaigns->count() === 1 ? $assignmentCampaign->id : '') === (string) $assignmentCampaign->id)>
+                                    {{ $assignmentCampaign->displayName() }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Las asignaciones operativas se guardan en la subcampaña seleccionada.</p>
+                        <x-input-error :messages="$errors->get('target_campaign_id')" class="mt-1" />
+                    </div>
 
                     <div class="form-row">
                         <div class="form-group">

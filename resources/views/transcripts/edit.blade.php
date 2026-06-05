@@ -22,11 +22,11 @@
                 <div class="card-body space-y-6">
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
                         <div class="form-group">
-                            <label for="campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
+                            <label for="campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
                             <select name="campaign_id" id="campaign_id" class="form-select" required>
                                 @foreach($campaigns as $campaign)
                                     <option value="{{ $campaign->id }}" {{ old('campaign_id', $interaction->campaign_id) == $campaign->id ? 'selected' : '' }}>
-                                        {{ $campaign->name }}
+                                        {{ $campaign->displayName() }}
                                     </option>
                                 @endforeach
                             </select>

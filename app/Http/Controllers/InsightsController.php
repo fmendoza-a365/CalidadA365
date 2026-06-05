@@ -23,7 +23,7 @@ class InsightsController extends Controller
     {
         // Comprehensive Stats
         $user = auth()->user();
-        $reports = InsightReport::with('campaign', 'creator')
+        $reports = InsightReport::with('campaign.parent', 'creator')
             ->where(function ($query) use ($user) {
                 $query
                     ->where('generated_by', $user->id)
@@ -37,7 +37,7 @@ class InsightsController extends Controller
             })
             ->latest()
             ->paginate(10);
-        $campaigns = Campaign::forUser($user)->active()->orderBy('name')->get();
+        $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get();
 
         $totalEvaluations = Evaluation::forUser($user)->count();
         $avgScore = Evaluation::forUser($user)->avg('percentage_score') ?? 0;
@@ -131,12 +131,13 @@ class InsightsController extends Controller
 
         // Fetch evaluations with comprehensive eager loading to prevent N+1 queries
         $evaluations = Evaluation::forUser($user)
-            ->when($campaign, fn ($query) => $query->where('campaign_id', $campaign->id))
+            ->when($campaign, fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($campaign->id)))
             ->whereBetween('created_at', [$startDate, $endDate])
             ->with([
                 'items.subAttribute:id,name,attribute_id,is_critical',
                 'items.subAttribute.attribute:id,name',
-                'campaign:id,name,description',
+                'campaign:id,parent_id,name,description',
+                'campaign.parent:id,name',
                 'formVersion.formAttributes.subAttributes',
                 'agent:id,name',
             ])
@@ -211,7 +212,7 @@ class InsightsController extends Controller
         return [
             'scope' => [
                 'campaign_id' => $campaign?->id,
-                'campaign_name' => $campaign?->name ?? 'Todas las campañas visibles',
+                'campaign_name' => $campaign?->displayName() ?? 'Todas las campañas visibles',
                 'type' => $type,
                 'date_range_start' => $startDate->toDateString(),
                 'date_range_end' => $endDate->toDateString(),
@@ -312,7 +313,7 @@ class InsightsController extends Controller
     private function campaignBreakdown($evaluations): array
     {
         return $evaluations
-            ->groupBy(fn (Evaluation $evaluation) => $evaluation->campaign?->name ?? 'Sin campaña')
+            ->groupBy(fn (Evaluation $evaluation) => $evaluation->campaign?->displayName() ?? 'Sin campaña')
             ->map(function ($campaignEvaluations, string $campaignName) {
                 $scored = $campaignEvaluations->filter(fn (Evaluation $evaluation) => $evaluation->percentage_score !== null);
 

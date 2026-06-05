@@ -48,7 +48,7 @@ class MobileDashboardController extends Controller
             ->values();
 
         $recentEvaluations = $this->visibleEvaluations($user)
-            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
+            ->with(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
             ->latest('evaluations.created_at')
             ->limit(8)
             ->get()
@@ -148,7 +148,7 @@ class MobileDashboardController extends Controller
         $perPage = min(max((int) $request->query('per_page', 20), 1), 50);
 
         $evaluations = $this->visibleEvaluations($user)
-            ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
+            ->with(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
             ->latest('evaluations.created_at')
             ->paginate($perPage);
 
@@ -174,7 +174,7 @@ class MobileDashboardController extends Controller
         }
 
         return response()->json([
-            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
         ]);
     }
 
@@ -199,7 +199,7 @@ class MobileDashboardController extends Controller
 
         return response()->json([
             'message' => 'Respuesta registrada.',
-            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
+            'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
         ]);
     }
 
@@ -291,7 +291,7 @@ class MobileDashboardController extends Controller
             });
 
         $criticalCandidates = $this->visibleEvaluations($user)
-            ->with(['agent', 'campaign', 'interaction'])
+            ->with(['agent', 'campaign.parent', 'interaction'])
             ->where(function (Builder $query) {
                 $query
                     ->where('percentage_score', '<', 70)
@@ -306,7 +306,7 @@ class MobileDashboardController extends Controller
             ->get();
 
         $recentCandidates = $this->visibleEvaluations($user)
-            ->with(['agent', 'campaign', 'interaction'])
+            ->with(['agent', 'campaign.parent', 'interaction'])
             ->latest('evaluations.created_at')
             ->limit(40)
             ->get();
@@ -360,7 +360,7 @@ class MobileDashboardController extends Controller
                     'critical' => (clone $visibleEvaluations)->whereNotNull('percentage_score')->where('percentage_score', '<', 70)->count(),
                 ],
                 'items' => (clone $visibleEvaluations)
-                    ->with(['agentResponse', 'agent', 'campaign', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
+                    ->with(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])
                     ->latest('evaluations.created_at')
                     ->limit(6)
                     ->get()
@@ -421,14 +421,17 @@ class MobileDashboardController extends Controller
     {
         $conversationParser = new \App\Support\TranscriptConversationParser();
         return $this->visibleInteractions($user)
-            ->with(['agent', 'campaign', 'supervisor', 'evaluation'])
+            ->with(['agent', 'campaign.parent', 'supervisor', 'evaluation'])
             ->latest('occurred_at')
             ->latest('id')
             ->limit(6)
             ->get()
             ->map(fn (Interaction $interaction) => [
                 'id' => $interaction->id,
-                'campaign' => $interaction->campaign?->name,
+                'campaign' => $interaction->campaign?->displayName(),
+                'campaign_id' => $interaction->campaign_id,
+                'campaign_parent' => $interaction->campaign?->parent?->name,
+                'subcampaign' => $interaction->campaign?->parent ? $interaction->campaign->name : null,
                 'agent' => $interaction->agent?->name,
                 'supervisor' => $interaction->supervisor?->name,
                 'source_type' => $interaction->source_type,
@@ -452,26 +455,31 @@ class MobileDashboardController extends Controller
     private function campaignsPayload(User $user, array $filters): Collection
     {
         return Campaign::forUser($user)
-            ->withCount(['interactions', 'forms'])
+            ->with('parent')
             ->latest()
             ->limit(8)
             ->get()
             ->map(function (Campaign $campaign) use ($user, $filters) {
-                $query = Evaluation::query()->forUser($user)->where('campaign_id', $campaign->id);
+                $campaignIds = Campaign::idsForFilter($campaign->id);
+                $query = Evaluation::query()->forUser($user)->whereIn('campaign_id', $campaignIds);
                 $this->applyDateFilters($query, $filters);
                 $total = (clone $query)->count();
                 $average = (float) ((clone $query)->avg('percentage_score') ?? 0);
 
                 return [
                     'id' => $campaign->id,
-                    'name' => $campaign->name,
+                    'name' => $campaign->displayName(),
+                    'parent_id' => $campaign->parent_id,
+                    'parent_name' => $campaign->parent?->name,
+                    'subcampaign' => $campaign->parent ? $campaign->name : null,
+                    'is_subcampaign' => $campaign->isSubcampaign(),
                     'active' => (bool) $campaign->is_active,
                     'target_quality' => $campaign->target_quality !== null ? (float) $campaign->target_quality : null,
                     'evaluations' => $total,
                     'average_score' => round($average, 1),
                     'score_label' => $this->formatPercent($average),
-                    'interactions' => (int) $campaign->interactions_count,
-                    'forms' => (int) $campaign->forms_count,
+                    'interactions' => Interaction::query()->forUser($user)->whereIn('campaign_id', $campaignIds)->count(),
+                    'forms' => QualityForm::query()->forUser($user)->whereIn('campaign_id', $campaignIds)->count(),
                     'url' => url('/campaigns/'.$campaign->id),
                 ];
             })
@@ -481,7 +489,7 @@ class MobileDashboardController extends Controller
     private function qualityFormsPayload(User $user): Collection
     {
         return QualityForm::forUser($user)
-            ->with(['campaign', 'latestVersion'])
+            ->with(['campaign.parent', 'latestVersion'])
             ->withCount('versions')
             ->latest()
             ->limit(6)
@@ -489,7 +497,10 @@ class MobileDashboardController extends Controller
             ->map(fn (QualityForm $form) => [
                 'id' => $form->id,
                 'name' => $form->name,
-                'campaign' => $form->campaign?->name,
+                'campaign' => $form->campaign?->displayName(),
+                'campaign_id' => $form->campaign_id,
+                'campaign_parent' => $form->campaign?->parent?->name,
+                'subcampaign' => $form->campaign?->parent ? $form->campaign->name : null,
                 'versions' => (int) $form->versions_count,
                 'latest_status' => $form->latestVersion?->status ?? 'Sin version',
                 'has_context' => filled($form->operational_context_markdown) || filled($form->context_file_text),
@@ -501,14 +512,17 @@ class MobileDashboardController extends Controller
     private function insightsPayload(User $user): Collection
     {
         return InsightReport::whereHas('campaign', fn (Builder $query) => $query->forUser($user))
-            ->with('campaign')
+            ->with('campaign.parent')
             ->latest()
             ->limit(6)
             ->get()
             ->map(fn (InsightReport $insight) => [
                 'id' => $insight->id,
                 'type' => $insight->type,
-                'campaign' => $insight->campaign?->name,
+                'campaign' => $insight->campaign?->displayName(),
+                'campaign_id' => $insight->campaign_id,
+                'campaign_parent' => $insight->campaign?->parent?->name,
+                'subcampaign' => $insight->campaign?->parent ? $insight->campaign->name : null,
                 'date_range' => trim(($insight->date_range_start?->format('Y-m-d') ?? '').' - '.($insight->date_range_end?->format('Y-m-d') ?? ''), ' -'),
                 'findings' => is_array($insight->key_findings) ? count($insight->key_findings) : 0,
                 'summary' => str((string) $insight->summary_content)->stripTags()->limit(120)->toString(),
@@ -596,7 +610,10 @@ class MobileDashboardController extends Controller
             'score' => $evaluation->percentage_score !== null ? (float) $evaluation->percentage_score : null,
             'status' => $evaluation->status,
             'status_label' => Evaluation::statusLabel($evaluation->status),
-            'campaign' => $evaluation->campaign?->name,
+            'campaign' => $evaluation->campaign?->displayName(),
+            'campaign_id' => $evaluation->campaign_id,
+            'campaign_parent' => $evaluation->campaign?->parent?->name,
+            'subcampaign' => $evaluation->campaign?->parent ? $evaluation->campaign->name : null,
             'agent' => $evaluation->agent?->name,
             'created_at' => $evaluation->created_at?->toIso8601String(),
             'action_url' => url('/evaluations/'.$evaluation->id),
@@ -616,7 +633,10 @@ class MobileDashboardController extends Controller
             'score_label' => $evaluation->percentage_score !== null ? $this->formatPercent($evaluation->percentage_score) : 'Sin nota',
             'status' => $evaluation->status,
             'status_label' => Evaluation::statusLabel($evaluation->status),
-            'campaign' => $evaluation->campaign?->name,
+            'campaign' => $evaluation->campaign?->displayName(),
+            'campaign_id' => $evaluation->campaign_id,
+            'campaign_parent' => $evaluation->campaign?->parent?->name,
+            'subcampaign' => $evaluation->campaign?->parent ? $evaluation->campaign->name : null,
             'agent' => $evaluation->agent?->name,
             'evaluator' => $evaluation->evaluator?->name,
             'created_at' => $evaluation->created_at?->toIso8601String(),

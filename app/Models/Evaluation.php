@@ -250,9 +250,7 @@ class Evaluation extends Model
 
         // 2. Manager: View Managed Campaigns
         if ($user->hasRole('manager')) {
-            $campaignIds = $user->managedCampaigns->pluck('id');
-
-            return $query->whereIn('campaign_id', $campaignIds);
+            return $query->whereIn('campaign_id', Campaign::visibleIdsForUser($user));
         }
 
         // 3. QA Manager / Coordinator: View Monitors' Evaluations & Assigned Campaigns
@@ -269,7 +267,7 @@ class Evaluation extends Model
                 // Assuming QA Managers might also have campaign_managers entries or similar.
                 // For now, if they are assigned to a campaign via pivot (unlikely for QA but possible) check there.
                 // Or if they are supervisors in a campaign.
-                $q->orWhereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+                $q->orWhereIn('campaign_id', Campaign::visibleIdsForUser($user));
             });
         }
 
@@ -295,7 +293,7 @@ class Evaluation extends Model
         if ($user->hasRole('qa_monitor')) {
             return $query->where(function ($q) use ($user) {
                 $q->where('evaluator_id', $user->id)
-                    ->orWhereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+                    ->orWhereIn('campaign_id', Campaign::visibleIdsForUser($user));
             });
         }
 

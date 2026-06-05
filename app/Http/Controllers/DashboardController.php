@@ -27,7 +27,7 @@ class DashboardController extends Controller
             $matchHistory = $analytics->getAgentMatchHistory($filters, 10);
             $agentRanking = $analytics->getAgentRanking($filters);
             $topDefects = $analytics->getTopDefects($filters);
-            $campaigns = Campaign::forUser($user)->orderBy('name')->get();
+            $campaigns = Campaign::forUser($user)->orderedForSelect()->get();
 
             return view('dashboard.agent', compact(
                 'stats',
@@ -52,7 +52,7 @@ class DashboardController extends Controller
             'campaigns_active' => Campaign::active()->count(),
         ];
 
-        $recentEvaluations = Evaluation::with(['agent', 'campaign'])
+        $recentEvaluations = Evaluation::with(['agent', 'campaign.parent'])
             ->latest()
             ->limit(10)
             ->get();
@@ -109,7 +109,7 @@ class DashboardController extends Controller
         ];
 
         $recentEvaluations = Evaluation::where('agent_id', $user->id)
-            ->with(['campaign', 'formVersion'])
+            ->with(['campaign.parent', 'formVersion'])
             ->visibleToAgent()
             ->latest()
             ->limit(10)

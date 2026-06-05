@@ -7,10 +7,9 @@
             @csrf
 
             <!-- Left Column: Identity -->
-            <div class="lg:col-span-1 space-y-6">
+            <div x-data="{ parentId: @js(old('parent_id', '')) }" class="lg:col-span-1 space-y-6">
                 <!-- Logo & Style Card -->
-                <div
-                    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Identidad Visual</h3>
 
                     <!-- Logo Upload -->
@@ -76,7 +75,7 @@
 
                     <div class="form-group mb-4">
                         <label for="parent_id" class="form-label">Campaña general</label>
-                        <select name="parent_id" id="parent_id" class="form-select">
+                        <select name="parent_id" id="parent_id" class="form-select" x-model="parentId">
                             <option value="">Es campaña general</option>
                             @foreach($parentCampaigns as $parentCampaign)
                                 <option value="{{ $parentCampaign->id }}" @selected((string) old('parent_id') === (string) $parentCampaign->id)>
@@ -86,6 +85,14 @@
                         </select>
                         <p class="text-xs text-gray-500 mt-1">Úsalo para crear subcampañas como Claro / Upgrade, Prepago o Postpago.</p>
                         <x-input-error :messages="$errors->get('parent_id')" class="mt-1" />
+                    </div>
+
+                    <div class="form-group mb-4" x-show="!parentId" x-cloak>
+                        <label for="subcampaign_names" class="form-label">Subcampañas</label>
+                        <textarea name="subcampaign_names" id="subcampaign_names" rows="4" class="form-textarea"
+                            placeholder="Ej: Claro Upgrade&#10;Claro Prepago&#10;Claro Postpago">{{ old('subcampaign_names') }}</textarea>
+                        <p class="text-xs text-gray-500 mt-1">Puedes registrar varias subcampañas, una por línea o separadas por coma. Heredarán los gestores y metas de la campaña general.</p>
+                        <x-input-error :messages="$errors->get('subcampaign_names')" class="mt-1" />
                     </div>
 
                     <div class="form-group mb-4">

@@ -799,8 +799,9 @@ PROMPT;
     {
         // Obtener contexto de campaña y ficha de calidad
         $firstEval = $evaluations->first();
-        $campaign = $firstEval->campaign;
-        $campaignName = $reportSnapshot['scope']['campaign_name'] ?? $campaign?->name ?? 'Todas las campañas visibles';
+        $firstEval?->loadMissing('campaign.parent');
+        $campaign = $firstEval?->campaign;
+        $campaignName = $reportSnapshot['scope']['campaign_name'] ?? $campaign?->displayName() ?? 'Todas las campañas visibles';
         $campaignDescription = $campaign?->description ?: 'Análisis consolidado sobre evaluaciones reales del periodo seleccionado.';
 
         // Recopilar criterios de la ficha de calidad

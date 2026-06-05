@@ -63,7 +63,7 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::all();
-        $campaigns = Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->orderedForSelect()->get();
         return view('users.create', compact('roles', 'campaigns'));
     }
 
@@ -101,6 +101,17 @@ class UserController extends Controller
                 return back()
                     ->withInput()
                     ->withErrors(['default_subcampaign_id' => 'Selecciona una subcampaña operativa válida.']);
+            }
+        } elseif (! empty($validated['default_campaign_id'])) {
+            $requiresSubcampaign = Campaign::query()
+                ->whereKey($validated['default_campaign_id'])
+                ->whereHas('children')
+                ->exists();
+
+            if ($requiresSubcampaign) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['default_subcampaign_id' => 'Esta campaña general tiene subcampañas. Selecciona la subcampaña destino para asignar al personal.']);
             }
         }
 
@@ -158,7 +169,8 @@ class UserController extends Controller
             'department' => 'Lima',
             'province' => 'Lima',
             'district' => 'Miraflores',
-            'campaigns' => 'Claro Upgrade',
+            'campaigns' => 'Claro',
+            'subcampaigns' => 'Claro Upgrade',
             'supervisor_username' => 's001',
         ]];
 
@@ -179,7 +191,8 @@ class UserController extends Controller
             'department' => 'Lima',
             'province' => 'Lima',
             'district' => 'Miraflores',
-            'campaigns' => 'Claro Upgrade',
+            'campaigns' => 'Claro',
+            'subcampaigns' => 'Claro Upgrade',
             'supervisor_username' => 's001',
         ]];
 
@@ -227,7 +240,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $roles = Role::all();
-        $campaigns = Campaign::active()->orderBy('name')->get();
+        $campaigns = Campaign::active()->orderedForSelect()->get();
         $user->load('managedCampaigns');
         return view('users.edit', compact('user', 'roles', 'campaigns'));
     }
@@ -441,7 +454,7 @@ class UserController extends Controller
 
     private function campaignIdsForImport(array $row, ?int $defaultCampaignId, ?int $defaultSubcampaignId): array
     {
-        $campaignIds = $this->campaignIdsFromCsvValue(CsvImport::value($row, [
+        $campaignValue = CsvImport::value($row, [
             'campaigns',
             'campanias',
             'campañas',
@@ -449,6 +462,9 @@ class UserController extends Controller
             'campania',
             'campaña',
             'campaign',
+        ]);
+
+        $subcampaignValue = CsvImport::value($row, [
             'subcampaigns',
             'sub_campaigns',
             'subcampanias',
@@ -457,7 +473,9 @@ class UserController extends Controller
             'subcampaña',
             'subcampaign',
             'sub_campaign',
-        ]));
+        ]);
+
+        $campaignIds = $this->campaignIdsFromCsvValues($campaignValue, $subcampaignValue);
 
         if ($defaultSubcampaignId) {
             array_unshift($campaignIds, $defaultSubcampaignId);
@@ -598,10 +616,7 @@ class UserController extends Controller
             return [];
         }
 
-        $tokens = collect(preg_split('/[;|]+/', $value))
-            ->map(fn ($token) => trim((string) $token))
-            ->filter()
-            ->values();
+        $tokens = $this->csvCampaignTokens($value);
 
         $campaignIds = Campaign::query()
             ->whereIn('id', $tokens->filter(fn ($token) => ctype_digit($token))->map(fn ($token) => (int) $token))
@@ -626,6 +641,69 @@ class UserController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function campaignIdsFromCsvValues(?string $campaignValue, ?string $subcampaignValue): array
+    {
+        $campaignIds = [];
+
+        if (filled($subcampaignValue)) {
+            $campaignIds = $this->subcampaignIdsFromCsvValue($subcampaignValue, $campaignValue);
+        }
+
+        if (empty($campaignIds) && filled($campaignValue)) {
+            $campaignIds = $this->campaignIdsFromCsvValue($campaignValue);
+        }
+
+        return collect($campaignIds)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function subcampaignIdsFromCsvValue(?string $value, ?string $parentValue = null): array
+    {
+        if (blank($value)) {
+            return [];
+        }
+
+        $tokens = $this->csvCampaignTokens($value);
+        $parentIds = collect($this->campaignIdsFromCsvValue($parentValue));
+
+        return Campaign::query()
+            ->active()
+            ->operational()
+            ->with('parent')
+            ->get()
+            ->filter(function (Campaign $campaign) use ($tokens, $parentIds) {
+                if ($parentIds->isNotEmpty()
+                    && ! $parentIds->contains($campaign->id)
+                    && ! $parentIds->contains((int) $campaign->parent_id)
+                ) {
+                    return false;
+                }
+
+                return $tokens->contains(function ($token) use ($campaign) {
+                    $normalized = Str::lower($token);
+
+                    return (ctype_digit($token) && (int) $token === $campaign->id)
+                        || $normalized === Str::lower($campaign->name)
+                        || $normalized === Str::lower($campaign->displayName());
+                });
+            })
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function csvCampaignTokens(?string $value): \Illuminate\Support\Collection
+    {
+        return collect(preg_split('/[\r\n;|,]+/', (string) $value))
+            ->map(fn ($token) => trim((string) $token))
+            ->filter()
+            ->values();
     }
 
 }

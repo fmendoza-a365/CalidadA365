@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DisputeResolution;
 use App\Models\Evaluation;
+use App\Models\Campaign;
 use App\Models\User;
 
 class OperationalMetricsService
@@ -19,7 +20,7 @@ class OperationalMetricsService
                     $filters['end_date'].' 23:59:59',
                 ]);
             })
-            ->when(! empty($filters['campaign_id']), fn ($query) => $query->where('campaign_id', $filters['campaign_id']))
+            ->when(! empty($filters['campaign_id']), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($filters['campaign_id'])))
             ->get();
 
         $published = $evaluations->whereNotNull('visible_to_agent_at');

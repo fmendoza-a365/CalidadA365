@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Evaluation;
+use App\Models\Campaign;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -49,7 +50,7 @@ class AiPerformanceService
         }
 
         if (! empty($filters['campaign_id'])) {
-            $query->where('campaign_id', $filters['campaign_id']);
+            $query->whereIn('campaign_id', Campaign::idsForFilter($filters['campaign_id']));
         }
 
         return $query;

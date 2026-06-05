@@ -69,11 +69,11 @@
                                     @error('period_end')<p class="form-error">{{ $message }}</p>@enderror
                                 </div>
                                 <div class="md:col-span-2">
-                                    <label class="form-label">Campaña fija</label>
+                                    <label class="form-label">Campaña / Subcampaña fija</label>
                                     <select name="campaign_id" class="form-select">
-                                        <option value="">Tomar campaña desde el archivo</option>
-                                        @foreach($campaigns as $campaign)
-                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->name }}</option>
+                                        <option value="">Tomar campaña/subcampaña desde el archivo</option>
+                                        @foreach($operationalCampaigns as $campaign)
+                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
                                         @endforeach
                                     </select>
                                     @error('campaign_id')<p class="form-error">{{ $message }}</p>@enderror
@@ -154,11 +154,11 @@
                                 </div>
 
                                 <div>
-                                    <label class="form-label">Campaña</label>
+                                    <label class="form-label">Campaña / Subcampaña</label>
                                     <select name="campaign_id" class="form-select">
                                         <option value="">Todas las campañas de la dotación</option>
-                                        @foreach($campaigns as $campaign)
-                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->name }}</option>
+                                        @foreach($operationalCampaigns as $campaign)
+                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -169,7 +169,7 @@
                                         <option value="">Selecciona una dotación cargada</option>
                                         @foreach($staffingBatches as $batch)
                                             <option value="{{ $batch->id }}" @selected((string) old('staffing_batch_id') === (string) $batch->id)>
-                                                {{ $batch->name }} · {{ $batch->campaign?->name ?? 'Todas' }} · {{ $batch->active_members_count }} activos
+                                                {{ $batch->name }} · {{ $batch->campaign?->displayName() ?? 'Todas' }} · {{ $batch->active_members_count }} activos
                                             </option>
                                         @endforeach
                                     </select>
@@ -242,7 +242,7 @@
                                 <select name="campaign_id" class="form-select" onchange="this.form.submit()">
                                     <option value="">Todas las campañas</option>
                                     @foreach($campaigns as $campaign)
-                                        <option value="{{ $campaign->id }}" @selected((string) request('campaign_id') === (string) $campaign->id)>{{ $campaign->name }}</option>
+                                        <option value="{{ $campaign->id }}" @selected((string) request('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
                                     @endforeach
                                 </select>
                             </form>
@@ -260,7 +260,7 @@
                                             <div class="font-semibold text-gray-900 dark:text-white">{{ $plan->name ?: 'Plan '.$plan->week_start->format('d/m/Y') }}</div>
                                             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                                 {{ $plan->week_start->format('d/m/Y') }} - {{ $plan->week_end->format('d/m/Y') }}
-                                                · {{ $plan->campaign?->name ?? 'Todas' }}
+                                                · {{ $plan->campaign?->displayName() ?? 'Todas' }}
                                             </div>
                                             <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                                 {{ $plan->staff_count }} asesores · {{ $plan->orders_count }} órdenes · semilla {{ $plan->seed ?: 'auto' }}
@@ -306,7 +306,7 @@
                                             <div class="font-semibold text-gray-900 dark:text-white">{{ $batch->name }}</div>
                                             <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $batch->source_filename ?: 'Archivo cargado' }}</div>
                                         </td>
-                                        <td>{{ $batch->campaign?->name ?? $batch->campaign_name ?? 'Mixta' }}</td>
+                                        <td>{{ $batch->campaign?->displayName() ?? $batch->campaign_name ?? 'Mixta' }}</td>
                                         <td><span class="badge badge-success">{{ $batch->active_members_count }}</span></td>
                                     </tr>
                                 @empty

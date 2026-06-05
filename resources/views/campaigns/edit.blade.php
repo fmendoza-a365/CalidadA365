@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">Editar Campaña: {{ $campaign->name }}</x-slot>
+    <x-slot name="header">Editar Campaña: {{ $campaign->displayName() }}</x-slot>
 
     <div class="w-full mx-auto py-8">
         <form method="POST" action="{{ route('campaigns.update', $campaign) }}" enctype="multipart/form-data"
@@ -8,10 +8,9 @@
             @method('PUT')
 
             <!-- Left Column: Identity -->
-            <div class="lg:col-span-1 space-y-6">
+            <div x-data="{ parentId: @js(old('parent_id', $campaign->parent_id ? (string) $campaign->parent_id : '')) }" class="lg:col-span-1 space-y-6">
                 <!-- Logo & Style Card -->
-                <div
-                    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Identidad Visual</h3>
 
                     <!-- Logo Upload -->
@@ -77,7 +76,7 @@
 
                     <div class="form-group mb-4">
                         <label for="parent_id" class="form-label">Campaña general</label>
-                        <select name="parent_id" id="parent_id" class="form-select">
+                        <select name="parent_id" id="parent_id" class="form-select" x-model="parentId">
                             <option value="">Es campaña general</option>
                             @foreach($parentCampaigns as $parentCampaign)
                                 <option value="{{ $parentCampaign->id }}" @selected((string) old('parent_id', $campaign->parent_id) === (string) $parentCampaign->id)>
@@ -87,6 +86,21 @@
                         </select>
                         <p class="text-xs text-gray-500 mt-1">Si seleccionas una campaña general, esta campaña se tratará como subcampaña operativa.</p>
                         <x-input-error :messages="$errors->get('parent_id')" class="mt-1" />
+                    </div>
+
+                    <div class="form-group mb-4" x-show="!parentId" x-cloak>
+                        <label for="subcampaign_names" class="form-label">Agregar subcampañas</label>
+                        <textarea name="subcampaign_names" id="subcampaign_names" rows="4" class="form-textarea"
+                            placeholder="Ej: Claro Upgrade&#10;Claro Prepago&#10;Claro Postpago">{{ old('subcampaign_names') }}</textarea>
+                        @if($campaign->children->isNotEmpty())
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                @foreach($campaign->children as $child)
+                                    <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">{{ $child->name }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                        <p class="text-xs text-gray-500 mt-1">Solo agrega nombres nuevos. Las subcampañas existentes se conservarán.</p>
+                        <x-input-error :messages="$errors->get('subcampaign_names')" class="mt-1" />
                     </div>
 
                     <div class="form-group mb-4">

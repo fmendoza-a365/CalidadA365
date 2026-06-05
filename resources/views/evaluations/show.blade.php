@@ -52,8 +52,8 @@
                                     @endif
                                 </div>
                                 <div>
-                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña</div>
-                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign->name }}</p>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña / Subcampaña</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</p>
                                 </div>
                                 <div>
                                     <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Interacción</div>

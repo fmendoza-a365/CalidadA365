@@ -97,11 +97,11 @@ class TranscriptController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Interaction::with(['campaign', 'agent', 'supervisor'])
+        $query = Interaction::with(['campaign.parent', 'agent', 'supervisor'])
             ->forUser($user);
 
         if ($request->campaign_id) {
-            $query->where('campaign_id', $request->campaign_id);
+            $query->whereIn('campaign_id', Campaign::idsForFilter($request->campaign_id));
         }
 
         if ($request->status) {
@@ -132,7 +132,7 @@ class TranscriptController extends Controller
         }
 
         $interactions = $query->latest('occurred_at')->paginate(20);
-        $campaigns = Campaign::active()->forUser($user)->get();
+        $campaigns = Campaign::active()->forUser($user)->orderedForSelect()->get();
         $formOptions = $this->formOptions();
 
         return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions'));
@@ -141,7 +141,11 @@ class TranscriptController extends Controller
     public function create()
     {
         $user = auth()->user();
-        $campaigns = Campaign::active()->forUser($user)->get();
+        $campaigns = Campaign::active()
+            ->forUser($user)
+            ->operational()
+            ->orderedForSelect()
+            ->get();
         $campaignIds = $campaigns->pluck('id');
 
         $qualityForms = \App\Models\QualityForm::whereIn('campaign_id', $campaignIds)
@@ -255,8 +259,8 @@ class TranscriptController extends Controller
             $callSn = $this->normalizeCallSn($validated['call_sn'] ?? null);
             $uploadMetadata = $this->uploadMetadata($validated, $request);
 
-            if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
-                abort(403, 'No tiene permiso para cargar audios en esta campaña.');
+            if (! Campaign::forUser($user)->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
+                abort(403, 'No tiene permiso para cargar audios en esta campaña o subcampaña.');
             }
 
             if (! empty($validated['quality_form_id'])) {
@@ -366,7 +370,7 @@ class TranscriptController extends Controller
             abort(403, 'No tiene permiso para ver esta transcripción.');
         }
 
-        $interaction->load(['campaign', 'agent', 'supervisor', 'uploadedBy', 'evaluation.items.subAttribute']);
+        $interaction->load(['campaign.parent', 'agent', 'supervisor', 'uploadedBy', 'evaluation.items.subAttribute']);
         $conversationTurns = $conversationParser->parse($interaction->transcript_text);
         $audioTimeline = null;
 
@@ -639,7 +643,12 @@ class TranscriptController extends Controller
             abort(403, 'No tiene permiso para editar esta transcripción.');
         }
 
-        $campaigns = Campaign::active()->forUser($user)->get();
+        $interaction->loadMissing('campaign.parent');
+        $campaigns = Campaign::active()
+            ->forUser($user)
+            ->operational()
+            ->orderedForSelect()
+            ->get();
         // Similarly filter agents
         if ($user->hasRole('supervisor')) {
             $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
@@ -690,8 +699,8 @@ class TranscriptController extends Controller
         $callSn = $this->normalizeCallSn($validated['call_sn'] ?? null);
         $metadata = $this->replaceUploadMetadata($interaction->metadata ?? [], $this->uploadMetadata($validated, $request));
 
-        if (! Campaign::forUser($user)->whereKey($validated['campaign_id'])->exists()) {
-            abort(403, 'No tiene permiso para mover esta transcripción a la campaña seleccionada.');
+        if (! Campaign::forUser($user)->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
+            abort(403, 'No tiene permiso para mover esta transcripción a la campaña o subcampaña seleccionada.');
         }
 
         // Obtener supervisor de asignación activa
@@ -849,11 +858,19 @@ class TranscriptController extends Controller
 
     private function visibleAssignmentForUpload($user, int $campaignId, int $agentId): ?CampaignUserAssignment
     {
-        $query = CampaignUserAssignment::where([
-            'campaign_id' => $campaignId,
-            'agent_id' => $agentId,
-            'is_active' => true,
-        ]);
+        $campaign = Campaign::query()->find($campaignId);
+        $campaignIds = collect([$campaignId]);
+
+        if ($campaign?->parent_id) {
+            $campaignIds->push($campaign->parent_id);
+        }
+
+        $query = CampaignUserAssignment::whereIn('campaign_id', $campaignIds->unique()->values())
+            ->where([
+                'agent_id' => $agentId,
+                'is_active' => true,
+            ])
+            ->orderByRaw('CASE WHEN campaign_id = ? THEN 0 ELSE 1 END', [$campaignId]);
 
         if ($user->hasRole('supervisor')) {
             $query->where('supervisor_id', $user->id);

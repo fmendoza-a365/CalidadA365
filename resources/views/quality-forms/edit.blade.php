@@ -28,6 +28,19 @@
                         @method('PUT')
 
                         <div class="form-group">
+                            <label for="campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
+                            <select name="campaign_id" id="campaign_id" class="form-select" required>
+                                @foreach($campaigns as $campaign)
+                                    <option value="{{ $campaign->id }}" @selected((string) old('campaign_id', $qualityForm->campaign_id) === (string) $campaign->id)>
+                                        {{ $campaign->displayName() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Si la ficha ya tiene evaluaciones, la campaña no se podrá cambiar para proteger el histórico.</p>
+                            <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />
+                        </div>
+
+                        <div class="form-group">
                             <label for="name" class="form-label">Nombre <span class="text-rose-500">*</span></label>
                             <input type="text" name="name" id="name" value="{{ old('name', $qualityForm->name) }}"
                                 class="form-input" required>

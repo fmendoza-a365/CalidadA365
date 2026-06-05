@@ -137,24 +137,24 @@
                                     <option value="">Sin campaña general fija</option>
                                     @foreach($campaigns as $campaign)
                                         <option value="{{ $campaign->id }}" @selected((string) old('default_campaign_id') === (string) $campaign->id)>
-                                            {{ $campaign->name }}
+                                            {{ $campaign->displayName() }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Úsala como agrupador. Si eliges subcampaña, esa será la asignación operativa.</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Úsala como agrupador para filtrar la subcampaña destino.</p>
                             </div>
 
                             <div>
                                 <label class="form-label">Subcampaña destino</label>
                                 <select name="default_subcampaign_id" class="form-select">
-                                    <option value="">Usar campaña general o columna campaigns</option>
+                                    <option value="">Usar columna campaigns/subcampaigns</option>
                                     @foreach($subcampaigns as $subcampaign)
                                         <option value="{{ $subcampaign->id }}" @selected((string) old('default_subcampaign_id') === (string) $subcampaign->id)>
                                             {{ $subcampaign->displayName() }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo. Ejemplo: Claro / Upgrade.</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo como asignación operativa. Ejemplo: Claro / Upgrade.</p>
                             </div>
 
                             <div>
@@ -276,7 +276,7 @@
                     <div class="card-body">
                         <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
                             @forelse($campaigns as $campaign)
-                                <span class="badge badge-neutral">{{ $campaign->name }}</span>
+                                <span class="badge badge-neutral">{{ $campaign->displayName() }}</span>
                             @empty
                                 <span class="text-sm text-gray-500 dark:text-gray-400">No hay campañas generales activas.</span>
                             @endforelse

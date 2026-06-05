@@ -15,7 +15,7 @@ class EvaluationController extends Controller
         $user = auth()->user();
         $query = Evaluation::with([
             'agent',
-            'campaign',
+            'campaign.parent',
             'interaction' => function ($query) {
                 $query->select('id', 'campaign_id', 'agent_id', 'channel', 'direction', 'contact_reason', 'outcome', 'product_name', 'queue_name', 'audio_duration', 'occurred_at', 'source_type');
             },
@@ -30,7 +30,7 @@ class EvaluationController extends Controller
 
         $summary = $this->indexSummary(clone $query);
         $evaluations = $query->latest()->paginate(20)->withQueryString();
-        $campaigns = Campaign::active()->forUser($user)->orderBy('name')->get();
+        $campaigns = Campaign::active()->forUser($user)->orderedForSelect()->get();
         $statusOptions = [
             Evaluation::STATUS_PENDING_AI,
             Evaluation::STATUS_AI_PROCESSING,
@@ -63,7 +63,7 @@ class EvaluationController extends Controller
     private function applyIndexFilters($query, Request $request): void
     {
         $query
-            ->when($request->filled('campaign_id'), fn ($query) => $query->where('campaign_id', $request->integer('campaign_id')))
+            ->when($request->filled('campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('campaign_id'))))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('start_date'), fn ($query) => $query->whereDate('evaluations.created_at', '>=', $request->date('start_date')->format('Y-m-d')))
@@ -84,7 +84,9 @@ class EvaluationController extends Controller
                 $query->where(function ($query) use ($term) {
                     $query
                         ->whereHas('agent', fn ($agentQuery) => $agentQuery->where('name', 'like', "%{$term}%")->orWhere('email', 'like', "%{$term}%"))
-                        ->orWhereHas('campaign', fn ($campaignQuery) => $campaignQuery->where('name', 'like', "%{$term}%"))
+                        ->orWhereHas('campaign', fn ($campaignQuery) => $campaignQuery
+                            ->where('name', 'like', "%{$term}%")
+                            ->orWhereHas('parent', fn ($parentQuery) => $parentQuery->where('name', 'like', "%{$term}%")))
                         ->orWhereHas('evaluator', fn ($evaluatorQuery) => $evaluatorQuery->where('name', 'like', "%{$term}%"));
                 });
             });
@@ -125,6 +127,8 @@ class EvaluationController extends Controller
         $evaluation->load([
             'interaction.aiEvaluation.items.subAttribute',
             'interaction.manualEvaluation.items.subAttribute',
+            'interaction.campaign.parent',
+            'campaign.parent',
             'formVersion.attributes.subAttributes',
             'items.subAttribute.attribute', // Ensure relationships are correct in models
             'agentResponse',

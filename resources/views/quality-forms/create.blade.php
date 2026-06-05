@@ -8,12 +8,12 @@
                     @csrf
 
                     <div class="form-group">
-                        <label for="campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
+                        <label for="campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
                         <select name="campaign_id" id="campaign_id" class="form-select" required>
-                            <option value="">Seleccione una campaña</option>
+                            <option value="">Seleccione una campaña o subcampaña</option>
                             @foreach($campaigns as $campaign)
                                 <option value="{{ $campaign->id }}" {{ old('campaign_id') == $campaign->id ? 'selected' : '' }}>
-                                    {{ $campaign->name }}
+                                    {{ $campaign->displayName() }}
                                 </option>
                             @endforeach
                         </select>

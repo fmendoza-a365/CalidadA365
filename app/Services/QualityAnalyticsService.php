@@ -105,9 +105,12 @@ class QualityAnalyticsService
                     ->groupByRaw($weekBucket)->orderByRaw($weekBucket);
                 break;
             case 'campaign':
+                $campaignLabel = $this->campaignLabelSql('campaigns', 'parent_campaigns');
+
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
-                    ->selectRaw("campaigns.name as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
-                    ->groupBy('campaigns.id', 'campaigns.name');
+                    ->leftJoin('campaigns as parent_campaigns', 'campaigns.parent_id', '=', 'parent_campaigns.id')
+                    ->selectRaw("$campaignLabel as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                    ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name');
                 break;
             case 'supervisor':
                 $query->join('users as agents', 'evaluations.agent_id', '=', 'agents.id')
@@ -157,9 +160,12 @@ class QualityAnalyticsService
                     ->groupByRaw($weekBucket)->orderByRaw($weekBucket);
                 break;
             case 'campaign':
+                $campaignLabel = $this->campaignLabelSql('campaigns', 'parent_campaigns');
+
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
-                    ->selectRaw("campaigns.name as label, COUNT(*) as count")
-                    ->groupBy('campaigns.id', 'campaigns.name');
+                    ->leftJoin('campaigns as parent_campaigns', 'campaigns.parent_id', '=', 'parent_campaigns.id')
+                    ->selectRaw("$campaignLabel as label, COUNT(*) as count")
+                    ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name');
                 break;
             case 'supervisor':
                 $query->join('users as agents', 'evaluations.agent_id', '=', 'agents.id')
@@ -487,7 +493,7 @@ class QualityAnalyticsService
             }
 
             if (!empty($filters['campaign_id'])) {
-                $query->where('evaluations.campaign_id', $filters['campaign_id']);
+                $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
             }
 
             if (!empty($filters['agent_id'])) {
@@ -533,9 +539,12 @@ class QualityAnalyticsService
         $query = Evaluation::query();
         $this->applyFilters($query, $filters);
 
+        $campaignLabel = $this->campaignLabelSql('campaigns', 'parent_campaigns');
+
         return $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
-            ->selectRaw("campaigns.name as label, COUNT(*) as count")
-            ->groupBy('campaigns.id', 'campaigns.name')
+            ->leftJoin('campaigns as parent_campaigns', 'campaigns.parent_id', '=', 'parent_campaigns.id')
+            ->selectRaw("$campaignLabel as label, COUNT(*) as count")
+            ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name')
             ->orderByDesc('count')
             ->get()
             ->map(fn($item) => [
@@ -585,6 +594,17 @@ class QualityAnalyticsService
         return "CEIL(EXTRACT(DAY FROM $column)::numeric / 7)";
     }
 
+    private function campaignLabelSql(string $campaignAlias = 'campaigns', string $parentAlias = 'parent_campaigns'): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            return "CASE WHEN {$parentAlias}.name IS NOT NULL THEN CONCAT({$parentAlias}.name, ' / ', {$campaignAlias}.name) ELSE {$campaignAlias}.name END";
+        }
+
+        return "CASE WHEN {$parentAlias}.name IS NOT NULL THEN {$parentAlias}.name || ' / ' || {$campaignAlias}.name ELSE {$campaignAlias}.name END";
+    }
+
     private function getPeriodBucketSql(string $column, string $period): string
     {
         return match ($period) {
@@ -623,7 +643,7 @@ class QualityAnalyticsService
         }
 
         if (!empty($filters['campaign_id'])) {
-            $query->where('evaluations.campaign_id', $filters['campaign_id']);
+            $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
         }
 
         if (!empty($filters['agent_id'])) {
@@ -645,7 +665,7 @@ class QualityAnalyticsService
         }
 
         if (!empty($filters['campaign_id'])) {
-            $query->where('interactions.campaign_id', $filters['campaign_id']);
+            $query->whereIn('interactions.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
         }
 
         if (!empty($filters['agent_id'])) {
@@ -735,7 +755,7 @@ class QualityAnalyticsService
     public function getAgentMatchHistory(array $filters = [], int $limit = 5): \Illuminate\Database\Eloquent\Collection
     {
         $query = Evaluation::query()
-            ->with(['campaign', 'evaluator:id,name'])
+            ->with(['campaign.parent', 'evaluator:id,name'])
             ->orderByDesc('created_at')
             ->limit($limit);
 

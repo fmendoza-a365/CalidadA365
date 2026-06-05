@@ -10,7 +10,7 @@
                     </div>
                     <div>
                         <p class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->name }}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ $campaign->name }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ $campaign->displayName() }}</p>
                     </div>
                 </div>
             </div>
@@ -18,6 +18,18 @@
                 <form method="POST" action="{{ route('assignments.update', $assignment) }}" class="form-section">
                     @csrf
                     @method('PUT')
+
+                    <div class="form-group">
+                        <label for="target_campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
+                        <select name="target_campaign_id" id="target_campaign_id" class="form-select" required>
+                            @foreach($assignmentCampaigns as $assignmentCampaign)
+                                <option value="{{ $assignmentCampaign->id }}" @selected((string) old('target_campaign_id', $assignment->campaign_id) === (string) $assignmentCampaign->id)>
+                                    {{ $assignmentCampaign->displayName() }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <x-input-error :messages="$errors->get('target_campaign_id')" class="mt-1" />
+                    </div>
 
                     <div class="form-group">
                         <label for="supervisor_id" class="form-label">Supervisor <span class="text-rose-500">*</span></label>

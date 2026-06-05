@@ -44,10 +44,10 @@
                 <select name="campaign_id"
                     class="text-xs rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:border-indigo-500 dark:focus:border-blue-500 focus:ring-indigo-500 dark:focus:ring-blue-500 pl-3 pr-8 py-2"
                     onchange="this.form.submit()">
-                    <option value="">Todas las Campañas</option>
+                    <option value="">Todas las campañas</option>
                     @foreach($campaigns as $campaign)
                         <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
-                            {{ $campaign->name }}</option>
+                            {{ $campaign->displayName() }}</option>
                     @endforeach
                 </select>
             </form>
@@ -170,7 +170,7 @@
                                                 class="text-sm font-bold text-gray-900 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-blue-300 transition-colors">
                                                 {{ number_format($match->percentage_score, 1) }}% <span
                                                     class="text-gray-500 text-xs font-normal">|
-                                                    {{ $match->campaign->name }}</span></h4>
+                                                    {{ $match->campaign?->displayName() ?? 'Sin campaña' }}</span></h4>
                                             <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Auditor:
                                                 {{ $match->evaluator->name ?? 'Sistema Automático' }}</p>
                                         </div>

@@ -170,18 +170,16 @@ class Interaction extends Model
 
         // 2. Manager: View interactions from Managed Campaigns
         if ($user->hasRole('manager')) {
-            $campaignIds = $user->managedCampaigns->pluck('id');
-
-            return $query->whereIn('campaign_id', $campaignIds);
+            return $query->whereIn('campaign_id', Campaign::visibleIdsForUser($user));
         }
 
         // 3. QA Manager / Coordinator: View their monitors' interactions (uploaded by them) & Assigned Campaigns
         if ($user->hasRole('qa_manager')) {
-            return $query->whereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+            return $query->whereIn('campaign_id', Campaign::visibleIdsForUser($user));
         }
 
         if ($user->hasRole('qa_coordinator')) {
-            return $query->whereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+            return $query->whereIn('campaign_id', Campaign::visibleIdsForUser($user));
         }
 
         // 4. Supervisor: View Agents' Interactions & Campaigns
@@ -201,7 +199,7 @@ class Interaction extends Model
 
         // 5. Monitor: View interactions in campaigns they are assigned to
         if ($user->hasRole('qa_monitor')) {
-            return $query->whereIn('campaign_id', $user->managedCampaigns->pluck('id'));
+            return $query->whereIn('campaign_id', Campaign::visibleIdsForUser($user));
         }
 
         // 6. Agent: View Own Interactions Only

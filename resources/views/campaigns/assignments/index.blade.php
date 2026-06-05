@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">Asignaciones - {{ $campaign->name }}</x-slot>
+    <x-slot name="header">Asignaciones - {{ $campaign->displayName() }}</x-slot>
 
     <div class="card">
         <!-- Toolbar -->
@@ -22,6 +22,7 @@
                 <thead>
                     <tr>
                         <th>Asesor</th>
+                        <th>Campaña / Subcampaña</th>
                         <th>Supervisor</th>
                         <th>Fecha Inicio</th>
                         <th>Fecha Fin</th>
@@ -34,6 +35,9 @@
                         <tr>
                             <td class="font-medium text-gray-900 dark:text-white">
                                 {{ $assignment->agent->name }}
+                            </td>
+                            <td class="text-gray-500 dark:text-gray-400">
+                                {{ $assignment->campaign?->displayName() ?? '—' }}
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $assignment->supervisor->name }}
@@ -89,7 +93,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

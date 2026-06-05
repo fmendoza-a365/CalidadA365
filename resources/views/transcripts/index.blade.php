@@ -15,11 +15,11 @@
                     <input type="search" name="search" value="{{ request('search') }}"
                         class="form-input py-1 text-sm w-48" placeholder="Buscar SN, ID o motivo">
 
-                    <select name="campaign_id" class="form-select py-1 text-sm w-40" onchange="this.form.submit()">
+                    <select name="campaign_id" class="form-select py-1 text-sm w-56" onchange="this.form.submit()">
                         <option value="">Todas las campañas</option>
                         @foreach($campaigns as $campaign)
                             <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
-                                {{ $campaign->name }}
+                                {{ $campaign->displayName() }}
                             </option>
                         @endforeach
                     </select>
@@ -74,7 +74,7 @@
                     <tr>
                         <th class="w-56">Interacción</th>
                         <th>Asesor</th>
-                        <th>Campaña</th>
+                        <th>Campaña / Subcampaña</th>
                         <th>Contexto</th>
                         <th>Fecha Llamada</th>
                         <th class="text-center w-32">Estado</th>
@@ -114,7 +114,7 @@
                                 <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->name ?? '—' }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
-                                {{ $interaction->campaign?->name ?? '—' }}
+                                {{ $interaction->campaign?->displayName() ?? '—' }}
                             </td>
                             <td>
                                 <div class="flex flex-wrap items-center gap-1.5">

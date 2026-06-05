@@ -125,7 +125,7 @@
                                             class="form-checkbox h-5 w-5"
                                         >
                                         <span class="min-w-0">
-                                            <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-200">{{ $campaign->name }}</span>
+                                            <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-200">{{ $campaign->displayName() }}</span>
                                             <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $campaign->type }}</span>
                                         </span>
                                     </label>

@@ -20,26 +20,27 @@ class SamplingPlanController extends Controller
     {
         $this->authorizeSamplingAccess();
 
-        $plans = SamplingPlan::with(['campaign', 'creator'])
+        $plans = SamplingPlan::with(['campaign.parent', 'creator'])
             ->withCount([
                 'orders',
                 'orders as applied_orders_count' => fn ($query) => $query->where('status', SamplingOrder::STATUS_APPLIED),
                 'orders as pending_orders_count' => fn ($query) => $query->where('status', SamplingOrder::STATUS_PENDING),
             ])
-            ->when($request->filled('campaign_id'), fn ($query) => $query->where('campaign_id', $request->integer('campaign_id')))
+            ->when($request->filled('campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('campaign_id'))))
             ->latest('week_start')
             ->paginate(12)
             ->withQueryString();
 
-        $campaigns = Campaign::active()->forUser(auth()->user())->orderBy('name')->get();
+        $campaigns = Campaign::active()->forUser(auth()->user())->orderedForSelect()->get();
+        $operationalCampaigns = Campaign::active()->forUser(auth()->user())->operational()->orderedForSelect()->get();
         $staffingBatches = StaffingBatch::active()
-            ->with('campaign')
+            ->with('campaign.parent')
             ->withCount(['members', 'activeMembers'])
             ->latest()
             ->limit(20)
             ->get();
 
-        return view('sampling.index', compact('plans', 'campaigns', 'staffingBatches'));
+        return view('sampling.index', compact('plans', 'campaigns', 'operationalCampaigns', 'staffingBatches'));
     }
 
     public function store(Request $request, RandomSamplingPlannerService $planner)
@@ -79,7 +80,7 @@ class SamplingPlanController extends Controller
                 'end_hour' => $validated['end_hour'],
                 'campaign_id' => $campaign?->id,
                 'staffing_batch_id' => $staffingBatch?->id,
-                'campaign_filter' => $campaign?->name,
+                'campaign_filter' => $campaign?->displayName(),
                 'seed' => $validated['seed'] ?? null,
                 'quotas' => [
                     'Q1' => $validated['quotas']['q1'],
@@ -106,11 +107,11 @@ class SamplingPlanController extends Controller
     {
         $this->authorizeSamplingAccess();
 
-        $samplingPlan->load(['campaign', 'creator', 'orders.auditEvents.actor']);
+        $samplingPlan->load(['campaign.parent', 'creator', 'orders.auditEvents.actor']);
         $summary = $planner->summary($samplingPlan);
 
         $orders = $samplingPlan->orders()
-            ->with(['agent', 'supervisor', 'campaign', 'interaction', 'evaluator'])
+            ->with(['agent', 'supervisor', 'campaign.parent', 'interaction', 'evaluator'])
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('q'), function ($query) use ($request) {
                 $term = trim($request->string('q')->toString());

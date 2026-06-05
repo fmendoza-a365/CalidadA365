@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">{{ $campaign->name }}</x-slot>
+    <x-slot name="header">{{ $campaign->displayName() }}</x-slot>
 
     @if(session('success'))
         <div class="alert alert-success mb-6">
@@ -50,7 +50,7 @@
                 <div>
                     <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Jerarquía</div>
                     @if($campaign->parent)
-                        <p class="text-gray-900 dark:text-white">{{ $campaign->parent->name }} / {{ $campaign->name }}</p>
+                        <p class="text-gray-900 dark:text-white">{{ $campaign->displayName() }}</p>
                         <span class="badge badge-info">Subcampaña</span>
                     @else
                         <p class="text-gray-900 dark:text-white">Campaña general</p>
@@ -159,15 +159,17 @@
                     <thead>
                         <tr>
                             <th>Asesor</th>
+                            <th>Campaña / Subcampaña</th>
                             <th>Supervisor</th>
                             <th class="text-center">Estado</th>
                             <th>Inicio</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($campaign->assignments as $assignment)
+                        @forelse($assignmentsPreview as $assignment)
                             <tr>
                                 <td class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->name }}</td>
+                                <td class="text-gray-500 dark:text-gray-400">{{ $assignment->campaign?->displayName() ?? '—' }}</td>
                                 <td class="text-gray-500 dark:text-gray-400">{{ $assignment->supervisor->name }}</td>
                                 <td class="text-center">
                                     @if($assignment->is_active)
@@ -181,7 +183,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4">
+                                <td colspan="5">
                                     <div class="empty-state py-8">
                                         <p class="text-gray-500 dark:text-gray-400">No hay asesores asignados</p>
                                     </div>
