@@ -25,18 +25,17 @@
             <table class="table">
                 <thead class="sticky top-0 z-10">
                     <tr>
-                        <th class="w-1/4">Nombre</th>
-                        <th class="text-center w-40">Jerarquía</th>
-                        <th class="w-1/3">Descripción</th>
+                        <th class="w-1/4">Campaña</th>
+                        <th>Subcampañas</th>
+                        <th class="w-1/4">Descripción</th>
                         <th class="text-center w-32">Estado</th>
-                        <th class="text-center w-40">Ficha Activa</th>
                         <th class="text-center w-32">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($campaigns as $campaign)
                         <tr>
-                            <td>
+                            <td class="align-top">
                                 <div class="flex items-center gap-3">
                                     <div class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-sm"
                                         style="background-color: {{ $campaign->color }};">
@@ -48,44 +47,51 @@
                                         @endif
                                     </div>
                                     <div>
-                                        <div class="font-medium text-gray-900 dark:text-white">{{ $campaign->displayName() }}</div>
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $campaign->name }}</div>
                                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $campaign->type }}</div>
                                     </div>
                                 </div>
                             </td>
-                            <td class="text-center">
-                                @if($campaign->parent)
-                                    <span class="badge badge-info">{{ $campaign->parent->name }}</span>
+                            <td class="align-top">
+                                @if($campaign->children->isNotEmpty())
+                                    <div class="space-y-2">
+                                        @foreach($campaign->children as $subcampaign)
+                                            <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-900/40">
+                                                <div class="min-w-0">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2 w-2 rounded-full {{ $subcampaign->is_active ? 'bg-emerald-500' : 'bg-gray-500' }}"></span>
+                                                        <span class="font-medium text-gray-900 dark:text-white">{{ $subcampaign->name }}</span>
+                                                        @if($subcampaign->activeFormVersion)
+                                                            <span class="badge badge-info">Ficha v{{ $subcampaign->activeFormVersion->version_number }}</span>
+                                                        @else
+                                                            <span class="badge badge-neutral">Sin ficha</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Unidad operativa de {{ $campaign->name }}</div>
+                                                </div>
+                                                <a href="{{ route('campaigns.show', $subcampaign) }}" class="btn-ghost btn-sm">Ver</a>
+                                            </div>
+                                        @endforeach
+                                    </div>
                                 @else
-                                    <span class="badge badge-neutral">General</span>
+                                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                        Sin subcampañas. Crea al menos una subcampaña para operar audios, fichas y evaluaciones.
+                                    </div>
                                 @endif
                             </td>
-                            <td>
+                            <td class="align-top">
                                 <p class="text-gray-500 dark:text-gray-400 truncate max-w-xs">
                                     {{ $campaign->description ?: 'Sin descripción' }}
                                 </p>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center align-top">
                                 @if($campaign->is_active)
                                     <span class="badge badge-success">Activa</span>
                                 @else
                                     <span class="badge badge-neutral">Inactiva</span>
                                 @endif
                             </td>
-                            <td class="text-center">
-                                @if($campaign->activeFormVersion)
-                                    <svg class="w-4 h-4 text-emerald-500 inline-block" fill="none" viewBox="0 0 24 24"
-                                        stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span
-                                        class="text-sm text-gray-600 dark:text-gray-400 ml-1">v{{ $campaign->activeFormVersion->version_number }}</span>
-                                @else
-                                    <span class="text-gray-400">—</span>
-                                @endif
-                            </td>
-                            <td class="text-center">
+                            <td class="text-center align-top">
                                 <a href="{{ route('campaigns.show', $campaign) }}" class="btn-ghost btn-sm"
                                     title="Ver Detalles">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -129,7 +135,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">
+                            <td colspan="5">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24"

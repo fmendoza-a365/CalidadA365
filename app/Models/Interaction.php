@@ -111,6 +111,7 @@ class Interaction extends Model
     {
         if ($this->quality_form_id) {
             return $this->qualityForm()
+                ->where('campaign_id', $this->campaign_id)
                 ->whereHas('versions', function ($query) {
                     $query->where('status', 'published');
                 })
@@ -133,7 +134,13 @@ class Interaction extends Model
     public function scorableFormVersion(): ?QualityFormVersion
     {
         if ($this->quality_form_id) {
-            return $this->qualityForm?->versions()
+            $qualityForm = $this->qualityForm;
+
+            if (! $qualityForm || (int) $qualityForm->campaign_id !== (int) $this->campaign_id) {
+                return null;
+            }
+
+            return $qualityForm->versions()
                 ->where('status', 'published')
                 ->latest('version_number')
                 ->first();

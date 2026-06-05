@@ -29,6 +29,7 @@
                 \App\Models\Evaluation::STATUS_AI_FAILED => 'badge-danger',
                 default => $evaluation->isPendingMonitorReview() ? 'badge-warning' : 'badge-neutral',
             };
+            $evaluationCampaign = $evaluation->campaign;
         @endphp
 
         <div class="card">
@@ -41,7 +42,7 @@
                                 <div class="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Puntaje final</div>
                             </div>
 
-                            <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                            <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                                 <div>
                                     <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Evaluación</div>
                                     <p class="font-medium text-gray-900 dark:text-white">
@@ -52,8 +53,12 @@
                                     @endif
                                 </div>
                                 <div>
-                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña / Subcampaña</div>
-                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</p>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Campaña</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluationCampaign?->parent?->name ?? $evaluationCampaign?->name ?? 'Sin campaña' }}</p>
+                                </div>
+                                <div>
+                                    <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Subcampaña</div>
+                                    <p class="font-medium text-gray-900 dark:text-white">{{ $evaluationCampaign?->parent ? $evaluationCampaign->name : 'General' }}</p>
                                 </div>
                                 <div>
                                     <div class="mb-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Interacción</div>
@@ -267,7 +272,7 @@
         @endif
 
         <!-- AI Feedback Card -->
-        @if($evaluation->ai_summary)
+        @if($evaluation->ai_summary || $evaluation->ai_feedback)
             <div
                 class="card bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/20 dark:to-gray-800 border-indigo-100 dark:border-indigo-500/30">
                 <div class="card-header border-b border-indigo-100 dark:border-indigo-500/30">
@@ -293,22 +298,7 @@
                 </div>
                 <div class="card-body">
                     @php
-                        $summary = $evaluation->ai_summary;
-                        // Split by headings (### Title) using lookahead
-                        preg_match_all('/###\s+(.+?)\s*\R([\s\S]+?)(?=(?:###|$))/u', $summary, $matches, PREG_SET_ORDER);
-                        
-                        $sections = [];
-                        if (!empty($matches)) {
-                            foreach ($matches as $match) {
-                                $sections[] = [
-                                    'title' => trim($match[1]),
-                                    'content' => trim($match[2])
-                                ];
-                            }
-                        } else {
-                            // Fallback for non-structured feedback
-                            $sections[] = ['title' => 'Resumen General', 'content' => $summary];
-                        }
+                        $sections = $evaluation->structuredAiFeedback();
                     @endphp
 
                     <div class="space-y-3">
@@ -332,8 +322,8 @@
                                      x-transition:enter-start="opacity-0 -translate-y-2"
                                      x-transition:enter-end="opacity-100 translate-y-0"
                                      class="border-t border-gray-100 dark:border-gray-700/50">
-                                    <div class="p-5 prose prose-sm dark:prose-invert max-w-none text-gray-600 dark:text-gray-300 leading-relaxed">
-                                         {!! Str::markdown($section['content']) !!}
+                                    <div class="p-5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                                         {!! nl2br(e($section['content'])) !!}
                                     </div>
                                 </div>
                             </div>

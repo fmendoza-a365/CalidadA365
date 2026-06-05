@@ -23,57 +23,99 @@
 
                     <div class="card-body space-y-7">
                         <div x-data="{
+                            selectedParent: '{{ old('_parent_campaign_id', $selectedParentId) }}',
                             selectedCampaign: '{{ old('campaign_id') }}',
-                            availableForms: [],
-                            allForms: {{ json_encode($qualityForms) }},
                             selectedForm: '{{ old('quality_form_id') }}',
+                            selectedAgent: '{{ old('agent_id') }}',
+                            subcampaignsByParent: @js($subcampaignsByParent),
+                            allForms: @js($qualityForms),
+                            allAgents: @js($agentsByCampaign),
+                            availableSubcampaigns: [],
+                            availableForms: [],
                             availableAgents: [],
-                            allAgents: {{ json_encode($agentsByCampaign) }},
-                            selectedAgent: '{{ old('agent_id') }}'
-                        }" x-init="
-                            if(selectedCampaign) {
-                                availableForms = allForms[selectedCampaign] || [];
-                                availableAgents = allAgents[selectedCampaign] || [];
+                            init() {
+                                this.refreshSubcampaigns(false);
+                                this.refreshDependents(false);
+
+                                this.$watch('selectedParent', () => this.refreshSubcampaigns(true));
+                                this.$watch('selectedCampaign', () => this.refreshDependents(true));
+                            },
+                            refreshSubcampaigns(resetSelection = true) {
+                                this.availableSubcampaigns = this.subcampaignsByParent[this.selectedParent] || [];
+
+                                if (resetSelection && !this.availableSubcampaigns.some((campaign) => String(campaign.id) === String(this.selectedCampaign))) {
+                                    this.selectedCampaign = '';
+                                }
+
+                                this.refreshDependents(resetSelection);
+                            },
+                            refreshDependents(resetSelection = true) {
+                                const key = String(this.selectedCampaign || '');
+                                this.availableForms = this.allForms[key] || [];
+                                this.availableAgents = this.allAgents[key] || [];
+
+                                if (resetSelection) {
+                                    this.selectedForm = '';
+                                    this.selectedAgent = '';
+                                }
+
+                                if (this.selectedForm && !this.availableForms.some((form) => String(form.id) === String(this.selectedForm))) {
+                                    this.selectedForm = '';
+                                }
+
+                                if (this.selectedAgent && !this.availableAgents.some((agent) => String(agent.id) === String(this.selectedAgent))) {
+                                    this.selectedAgent = '';
+                                }
                             }
-                            $watch('selectedCampaign', (val) => {
-                                availableForms = allForms[val] || [];
-                                selectedForm = '';
-                                availableAgents = allAgents[val] || [];
-                                selectedAgent = '';
-                            })
-                        ">
-                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        }">
+                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
                                 <div class="form-group">
-                                    <label for="campaign_id" class="form-label">Campaña / Subcampaña <span class="text-rose-500">*</span></label>
-                                    <select name="campaign_id" id="campaign_id" class="form-select" required x-model="selectedCampaign">
-                                        <option value="">Seleccione campaña o subcampaña</option>
-                                        @foreach($campaigns as $campaign)
-                                            <option value="{{ $campaign->id }}">{{ $campaign->displayName() }}</option>
+                                    <label for="_parent_campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
+                                    <select name="_parent_campaign_id" id="_parent_campaign_id" class="form-select" required x-model="selectedParent">
+                                        <option value="">Seleccione campaña</option>
+                                        @foreach($parentCampaigns as $campaign)
+                                            <option value="{{ $campaign->id }}">{{ $campaign->name }}</option>
                                         @endforeach
                                     </select>
-                                    <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
-                                    <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent">
-                                        <option value="">Seleccione un asesor</option>
-                                        <template x-for="agent in availableAgents" :key="agent.id">
-                                            <option :value="agent.id" x-text="agent.name"></option>
+                                    <label for="campaign_id" class="form-label">Subcampaña <span class="text-rose-500">*</span></label>
+                                    <select name="campaign_id" id="campaign_id" class="form-select" required x-model="selectedCampaign" :disabled="!selectedParent">
+                                        <option value="">Seleccione subcampaña</option>
+                                        <template x-for="campaign in availableSubcampaigns" :key="campaign.id">
+                                            <option :value="campaign.id" x-text="campaign.name"></option>
                                         </template>
                                     </select>
-                                    <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
+                                    <p x-show="selectedParent && availableSubcampaigns.length === 0" x-cloak class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                        Esta campaña no tiene subcampañas operativas visibles.
+                                    </p>
+                                    <x-input-error :messages="$errors->get('campaign_id')" class="mt-1" />
                                 </div>
 
                                 <div class="form-group">
                                     <label for="quality_form_id" class="form-label">Ficha de calidad</label>
                                     <select name="quality_form_id" id="quality_form_id" class="form-select" x-model="selectedForm">
-                                        <option value="">Ficha activa de la campaña</option>
+                                        <option value="">Ficha activa de la subcampaña</option>
                                         <template x-for="form in availableForms" :key="form.id">
                                             <option :value="form.id" x-text="form.name"></option>
                                         </template>
                                     </select>
                                     <x-input-error :messages="$errors->get('quality_form_id')" class="mt-1" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
+                                    <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent" :disabled="!selectedCampaign">
+                                        <option value="">Seleccione un asesor</option>
+                                        <template x-for="agent in availableAgents" :key="agent.id">
+                                            <option :value="agent.id" x-text="agent.name"></option>
+                                        </template>
+                                    </select>
+                                    <p x-show="selectedCampaign && availableAgents.length === 0" x-cloak class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                        No hay asesores asignados a esta subcampaña.
+                                    </p>
+                                    <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
                                 </div>
                             </div>
 

@@ -228,7 +228,7 @@ class AIEvaluationService
 
         $expectedJson = json_encode([
             'items' => $items,
-            'general_feedback' => $golden->ai_summary ?? 'Resumen del desempeño...',
+            'feedback' => $golden->ai_feedback ?: $golden->structuredAiFeedbackForPrompt(),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
         return <<<EXAMPLE
@@ -321,19 +321,19 @@ Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar
 3. Dar un nivel de confianza entre 0 y 1.
 4. Agregar notas breves si es necesario.
 
-⚠️ REGLA CRÍTICA DE IDIOMA: Absolutamente TODO el texto generado por ti (general_feedback, notes, evidence_quote) DEBE estar estrictamente en ESPAÑOL. Está prohibido responder en inglés. (Las claves del JSON como 'status' y 'confidence' sí deben mantenerse como se definen en el formato).
+REGLA CRÍTICA DE IDIOMA: Absolutamente TODO el texto generado por ti (feedback, notes, evidence_quote) DEBE estar estrictamente en ESPAÑOL. Está prohibido responder en inglés. (Las claves del JSON como 'status' y 'confidence' sí deben mantenerse como se definen en el formato).
 
-Adicionalmente, genera un "general_feedback" CONSTRUCTIVO y ESTRUCTURADO que incluya:
-- Resumen del desempeño
-- Conocimiento del Producto (Precisión y domínio del tema)
-- Manejo de Emociones y Empatía (Tono, conexión, manejo de objeciones)
-- Fortalezas detectadas
-- Oportunidades de mejora
+Adicionalmente, genera un objeto "feedback" CONSTRUCTIVO y ESTRUCTURADO con 5 campos separados:
+- performanceSummary: resumen del desempeño.
+- productKnowledge: precisión, dominio del tema, oferta, condiciones, beneficios, descuentos, requisitos y restricciones.
+- emotionalHandlingAndEmpathy: tono, empatía, manejo de objeciones, control emocional, escucha activa y trato.
+- strengths: fortalezas detectadas.
+- improvementOpportunities: recomendaciones concretas de mejora.
 
 REGLAS CRÍTICAS DEL JSON:
-- No uses Markdown, bullets, emojis ni encabezados dentro de general_feedback o notes.
+- No uses Markdown, bullets, emojis ni encabezados dentro de feedback o notes.
 - No uses comillas dobles dentro de los valores de texto. Si necesitas citar algo, usa comillas simples o reformula la frase.
-- Mantén general_feedback, notes y evidence_quote en una sola línea cada uno.
+- Mantén cada campo de feedback, notes y evidence_quote en una sola línea.
 - Todos los saltos de línea o caracteres especiales deben estar escapados correctamente para JSON válido.
 
 ## FORMATO DE RESPUESTA
@@ -349,7 +349,13 @@ Responde ÚNICAMENTE con el siguiente JSON estructurado:
             "notes": "notas opcionales"
         }
     ],
-    "general_feedback": "Resumen: síntesis breve del desempeño. Conocimiento del producto: análisis de precisión y dominio. Manejo emocional y empatía: análisis de tono, conexión y objeciones. Fortalezas: puntos concretos bien ejecutados. Oportunidades: mejoras accionables para el asesor."
+    "feedback": {
+        "performanceSummary": "Síntesis breve del desempeño de la llamada.",
+        "productKnowledge": "Análisis de precisión, dominio del producto, condiciones y beneficios.",
+        "emotionalHandlingAndEmpathy": "Análisis de tono, empatía, escucha activa y manejo de objeciones.",
+        "strengths": "Puntos positivos concretos detectados en la gestión.",
+        "improvementOpportunities": "Recomendaciones accionables para mejorar la gestión."
+    }
 }
 PROMPT;
     }
@@ -629,9 +635,27 @@ PROMPT;
 
         return [
             'items' => $items,
+            'feedback' => $this->extractFeedbackObject($content),
             'general_feedback' => $this->extractJsonLikeString($content, 'general_feedback')
                 ?? 'Evaluación generada por IA. Revise los criterios y evidencias recuperadas en el detalle.',
         ];
+    }
+
+    protected function extractFeedbackObject(string $content): ?array
+    {
+        if (! preg_match('/"feedback"\s*:\s*\{([\s\S]*?)\}\s*(?:,|\})/u', $content, $matches)) {
+            return null;
+        }
+
+        $slice = $matches[1];
+        $feedback = [];
+        foreach (array_keys(Evaluation::AI_FEEDBACK_SECTIONS) as $field) {
+            $feedback[$field] = $this->extractJsonLikeString('{'.$slice.'}', $field) ?? '';
+        }
+
+        return array_filter($feedback, fn ($value) => filled($value)) !== []
+            ? $feedback
+            : null;
     }
 
     protected function extractJsonLikeString(string $source, string $field): ?string
@@ -701,7 +725,14 @@ PROMPT;
 
         return [
             'items' => $items,
-            'general_feedback' => '⚠️ Evaluación SIMULADA para desarrollo. Configure el proveedor y sus credenciales en el módulo IA y Modelos para evaluaciones reales con IA.',
+            'feedback' => [
+                'performanceSummary' => 'Evaluación simulada para desarrollo.',
+                'productKnowledge' => 'No aplica en modo simulado.',
+                'emotionalHandlingAndEmpathy' => 'No aplica en modo simulado.',
+                'strengths' => 'Configure un proveedor real para obtener fortalezas detectadas.',
+                'improvementOpportunities' => 'Configure un proveedor real para obtener oportunidades de mejora.',
+            ],
+            'general_feedback' => 'Evaluación simulada para desarrollo. Configure el proveedor y sus credenciales en el módulo IA y Modelos para evaluaciones reales con IA.',
         ];
     }
 
@@ -710,6 +741,8 @@ PROMPT;
      */
     protected function processAIResponse(Interaction $interaction, QualityFormVersion $formVersion, array $response, string $prompt, string $rawResponse, ?Evaluation $existingEvaluation = null): Evaluation
     {
+        $structuredFeedback = $this->normalizeStructuredFeedback($response);
+
         $evaluationData = [
             'interaction_id' => $interaction->id,
             'campaign_id' => $interaction->campaign_id,
@@ -723,7 +756,8 @@ PROMPT;
             'ai_prompt_version' => AiSettings::PROMPT_VERSION,
             'ai_prompt_hash' => hash('sha256', $prompt),
             'ai_settings_snapshot' => AiSettings::versionSnapshot($this->provider),
-            'ai_summary' => $response['general_feedback'] ?? null,
+            'ai_summary' => $this->summaryFromStructuredFeedback($structuredFeedback, $response['general_feedback'] ?? null),
+            'ai_feedback' => $structuredFeedback,
             'ai_prompt' => $prompt,
             'ai_raw_response' => $rawResponse,
             'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
@@ -822,6 +856,39 @@ PROMPT;
         ], $fromStatus, Evaluation::STATUS_PENDING_MONITOR_REVIEW);
 
         return $evaluation;
+    }
+
+    protected function normalizeStructuredFeedback(array $response): array
+    {
+        $feedback = $response['feedback'] ?? null;
+
+        if (is_array($feedback)) {
+            return collect(Evaluation::AI_FEEDBACK_SECTIONS)
+                ->mapWithKeys(function (string $title, string $key) use ($feedback) {
+                    return [$key => trim((string) ($feedback[$key] ?? ''))];
+                })
+                ->all();
+        }
+
+        $legacy = trim((string) ($response['general_feedback'] ?? ''));
+
+        return collect(Evaluation::AI_FEEDBACK_SECTIONS)
+            ->mapWithKeys(fn (string $title, string $key) => [$key => $key === 'performanceSummary' ? $legacy : ''])
+            ->all();
+    }
+
+    protected function summaryFromStructuredFeedback(array $feedback, ?string $fallback = null): ?string
+    {
+        $summary = collect(Evaluation::AI_FEEDBACK_SECTIONS)
+            ->map(function (string $title, string $key) use ($feedback) {
+                $content = trim((string) ($feedback[$key] ?? ''));
+
+                return $content !== '' ? "{$title}: {$content}" : null;
+            })
+            ->filter()
+            ->implode(' ');
+
+        return $summary !== '' ? $summary : $fallback;
     }
 
     /**

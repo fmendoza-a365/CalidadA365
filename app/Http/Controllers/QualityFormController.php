@@ -17,6 +17,9 @@ class QualityFormController extends Controller
     public function index()
     {
         $forms = QualityForm::forUser(auth()->user())
+            ->whereHas('campaign', function ($query) {
+                $query->operational();
+            })
             ->with(['campaign.parent', 'latestVersion'])
             ->latest()
             ->paginate(15);

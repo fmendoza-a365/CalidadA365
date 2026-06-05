@@ -106,12 +106,15 @@ class Campaign extends Model
                     })
                     ->orWhereHas('parent.managers', function ($q) use ($user) {
                         $q->whereKey($user->id);
+                    })
+                    ->orWhereHas('children.managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
                     });
             });
         }
 
-        // 3. Supervisor, Agent: View only campaigns they are assigned to
-        // Supervisors and Agents use CampaignUserAssignment
+        // 3. Supervisor, Agent: View only exact operational assignments.
+        // Parent campaigns remain visible as containers when a child is assigned.
         if ($user->hasAnyRole(['supervisor', 'agent'])) {
             return $query->where(function ($query) use ($user) {
                 $query
@@ -119,7 +122,7 @@ class Campaign extends Model
                         $q->where('agent_id', $user->id)
                             ->orWhere('supervisor_id', $user->id);
                     })
-                    ->orWhereHas('parent.assignments', function ($q) use ($user) {
+                    ->orWhereHas('children.assignments', function ($q) use ($user) {
                         $q->where('agent_id', $user->id)
                             ->orWhere('supervisor_id', $user->id);
                     });
@@ -134,6 +137,9 @@ class Campaign extends Model
                         $q->whereKey($user->id);
                     })
                     ->orWhereHas('parent.managers', function ($q) use ($user) {
+                        $q->whereKey($user->id);
+                    })
+                    ->orWhereHas('children.managers', function ($q) use ($user) {
                         $q->whereKey($user->id);
                     });
             });
@@ -223,6 +229,53 @@ class Campaign extends Model
             return static::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
         }
 
-        return static::idsWithChildren($user->managedCampaigns()->pluck('campaigns.id'));
+        if ($user->hasAnyRole(['manager', 'qa_monitor', 'qa_coordinator'])) {
+            return static::idsWithChildren($user->managedCampaigns()->pluck('campaigns.id'));
+        }
+
+        if ($user->hasRole('supervisor')) {
+            return static::idsWithParents(
+                CampaignUserAssignment::query()
+                    ->where('supervisor_id', $user->id)
+                    ->where('is_active', true)
+                    ->pluck('campaign_id')
+            );
+        }
+
+        if ($user->hasRole('agent')) {
+            return static::idsWithParents(
+                CampaignUserAssignment::query()
+                    ->where('agent_id', $user->id)
+                    ->where('is_active', true)
+                    ->pluck('campaign_id')
+            );
+        }
+
+        return [];
+    }
+
+    public static function idsWithParents($campaignIds): array
+    {
+        $ids = collect($campaignIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $parentIds = static::query()
+            ->whereIn('id', $ids)
+            ->whereNotNull('parent_id')
+            ->pluck('parent_id');
+
+        return $ids
+            ->merge($parentIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

@@ -144,9 +144,52 @@ class TranscriptController extends Controller
         $campaigns = Campaign::active()
             ->forUser($user)
             ->operational()
+            ->with('parent')
             ->orderedForSelect()
             ->get();
         $campaignIds = $campaigns->pluck('id');
+        $operationalById = $campaigns->keyBy('id');
+        $parentIds = $campaigns
+            ->map(fn (Campaign $campaign) => $campaign->parent_id ?: $campaign->id)
+            ->unique()
+            ->values();
+
+        $parentCampaigns = Campaign::active()
+            ->forUser($user)
+            ->parents()
+            ->whereIn('id', $parentIds)
+            ->with(['children' => function ($query) use ($user, $campaignIds) {
+                $query->active()
+                    ->forUser($user)
+                    ->whereIn('id', $campaignIds)
+                    ->orderBy('name');
+            }])
+            ->orderBy('name')
+            ->get();
+
+        $subcampaignsByParent = $parentCampaigns->mapWithKeys(function (Campaign $parent) use ($operationalById) {
+            $children = $parent->children
+                ->filter(fn (Campaign $child) => $operationalById->has($child->id))
+                ->values();
+
+            $options = $children->isNotEmpty()
+                ? $children
+                : ($operationalById->has($parent->id) ? collect([$operationalById->get($parent->id)]) : collect());
+
+            return [
+                (string) $parent->id => $options->map(function (Campaign $campaign) use ($parent) {
+                    return [
+                        'id' => $campaign->id,
+                        'name' => $campaign->isSubcampaign() ? $campaign->name : 'General',
+                        'parent_id' => $parent->id,
+                        'is_legacy_parent' => ! $campaign->isSubcampaign(),
+                    ];
+                })->values(),
+            ];
+        });
+
+        $selectedCampaign = old('campaign_id') ? $operationalById->get((int) old('campaign_id')) : null;
+        $selectedParentId = $selectedCampaign ? (string) ($selectedCampaign->parent_id ?: $selectedCampaign->id) : '';
 
         $qualityForms = \App\Models\QualityForm::whereIn('campaign_id', $campaignIds)
             ->whereHas('versions', function ($q) {
@@ -191,7 +234,16 @@ class TranscriptController extends Controller
 
         $formOptions = $this->formOptions();
 
-        return view('transcripts.create', compact('campaigns', 'agents', 'qualityForms', 'agentsByCampaign', 'formOptions'));
+        return view('transcripts.create', compact(
+            'campaigns',
+            'parentCampaigns',
+            'subcampaignsByParent',
+            'selectedParentId',
+            'agents',
+            'qualityForms',
+            'agentsByCampaign',
+            'formOptions'
+        ));
     }
 
     public function store(Request $request)
@@ -260,7 +312,7 @@ class TranscriptController extends Controller
             $uploadMetadata = $this->uploadMetadata($validated, $request);
 
             if (! Campaign::forUser($user)->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
-                abort(403, 'No tiene permiso para cargar audios en esta campaña o subcampaña.');
+                abort(403, 'No tiene permiso para cargar audios en esta subcampaña.');
             }
 
             if (! empty($validated['quality_form_id'])) {
@@ -273,7 +325,7 @@ class TranscriptController extends Controller
 
                 if (! $formIsValid) {
                     return back()->withErrors([
-                        'quality_form_id' => 'La ficha seleccionada no pertenece a esta campaña o no está publicada.',
+                        'quality_form_id' => 'La ficha seleccionada no pertenece a esta subcampaña o no está publicada.',
                     ])->withInput();
                 }
             }
@@ -282,7 +334,7 @@ class TranscriptController extends Controller
             $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
             if (! $assignment) {
-                return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
+                return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta subcampaña.']);
             }
 
             $batchId = count($validated['transcript_files']) > 1 ? Str::uuid() : null;
@@ -700,14 +752,14 @@ class TranscriptController extends Controller
         $metadata = $this->replaceUploadMetadata($interaction->metadata ?? [], $this->uploadMetadata($validated, $request));
 
         if (! Campaign::forUser($user)->active()->operational()->whereKey($validated['campaign_id'])->exists()) {
-            abort(403, 'No tiene permiso para mover esta transcripción a la campaña o subcampaña seleccionada.');
+            abort(403, 'No tiene permiso para mover esta transcripción a la subcampaña seleccionada.');
         }
 
         // Obtener supervisor de asignación activa
         $assignment = $this->visibleAssignmentForUpload($user, (int) $validated['campaign_id'], (int) $validated['agent_id']);
 
         if (! $assignment) {
-            return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta campaña.']);
+            return back()->withErrors(['agent_id' => 'El asesor no está asignado a esta subcampaña.']);
         }
 
         $interaction->update([
@@ -858,19 +910,12 @@ class TranscriptController extends Controller
 
     private function visibleAssignmentForUpload($user, int $campaignId, int $agentId): ?CampaignUserAssignment
     {
-        $campaign = Campaign::query()->find($campaignId);
-        $campaignIds = collect([$campaignId]);
-
-        if ($campaign?->parent_id) {
-            $campaignIds->push($campaign->parent_id);
-        }
-
-        $query = CampaignUserAssignment::whereIn('campaign_id', $campaignIds->unique()->values())
+        $query = CampaignUserAssignment::where('campaign_id', $campaignId)
             ->where([
                 'agent_id' => $agentId,
                 'is_active' => true,
             ])
-            ->orderByRaw('CASE WHEN campaign_id = ? THEN 0 ELSE 1 END', [$campaignId]);
+            ->latest('id');
 
         if ($user->hasRole('supervisor')) {
             $query->where('supervisor_id', $user->id);

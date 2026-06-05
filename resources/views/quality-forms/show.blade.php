@@ -45,8 +45,12 @@
             <div class="card-body">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña / Subcampaña</div>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ $qualityForm->campaign?->displayName() ?? '—' }}</p>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña</div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ $qualityForm->campaign?->parent?->name ?? $qualityForm->campaign?->name ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Subcampaña</div>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ $qualityForm->campaign?->parent ? $qualityForm->campaign->name : 'General' }}</p>
                     </div>
                     <div>
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Descripción</div>

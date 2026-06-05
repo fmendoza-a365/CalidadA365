@@ -241,7 +241,8 @@
                             <th class="w-12">#</th>
                             <th class="min-w-[150px]">Agente</th>
                             <th class="w-16 text-center">Tipo</th>
-                            <th class="min-w-[160px]">Campaña / Subcampaña</th>
+                            <th class="min-w-[140px]">Campaña</th>
+                            <th class="min-w-[130px]">Subcampaña</th>
                             <th class="w-28">Score</th>
                             <th class="w-36">Canal</th>
                             <th class="w-10 text-center">Gold</th>
@@ -258,6 +259,7 @@
                                 $hasScore = $score !== null;
                                 $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
                                 $interaction = $evaluation->interaction;
+                                $evaluationCampaign = $evaluation->campaign;
                                 $ch = $channelData($interaction->channel ?? null);
                                 $dir = $directionData($interaction->direction ?? null);
                             @endphp
@@ -295,9 +297,18 @@
 
                                 {{-- Columna Campaña --}}
                                 <td>
-                                    <div class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[160px]" title="{{ $evaluation->campaign?->displayName() }}">
-                                        {{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}
+                                    <div class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="{{ $evaluationCampaign?->parent?->name ?? $evaluationCampaign?->name }}">
+                                        {{ $evaluationCampaign?->parent?->name ?? $evaluationCampaign?->name ?? 'Sin campaña' }}
                                     </div>
+                                </td>
+
+                                {{-- Columna Subcampaña --}}
+                                <td>
+                                    @if($evaluationCampaign?->parent)
+                                        <span class="badge badge-info">{{ $evaluationCampaign->name }}</span>
+                                    @else
+                                        <span class="badge badge-warning">General</span>
+                                    @endif
                                 </td>
 
                                 {{-- Columna Score --}}
@@ -385,7 +396,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11">
+                                <td colspan="12">
                                     <div class="empty-state py-12">
                                         <div class="empty-state-icon">
                                             <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -408,6 +419,7 @@
                         $hasScore = $score !== null;
                         $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
                         $interaction = $evaluation->interaction;
+                        $evaluationCampaign = $evaluation->campaign;
                         $ch = $channelData($interaction->channel ?? null);
                     @endphp
                     <a href="{{ route('evaluations.show', $evaluation) }}" class="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -420,7 +432,12 @@
                                         <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                     @endif
                                 </div>
-                                <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</div>
+                                <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    {{ $evaluationCampaign?->parent?->name ?? $evaluationCampaign?->name ?? 'Sin campaña' }}
+                                    @if($evaluationCampaign?->parent)
+                                        <span class="text-gray-400">/</span> {{ $evaluationCampaign->name }}
+                                    @endif
+                                </div>
                                 @if($interaction)
                                     <div class="mt-1 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                                         <span class="flex items-center gap-1">

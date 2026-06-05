@@ -67,6 +67,7 @@ class Evaluation extends Model
         'ai_prompt',
         'ai_raw_response',
         'ai_summary',
+        'ai_feedback',
     ];
 
     protected $casts = [
@@ -76,6 +77,7 @@ class Evaluation extends Model
         'is_gold' => 'boolean',
         'ai_processed_at' => 'datetime',
         'ai_settings_snapshot' => 'array',
+        'ai_feedback' => 'array',
         'reviewed_at' => 'datetime',
         'review_claimed_at' => 'datetime',
         'review_claim_expires_at' => 'datetime',
@@ -86,6 +88,119 @@ class Evaluation extends Model
         'closed_at' => 'datetime',
         'reopened_at' => 'datetime',
     ];
+
+    public const AI_FEEDBACK_SECTIONS = [
+        'performanceSummary' => 'Resumen del desempeño',
+        'productKnowledge' => 'Conocimiento del producto',
+        'emotionalHandlingAndEmpathy' => 'Manejo de emociones y empatía',
+        'strengths' => 'Fortalezas',
+        'improvementOpportunities' => 'Oportunidades de mejora',
+    ];
+
+    public function structuredAiFeedback(): array
+    {
+        $feedback = is_array($this->ai_feedback) ? $this->ai_feedback : [];
+        $legacy = $this->parseLegacyAiSummary($this->ai_summary);
+
+        return collect(self::AI_FEEDBACK_SECTIONS)
+            ->map(function (string $title, string $key) use ($feedback, $legacy) {
+                $content = trim((string) ($feedback[$key] ?? $legacy[$key] ?? ''));
+
+                return [
+                    'key' => $key,
+                    'title' => $title,
+                    'content' => $content !== ''
+                        ? $content
+                        : 'Sin contenido específico para esta sección.',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function structuredAiFeedbackForPrompt(): array
+    {
+        return collect($this->structuredAiFeedback())
+            ->mapWithKeys(fn (array $section) => [$section['key'] => $section['content']])
+            ->all();
+    }
+
+    private function parseLegacyAiSummary(?string $summary): array
+    {
+        $summary = trim((string) $summary);
+        if ($summary === '') {
+            return [];
+        }
+
+        $aliases = [
+            'performanceSummary' => [
+                'resumen',
+                'resumen general',
+                'resumen del desempeño',
+                'desempeño',
+            ],
+            'productKnowledge' => [
+                'conocimiento del producto',
+                'conocimiento de producto',
+                'producto',
+            ],
+            'emotionalHandlingAndEmpathy' => [
+                'manejo emocional',
+                'manejo emocional y empatía',
+                'manejo de emociones y empatía',
+                'emociones y empatía',
+                'manejo de emociones',
+            ],
+            'strengths' => [
+                'fortalezas',
+                'fortalezas detectadas',
+            ],
+            'improvementOpportunities' => [
+                'oportunidades',
+                'oportunidades de mejora',
+                'mejoras',
+            ],
+        ];
+
+        $markers = [];
+        foreach ($aliases as $key => $labels) {
+            foreach ($labels as $label) {
+                if (preg_match_all('/(?:^|\R|\s)(?:#{1,4}\s*)?'.preg_quote($label, '/').'\s*:/iu', $summary, $matches, PREG_OFFSET_CAPTURE)) {
+                    foreach ($matches[0] as $match) {
+                        $markers[] = [
+                            'key' => $key,
+                            'label' => $label,
+                            'start' => $match[1],
+                            'end' => $match[1] + strlen($match[0]),
+                        ];
+                    }
+                }
+            }
+        }
+
+        $markers = collect($markers)
+            ->sortBy('start')
+            ->unique(fn (array $marker) => $marker['start'])
+            ->values();
+
+        if ($markers->isEmpty()) {
+            return ['performanceSummary' => $summary];
+        }
+
+        $sections = [];
+        foreach ($markers as $index => $marker) {
+            $next = $markers[$index + 1] ?? null;
+            $content = substr(
+                $summary,
+                $marker['end'],
+                $next ? $next['start'] - $marker['end'] : null
+            );
+
+            $sections[$marker['key']] = trim((string) $content);
+        }
+
+        return $sections;
+    }
 
     public function scopeGold($query)
     {

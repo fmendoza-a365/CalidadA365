@@ -14,8 +14,20 @@ class CampaignController extends Controller
     {
         $user = auth()->user();
         $campaigns = Campaign::forUser($user)
-            ->with(['activeFormVersion', 'parent'])
-            ->orderedForSelect()
+            ->parents()
+            ->with([
+                'children' => fn ($query) => $query
+                    ->forUser($user)
+                    ->with(['activeFormVersion', 'parent'])
+                    ->orderBy('name'),
+            ])
+            ->withCount([
+                'children as subcampaigns_count',
+                'assignments as direct_assignments_count',
+                'interactions as direct_interactions_count',
+                'evaluations as direct_evaluations_count',
+            ])
+            ->orderBy('name')
             ->paginate(15);
         return view('campaigns.index', compact('campaigns'));
     }

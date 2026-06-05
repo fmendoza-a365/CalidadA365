@@ -26,7 +26,8 @@
                 <thead class="sticky top-0 z-10">
                     <tr>
                         <th>Nombre</th>
-                        <th>Campaña / Subcampaña</th>
+                        <th>Campaña</th>
+                        <th>Subcampaña</th>
                         <th class="text-center w-40">Contexto IA</th>
                         <th class="text-center w-32">Versión</th>
                         <th class="text-center w-32">Estado</th>
@@ -40,7 +41,14 @@
                                 <span class="font-medium text-gray-900 dark:text-white">{{ $form->name }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
-                                {{ $form->campaign?->displayName() ?? '—' }}
+                                {{ $form->campaign?->parent?->name ?? $form->campaign?->name ?? '—' }}
+                            </td>
+                            <td>
+                                @if($form->campaign?->parent)
+                                    <span class="badge badge-info">{{ $form->campaign->name }}</span>
+                                @else
+                                    <span class="badge badge-warning">General sin subcampañas</span>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($form->operational_context_markdown || $form->context_file_path)
@@ -114,7 +122,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

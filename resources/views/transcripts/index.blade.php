@@ -74,7 +74,8 @@
                     <tr>
                         <th class="w-56">Interacción</th>
                         <th>Asesor</th>
-                        <th>Campaña / Subcampaña</th>
+                        <th>Campaña</th>
+                        <th>Subcampaña</th>
                         <th>Contexto</th>
                         <th>Fecha Llamada</th>
                         <th class="text-center w-32">Estado</th>
@@ -83,6 +84,9 @@
                 </thead>
                 <tbody>
                     @forelse($interactions as $interaction)
+                        @php
+                            $interactionCampaign = $interaction->campaign;
+                        @endphp
                         <tr>
                             <td>
                                 <div class="space-y-1">
@@ -114,7 +118,14 @@
                                 <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->name ?? '—' }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
-                                {{ $interaction->campaign?->displayName() ?? '—' }}
+                                {{ $interactionCampaign?->parent?->name ?? $interactionCampaign?->name ?? '—' }}
+                            </td>
+                            <td>
+                                @if($interactionCampaign?->parent)
+                                    <span class="badge badge-info">{{ $interactionCampaign->name }}</span>
+                                @else
+                                    <span class="badge badge-warning">General</span>
+                                @endif
                             </td>
                             <td>
                                 <div class="flex flex-wrap items-center gap-1.5">
@@ -237,7 +248,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7">
+                            <td colspan="8">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24"

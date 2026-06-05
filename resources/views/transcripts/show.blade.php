@@ -3,6 +3,7 @@
 
     @php
         $audioReviewConfig = null;
+        $interactionCampaign = $interaction->campaign;
 
         if ($interaction->isAudio()) {
             $audioReviewConfig = json_encode([
@@ -20,11 +21,17 @@
         <!-- Información General -->
         <div class="card">
             <div class="card-body">
-                <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
+                <div class="grid grid-cols-2 gap-6 md:grid-cols-6">
                     <div>
-                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña / Subcampaña</div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Campaña</div>
                         <p class="font-medium text-gray-900 dark:text-white">
-                            {{ $interaction->campaign?->displayName() ?? 'Campaña no disponible' }}
+                            {{ $interactionCampaign?->parent?->name ?? $interactionCampaign?->name ?? 'Campaña no disponible' }}
+                        </p>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Subcampaña</div>
+                        <p class="font-medium text-gray-900 dark:text-white">
+                            {{ $interactionCampaign?->parent ? $interactionCampaign->name : 'General' }}
                         </p>
                     </div>
                     <div>
