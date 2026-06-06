@@ -371,8 +371,28 @@ class UserController extends Controller
         $assignments = 0;
         $assignmentSkipped = 0;
 
+        $usernameMap = [];
+        foreach ($rows as $row) {
+            $rowUsername = CsvImport::value($row, ['username', 'usuario', 'login', 'codigo']);
+            $rowName = CsvImport::value($row, ['name', 'nombre', 'nombres']);
+            $rowPaternal = CsvImport::value($row, ['paternal_surname', 'apellido_paterno']);
+            $rowMaternal = CsvImport::value($row, ['maternal_surname', 'apellido_materno']);
+            $rowEmail = CsvImport::value($row, ['email', 'correo', 'correo_empresa']);
+
+            if (filled($rowUsername) && filled($rowName)) {
+                if (filled($rowPaternal)) {
+                    $formulaUser = $this->generateFormulaUsername($rowName, $rowPaternal, $rowMaternal);
+                } else {
+                    $formulaUser = strtolower(trim($rowUsername)) ?: $this->makeUsername($rowEmail ?: $rowName);
+                }
+                $usernameMap[strtolower(trim($rowUsername))] = $formulaUser;
+            }
+        }
+
         foreach ($rows as $row) {
             $name = CsvImport::value($row, ['name', 'nombre', 'nombres']);
+            $paternal = CsvImport::value($row, ['paternal_surname', 'apellido_paterno']);
+            $maternal = CsvImport::value($row, ['maternal_surname', 'apellido_materno']);
             $email = CsvImport::value($row, ['email', 'correo', 'correo_empresa']);
             $username = CsvImport::value($row, ['username', 'usuario', 'login', 'codigo']);
             $role = CsvImport::value($row, ['role', 'rol'], $defaultRole);
@@ -383,7 +403,11 @@ class UserController extends Controller
                 continue;
             }
 
-            $username = $username ?: $this->makeUsername($email ?: $name);
+            if (filled($paternal)) {
+                $username = $this->generateFormulaUsername($name, $paternal, $maternal);
+            } else {
+                $username = $username ?: $this->makeUsername($email ?: $name);
+            }
             $email = $email ?: $username.'@qa365.local';
 
             $existing = User::query()
@@ -404,8 +428,8 @@ class UserController extends Controller
             $userData = [
                 'username' => $this->uniqueUsername($username, $existing?->id),
                 'name' => $name,
-                'paternal_surname' => CsvImport::value($row, ['paternal_surname', 'apellido_paterno']),
-                'maternal_surname' => CsvImport::value($row, ['maternal_surname', 'apellido_materno']),
+                'paternal_surname' => $paternal,
+                'maternal_surname' => $maternal,
                 'email' => $this->uniqueEmail($email, $existing?->id),
                 'personal_email' => CsvImport::value($row, ['personal_email', 'correo_personal']),
                 'personal_phone' => CsvImport::value($row, ['personal_phone', 'telefono_personal']),
@@ -430,7 +454,7 @@ class UserController extends Controller
                 $campaignIds = $this->campaignIdsForImport($row, $defaultCampaignId, $defaultSubcampaignId);
 
                 if ($role === 'agent' && ! empty($campaignIds)) {
-                    $supervisorId = $this->supervisorIdForImport($row, $defaultSupervisorId);
+                    $supervisorId = $this->supervisorIdForImport($row, $defaultSupervisorId, $usernameMap);
 
                     if ($supervisorId) {
                         $user->forceFill(['supervisor_id' => $supervisorId])->save();
@@ -495,7 +519,7 @@ class UserController extends Controller
             ->all();
     }
 
-    private function supervisorIdForImport(array $row, ?int $defaultSupervisorId): ?int
+    private function supervisorIdForImport(array $row, ?int $defaultSupervisorId, array $usernameMap = []): ?int
     {
         $supervisorId = CsvImport::value($row, ['supervisor_id']);
 
@@ -509,16 +533,22 @@ class UserController extends Controller
 
         if (filled($supervisorCode) || filled($supervisorEmail) || filled($supervisorName)) {
             $supervisor = $this->supervisorQuery()
-                ->where(function ($query) use ($supervisorCode, $supervisorEmail, $supervisorName) {
+                ->where(function ($query) use ($supervisorCode, $supervisorEmail, $supervisorName, $usernameMap) {
                     if (filled($supervisorCode)) {
                         $code = trim($supervisorCode);
-                        $normalizedCode = $this->makeUsername($code);
+                        $normalizedCode = strtolower($code);
 
-                        $query->where(function ($query) use ($code, $normalizedCode) {
-                            $query->where('username', $code)
-                                ->orWhereRaw('LOWER(username) = ?', [Str::lower($code)])
-                                ->orWhere('username', $normalizedCode);
-                        });
+                        if (isset($usernameMap[$normalizedCode])) {
+                            $mappedUsername = $usernameMap[$normalizedCode];
+                            $query->where('username', $mappedUsername);
+                        } else {
+                            $normalizedCodeFallback = $this->makeUsername($code);
+                            $query->where(function ($query) use ($code, $normalizedCodeFallback) {
+                                $query->where('username', $code)
+                                    ->orWhereRaw('LOWER(username) = ?', [Str::lower($code)])
+                                    ->orWhere('username', $normalizedCodeFallback);
+                            });
+                        }
                     }
 
                     if (filled($supervisorEmail)) {
@@ -716,6 +746,47 @@ class UserController extends Controller
             ->map(fn ($token) => trim((string) $token))
             ->filter()
             ->values();
+    }
+
+    private function cleanString(string $string): string
+    {
+        $string = trim($string);
+        $string = mb_strtolower($string, 'UTF-8');
+
+        $utf8 = array(
+            '/[áàâãªä]/u'   =>   'a',
+            '/[éèêë]/u'     =>   'e',
+            '/[íìîï]/u'     =>   'i',
+            '/[óòôõºö]/u'   =>   'o',
+            '/[úùûü]/u'     =>   'u',
+            '/[ç]/u'        =>   'c',
+            '/[ñ]/u'        =>   'n',
+        );
+        $string = preg_replace(array_keys($utf8), array_values($utf8), $string);
+        $string = preg_replace('/[^a-z0-9]/', '', $string);
+        return $string;
+    }
+
+    private function generateFormulaUsername(string $name, ?string $paternal, ?string $maternal): string
+    {
+        $firstName = explode(' ', trim($name))[0];
+        $firstLetterName = mb_substr($firstName, 0, 1);
+
+        $cleanLetterName = $this->cleanString($firstLetterName);
+        $cleanPaternal = $this->cleanString($paternal ?: '');
+
+        $maternalTrimmed = trim($maternal ?: '');
+        if (!empty($maternalTrimmed)) {
+            $firstLetterMaternal = mb_substr($maternalTrimmed, 0, 1);
+            $cleanLetterMaternal = $this->cleanString($firstLetterMaternal);
+            $suffix = $cleanLetterMaternal;
+        } else {
+            $firstLetterPaternal = mb_substr($paternal ?: '', 0, 1);
+            $cleanLetterPaternal = $this->cleanString($firstLetterPaternal);
+            $suffix = $cleanLetterPaternal;
+        }
+
+        return $cleanLetterName . $cleanPaternal . $suffix;
     }
 
 }
