@@ -627,14 +627,18 @@ fun EvaluationCriteriaList(items: JSONArray) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                val statusIcon = when (status) {
-                                    "cumple" -> Icons.Default.CheckCircle
-                                    "no_cumple" -> Icons.Default.Cancel
+                                val statusIcon = when (status.lowercase()) {
+                                    "compliant", "cumple" -> Icons.Default.CheckCircle
+                                    "non_compliant", "no_cumple" -> Icons.Default.Cancel
+                                    "not_found", "no_encontrado" -> Icons.Default.HelpOutline
+                                    "not_applicable", "no_aplica" -> Icons.Default.Info
                                     else -> Icons.Default.HelpOutline
                                 }
-                                val statusColor = when (status) {
-                                    "cumple" -> Color(0xFF059669)
-                                    "no_cumple" -> Color(0xFFEF4444)
+                                val statusColor = when (status.lowercase()) {
+                                    "compliant", "cumple" -> Color(0xFF059669)
+                                    "non_compliant", "no_cumple" -> Color(0xFFEF4444)
+                                    "not_found", "no_encontrado" -> Color(0xFFF59E0B)
+                                    "not_applicable", "no_aplica" -> Color.Gray
                                     else -> Color.Gray
                                 }
                                 Icon(
@@ -739,10 +743,11 @@ fun EvaluationCriteriaList(items: JSONArray) {
 
 @Composable
 fun CriteriaStatusTag(status: String) {
-    val (label, color) = when (status) {
-        "cumple" -> "Cumple" to Color(0xFF059669)
-        "no_cumple" -> "No Cumple" to Color(0xFFEF4444)
-        "no_encontrado" -> "No Encontrado" to Color(0xFFF59E0B)
+    val (label, color) = when (status.lowercase()) {
+        "compliant", "cumple" -> "Cumple" to Color(0xFF059669)
+        "non_compliant", "no_cumple" -> "No Cumple" to Color(0xFFEF4444)
+        "not_found", "no_encontrado" -> "No Encontrado" to Color(0xFFF59E0B)
+        "not_applicable", "no_aplica" -> "No Aplica" to Color.Gray
         else -> status.replace("_", " ").replaceFirstChar { it.uppercase() } to Color.Gray
     }
     Box(

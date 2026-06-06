@@ -115,6 +115,7 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
     )
 
     Surface(
+        modifier = Modifier.navigationBarsPadding(),
         tonalElevation = 0.dp,
         shadowElevation = 10.dp,
         color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
@@ -122,7 +123,7 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp)
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
@@ -135,8 +136,8 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(66.dp)
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .height(72.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -149,7 +150,7 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
                             .clip(RoundedCornerShape(18.dp))
                             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
                             .clickable { onTabSelected(item.id) }
-                            .padding(horizontal = 2.dp, vertical = 6.dp),
+                            .padding(horizontal = 2.dp, vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {

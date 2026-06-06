@@ -140,8 +140,7 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-        RealtimeStatusPill(label = generatedAtLabel(generatedAt))
+        // Realtime status pill removed per request
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -330,27 +329,108 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 }
             }
             "feedback" -> {
-                SectionHeader(title = "Seguimiento de Feedback", subtitle = "Estado de respuestas y disputas")
-                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(title = "Seguimiento de Feedback", subtitle = "Estado de respuestas y disputas de la operación")
+                Spacer(modifier = Modifier.height(10.dp))
+                
+                val pubVal = feedbackSummary.optDouble("published", 0.0)
+                val viewVal = feedbackSummary.optDouble("viewed", 0.0)
+                val respVal = feedbackSummary.optDouble("responded", 0.0)
+                val accVal = feedbackSummary.optDouble("accepted", 0.0)
+                val dispVal = feedbackSummary.optDouble("disputed", 0.0)
+
+                val readRatio = if (pubVal > 0) (viewVal / pubVal * 100.0) else 0.0
+                val respRatio = if (pubVal > 0) (respVal / pubVal * 100.0) else 0.0
+                val accRatio = if (respVal > 0) (accVal / respVal * 100.0) else 0.0
+
+                // Render metrics cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DashboardMiniMetric(
+                        title = "Tasa de Conformidad",
+                        value = String.format("%.1f%%", accRatio),
+                        subtitle = "sobre respuestas",
+                        icon = Icons.Default.CheckCircle,
+                        color = Green,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardMiniMetric(
+                        title = "Tasa de Respuesta",
+                        value = String.format("%.1f%%", respRatio),
+                        subtitle = "sobre publicados",
+                        icon = Icons.Default.Chat,
+                        color = Violet,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(
                             width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline,
-                            shape = RoundedCornerShape(12.dp)
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                            shape = RoundedCornerShape(16.dp)
                         ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Estado de Conversión", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        ProgressLine(label = "Feedback Visto (Vistas / Publicadas)", score = readRatio, color = Cyan)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        ProgressLine(label = "Feedback Respondido (Respuestas / Publicadas)", score = respRatio, color = Violet)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        ProgressLine(label = "Aceptación de Agentes (Aceptadas / Respuestas)", score = accRatio, color = Green)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                            shape = RoundedCornerShape(16.dp)
+                        ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Resumen Operativo", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(8.dp))
                         FeedbackStatRow("Publicadas", feedbackSummary.optString("published", "0"), Icons.Default.Publish)
                         FeedbackStatRow("Vistas", feedbackSummary.optString("viewed", "0"), Icons.Default.Visibility)
                         FeedbackStatRow("Aceptadas", feedbackSummary.optString("accepted", "0"), Icons.Default.CheckCircle)
                         FeedbackStatRow("Disputadas", feedbackSummary.optString("disputed", "0"), Icons.Default.Warning)
-                        FeedbackStatRow("Pendientes", feedbackSummary.optString("pending_response", "0"), Icons.Default.Schedule)
+                        FeedbackStatRow("Pendientes de Firma", feedbackSummary.optString("pending_response", "0"), Icons.Default.Schedule)
                     }
+                }
+
+                val feedbackSeries = data.optJSONObject("charts")?.optJSONObject("feedback")
+                if (feedbackSeries != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DashboardPeriodChartCard(
+                        title = "Evolutivo de Feedback",
+                        subtitle = "Evaluaciones publicadas vs feedback cerrado",
+                        series = feedbackSeries,
+                        barMetric = "total",
+                        lineMetric = "done_pct",
+                        barLabel = "Evaluaciones",
+                        lineLabel = "Firma %",
+                        lineSuffix = "%",
+                        color = Green,
+                        defaultPeriod = "week"
+                    )
                 }
             }
             "ranking" -> {
@@ -983,18 +1063,22 @@ private fun DashboardExecutiveHero(
                         .background(scoreColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
                         Text(
                             text = String.format("%.0f", avgScore),
-                            fontSize = 26.sp,
+                            fontSize = 28.sp,
                             fontWeight = FontWeight.Black,
                             color = scoreColor
                         )
                         Text(
                             text = "%",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = scoreColor
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            color = scoreColor,
+                            modifier = Modifier.padding(bottom = 3.dp, start = 1.dp)
                         )
                     }
                 }
@@ -2423,10 +2507,12 @@ fun RankingRow(name: String, scoreLabel: String, level: String, position: Int) {
         else -> MaterialTheme.colorScheme.onSurface
     }
     
-    val levelColor = when (level.lowercase()) {
-        "superior", "excelente", "retador", "gran maestro", "maestro", "diamante", "esmeralda" -> Color(0xFF10B981) // Green
-        "solido", "platino", "oro", "plata" -> Color(0xFF6366F1) // Indigo/Blue
-        "en seguimiento", "bronce" -> Color(0xFFF59E0B) // Amber
+    val levelLower = level.lowercase()
+    val levelColor = when {
+        levelLower.contains("diamante") || levelLower.contains("esmeralda") || levelLower.contains("q1") -> Color(0xFF10B981) // Green
+        levelLower.contains("oro") || levelLower.contains("q2") -> Color(0xFFF59E0B) // Amber/Gold
+        levelLower.contains("plata") || levelLower.contains("q3") -> Color(0xFF6366F1) // Indigo
+        levelLower.contains("bronce") || levelLower.contains("q4") -> Color(0xFFD97706) // Brown/Bronze
         else -> Color(0xFFEF4444) // Red
     }
 

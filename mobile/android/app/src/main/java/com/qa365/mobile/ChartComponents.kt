@@ -68,6 +68,9 @@ fun TrendLineChart(
         Canvas(modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp)) {
             val width = size.width
             val height = size.height
+            val paddingLeft = 12.dp.toPx()
+            val paddingRight = 32.dp.toPx()
+            val chartWidth = width - paddingLeft - paddingRight
             val maxVal = max(1.0, maxValue ?: ((points.maxOfOrNull { it.value } ?: 1.0) * 1.2))
 
             // Draw horizontal dashed grid lines (25%, 50%, 75%, 100%)
@@ -76,15 +79,28 @@ fun TrendLineChart(
                 val y = height - (level * height)
                 drawLine(
                     color = outlineColor,
-                    start = Offset(0f, y),
-                    end = Offset(width, y),
+                    start = Offset(paddingLeft, y),
+                    end = Offset(width - paddingRight, y),
                     strokeWidth = 1.dp.toPx(),
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                )
+
+                // Draw Y-axis percentage labels
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${(level * 100).roundToInt()}%",
+                    width - paddingRight + 4.dp.toPx(),
+                    y + 3.dp.toPx(),
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = primaryColor.toArgb()
+                        textSize = 8.sp.toPx()
+                        textAlign = Paint.Align.LEFT
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                    }
                 )
             }
 
             val pointOffsets = points.mapIndexed { index, point ->
-                val x = if (points.size > 1) (width / (points.size - 1)) * index else width / 2
+                val x = paddingLeft + (if (points.size > 1) (chartWidth / (points.size - 1)) * index else chartWidth / 2)
                 val y = height - ((point.value / maxVal) * height).toFloat()
                 Offset(x, y)
             }
@@ -163,7 +179,9 @@ fun TrendLineChart(
 
         // Label row
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             points.forEach { point ->
@@ -219,26 +237,42 @@ fun ComboBarLineChart(
         Canvas(modifier = Modifier.fillMaxWidth().height(190.dp).padding(vertical = 8.dp)) {
             val width = size.width
             val height = size.height
+            val paddingLeft = 12.dp.toPx()
+            val paddingRight = 32.dp.toPx()
+            val chartWidth = width - paddingLeft - paddingRight
             val maxBar = max(1.0, points.maxOfOrNull { it.barValue } ?: 1.0)
             val maxLine = max(1.0, lineMaxValue)
-            val step = width / points.size
-            val barWidth = (step * 0.46f).coerceIn(10.dp.toPx(), 28.dp.toPx())
+            val step = chartWidth / points.size
+            val barWidth = (step * 0.46f).coerceIn(8.dp.toPx(), 24.dp.toPx())
 
             listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { level ->
                 val y = height - (level * height)
                 drawLine(
                     color = outlineColor,
-                    start = Offset(0f, y),
-                    end = Offset(width, y),
+                    start = Offset(paddingLeft, y),
+                    end = Offset(width - paddingRight, y),
                     strokeWidth = 1.dp.toPx(),
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                )
+
+                // Draw Y-axis percentage labels
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${(level * 100).roundToInt()}%",
+                    width - paddingRight + 4.dp.toPx(),
+                    y + 3.dp.toPx(),
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = mutedText.toArgb()
+                        textSize = 8.sp.toPx()
+                        textAlign = Paint.Align.LEFT
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                    }
                 )
             }
 
             val lineOffsets = mutableListOf<Offset>()
 
             points.forEachIndexed { index, point ->
-                val centerX = step * index + step / 2
+                val centerX = paddingLeft + step * index + step / 2
                 val barHeight = ((point.barValue / maxBar) * height).toFloat() * animationProgress.value
                 val top = height - barHeight
 
@@ -254,6 +288,25 @@ fun ComboBarLineChart(
                     size = Size(barWidth, barHeight),
                     cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
                 )
+
+                // Draw bar count value directly
+                if (point.barValue > 0) {
+                    val barLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        textAlign = Paint.Align.CENTER
+                        textSize = 9.sp.toPx()
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                    }
+                    val textY = if (top > 20.dp.toPx()) top - 4.dp.toPx() else top + 12.dp.toPx()
+                    val textColor = if (top > 20.dp.toPx()) mutedText.toArgb() else Color.White.toArgb()
+                    barLabelPaint.color = textColor
+                    
+                    drawContext.canvas.nativeCanvas.drawText(
+                        point.barValue.roundToInt().toString(),
+                        centerX,
+                        textY,
+                        barLabelPaint
+                    )
+                }
 
                 val y = height - ((point.lineValue / maxLine) * height).toFloat().coerceIn(0f, height)
                 lineOffsets.add(Offset(centerX, y))
@@ -297,7 +350,12 @@ fun ComboBarLineChart(
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 32.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             points.forEach { point ->
                 Text(
                     text = point.label,
