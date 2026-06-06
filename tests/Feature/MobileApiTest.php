@@ -204,6 +204,37 @@ class MobileApiTest extends TestCase
         $this->assertSame('12345', $response->streamedContent());
     }
 
+    public function test_mobile_feedback_audio_route_streams_ready_tts_audio(): void
+    {
+        Storage::fake('local');
+        [$admin, $evaluation] = $this->criticalEvaluation();
+        Storage::disk('local')->put('feedbacks/evaluations/'.$evaluation->id.'.mp3', 'tts-audio');
+        $evaluation->update([
+            'feedback_audio_status' => 'ready',
+            'feedback_audio_disk' => 'local',
+            'feedback_audio_path' => 'feedbacks/evaluations/'.$evaluation->id.'.mp3',
+            'feedback_audio_generated_at' => now(),
+        ]);
+
+        $token = $this->postJson('/api/mobile/login', [
+            'login' => $admin->email,
+            'password' => 'password',
+        ])->json('access_token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/mobile/dashboard')
+            ->assertOk()
+            ->assertJsonPath('evaluations.0.feedback_audio.ready', true)
+            ->assertJsonPath('evaluations.0.feedback_audio.url', url('/api/mobile/evaluations/'.$evaluation->id.'/feedback-audio'));
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->get('/api/mobile/evaluations/'.$evaluation->id.'/feedback-audio');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'audio/mpeg');
+        $this->assertSame('tts-audio', $response->getContent());
+    }
+
     public function test_mobile_logout_revokes_current_token(): void
     {
         [$admin] = $this->criticalEvaluation();

@@ -16,9 +16,10 @@ use App\Services\QualityAnalyticsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Validation\ValidationException;
 
 class MobileDashboardController extends Controller
@@ -210,6 +211,28 @@ class MobileDashboardController extends Controller
         }
 
         return $transcripts->audio($request, $interaction);
+    }
+
+    public function feedbackAudio(Request $request, Evaluation $evaluation): Response
+    {
+        abort_unless($request->user()->can('view', $evaluation), 403);
+
+        if ($evaluation->feedback_audio_status !== 'ready' || ! $evaluation->feedback_audio_path) {
+            abort(404);
+        }
+
+        $disk = $evaluation->feedback_audio_disk ?: config('ai.feedback_tts.audio_disk', config('filesystems.default'));
+        $storage = Storage::disk($disk);
+
+        if (! $storage->exists($evaluation->feedback_audio_path)) {
+            abort(404);
+        }
+
+        return response($storage->get($evaluation->feedback_audio_path), 200, [
+            'Content-Type' => 'audio/mpeg',
+            'Content-Disposition' => 'inline; filename="feedback-evaluacion-'.$evaluation->id.'.mp3"',
+            'Cache-Control' => 'private, max-age=300',
+        ]);
     }
 
     private function visibleEvaluations(User $user): Builder
@@ -665,6 +688,14 @@ class MobileDashboardController extends Controller
                 'responded_at' => $evaluation->agentResponse?->responded_at?->toIso8601String(),
                 'commitment_comment' => $evaluation->agentResponse?->commitment_comment,
                 'dispute_reason' => $evaluation->agentResponse?->dispute_reason,
+            ],
+            'feedback_audio' => [
+                'status' => $evaluation->feedback_audio_status,
+                'ready' => $evaluation->feedback_audio_status === 'ready' && (bool) $evaluation->feedback_audio_path,
+                'generated_at' => $evaluation->feedback_audio_generated_at?->toIso8601String(),
+                'url' => $evaluation->feedback_audio_status === 'ready' && $evaluation->feedback_audio_path
+                    ? url('/api/mobile/evaluations/'.$evaluation->id.'/feedback-audio')
+                    : null,
             ],
             'summary' => $evaluation->ai_summary,
             'action_url' => url('/evaluations/'.$evaluation->id),

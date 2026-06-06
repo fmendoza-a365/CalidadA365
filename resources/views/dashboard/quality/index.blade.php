@@ -754,15 +754,23 @@
                 };
 
                 renderQualityTrend('day');
-                charts.bar('#chart-quality-campaign', @json($qualityCampaign), {
-                    color: colors.indigo,
-                    metric: 'avg_score',
-                    valueName: 'Nota %',
-                    max: 100,
-                    suffix: '%',
+                charts.trendCombo('#chart-quality-campaign', @json($qualityCampaign), {
+                    barColor: colors.sky,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
                 });
-                charts.combo('#chart-quality-supervisor', @json($qualitySupervisor), {
+                charts.trendCombo('#chart-quality-supervisor', @json($qualitySupervisor), {
                     barColor: colors.teal,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
                 });
                 charts.horizontalBar('#chart-defects', @json($topDefects), {
                     color: colors.rose,
@@ -770,31 +778,57 @@
                 });
 
                 renderMpTrend('day');
-                charts.bar('#chart-mp-campaign', @json($mpCampaign), {
-                    color: colors.orange,
-                    valueName: 'Monitoreos',
+                charts.trendCombo('#chart-mp-campaign', @json($mpCampaign), {
+                    barColor: colors.orange,
+                    lineColor: colors.rose,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'MP',
+                    lineName: 'Participacion',
+                    lineSuffix: '%',
                 });
-                charts.bar('#chart-mp-supervisor', @json($mpSupervisor), {
-                    color: colors.rose,
-                    valueName: 'Monitoreos',
+                charts.trendCombo('#chart-mp-supervisor', @json($mpSupervisor), {
+                    barColor: colors.rose,
+                    lineColor: colors.orange,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'MP',
+                    lineName: 'Participacion',
+                    lineSuffix: '%',
                 });
 
-                charts.stacked('#chart-feedback-supervisor', @json($feedbackSupervisor), {
-                    doneColor: colors.teal,
-                    pendingColor: colors.amber,
+                charts.trendCombo('#chart-feedback-supervisor', @json($feedbackSupervisor), {
+                    barColor: colors.teal,
+                    lineColor: colors.amber,
+                    barMetric: 'total',
+                    lineMetric: 'done_pct',
+                    barName: 'Evaluaciones',
+                    lineName: 'Feedback visto',
+                    lineSuffix: '%',
+                    details: [
+                        { key: 'done', label: 'Vistos' },
+                        { key: 'pending', label: 'Pendientes' },
+                    ],
                 });
                 renderFeedbackTrend('week');
 
-                charts.horizontalBar('#chart-evals-campaign', @json($evalsByCampaign), {
-                    color: colors.violet,
-                    valueName: 'Evaluaciones',
+                charts.trendCombo('#chart-evals-campaign', @json($evalsByCampaign), {
+                    barColor: colors.violet,
+                    lineColor: colors.cyan,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'Evaluaciones',
+                    lineName: 'Participacion',
+                    lineSuffix: '%',
                 });
-                charts.horizontalBar('#chart-quality-agent', @json($agentRanking), {
-                    color: colors.indigo,
-                    metric: 'avg_score',
-                    valueName: 'Nota %',
-                    max: 100,
-                    suffix: '%',
+                charts.trendCombo('#chart-quality-agent', @json($agentRanking), {
+                    barColor: colors.sky,
+                    lineColor: colors.indigo,
+                    barMetric: 'total_evals',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
                 });
                 charts.trendCombo('#chart-gestion-daily', qualityTrendSeries.day || [], {
                     barColor: colors.violet,

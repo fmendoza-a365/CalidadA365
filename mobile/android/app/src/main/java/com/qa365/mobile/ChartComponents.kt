@@ -3,13 +3,16 @@ package com.qa365.mobile
 import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -29,6 +32,13 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 data class ChartPoint(val label: String, val value: Double, val color: Color)
+data class ComboChartPoint(
+    val label: String,
+    val barValue: Double,
+    val lineValue: Double,
+    val color: Color,
+    val insight: String = ""
+)
 
 @Composable
 fun TrendLineChart(
@@ -165,6 +175,149 @@ fun TrendLineChart(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun ComboBarLineChart(
+    points: List<ComboChartPoint>,
+    modifier: Modifier = Modifier,
+    barLabel: String = "Cantidad",
+    lineLabel: String = "%",
+    lineSuffix: String = "%",
+    lineMaxValue: Double = 100.0
+) {
+    if (points.isEmpty()) return
+
+    val animationProgress = remember { Animatable(0f) }
+    LaunchedEffect(points) {
+        animationProgress.snapTo(0f)
+        animationProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
+        )
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val barColor = points.firstOrNull()?.color ?: primaryColor
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val outlineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+    val mutedText = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ChartLegendDot(color = barColor, label = barLabel)
+            ChartLegendDot(color = primaryColor, label = lineLabel)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Canvas(modifier = Modifier.fillMaxWidth().height(190.dp).padding(vertical = 8.dp)) {
+            val width = size.width
+            val height = size.height
+            val maxBar = max(1.0, points.maxOfOrNull { it.barValue } ?: 1.0)
+            val maxLine = max(1.0, lineMaxValue)
+            val step = width / points.size
+            val barWidth = (step * 0.46f).coerceIn(10.dp.toPx(), 28.dp.toPx())
+
+            listOf(0.25f, 0.5f, 0.75f, 1.0f).forEach { level ->
+                val y = height - (level * height)
+                drawLine(
+                    color = outlineColor,
+                    start = Offset(0f, y),
+                    end = Offset(width, y),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                )
+            }
+
+            val lineOffsets = mutableListOf<Offset>()
+
+            points.forEachIndexed { index, point ->
+                val centerX = step * index + step / 2
+                val barHeight = ((point.barValue / maxBar) * height).toFloat() * animationProgress.value
+                val top = height - barHeight
+
+                drawRoundRect(
+                    color = barColor.copy(alpha = 0.20f),
+                    topLeft = Offset(centerX - barWidth / 2, 0f),
+                    size = Size(barWidth, height),
+                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                )
+                drawRoundRect(
+                    color = barColor,
+                    topLeft = Offset(centerX - barWidth / 2, top),
+                    size = Size(barWidth, barHeight),
+                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                )
+
+                val y = height - ((point.lineValue / maxLine) * height).toFloat().coerceIn(0f, height)
+                lineOffsets.add(Offset(centerX, y))
+            }
+
+            val path = Path().apply {
+                if (lineOffsets.isNotEmpty()) {
+                    moveTo(lineOffsets.first().x, lineOffsets.first().y)
+                    for (i in 0 until lineOffsets.size - 1) {
+                        val p1 = lineOffsets[i]
+                        val p2 = lineOffsets[i + 1]
+                        val controlX = (p1.x + p2.x) / 2
+                        cubicTo(controlX, p1.y, controlX, p2.y, p2.x, p2.y)
+                    }
+                }
+            }
+
+            drawPath(
+                path = path,
+                color = primaryColor,
+                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                alpha = animationProgress.value
+            )
+
+            lineOffsets.forEachIndexed { index, offset ->
+                drawCircle(color = surfaceColor, radius = 5.dp.toPx(), center = offset)
+                drawCircle(color = primaryColor, radius = 3.5.dp.toPx(), center = offset)
+
+                val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = primaryColor.toArgb()
+                    textAlign = Paint.Align.CENTER
+                    textSize = 10.sp.toPx()
+                    typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                }
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${points[index].lineValue.roundToInt()}$lineSuffix",
+                    offset.x,
+                    (offset.y - 10.dp.toPx()).coerceAtLeast(12.dp.toPx()),
+                    labelPaint
+                )
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            points.forEach { point ->
+                Text(
+                    text = point.label,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = mutedText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 64.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartLegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(99.dp)).background(color))
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.64f))
     }
 }
 

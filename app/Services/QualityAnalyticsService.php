@@ -131,12 +131,14 @@ class QualityAnalyticsService
                 break;
         }
 
-        return $query->get()->map(fn($item) => [
+        $rows = $query->get()->map(fn($item) => [
             'bucket' => $groupBy === 'week' ? (string) $item->week_bucket : (string) $item->label,
             'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
             'avg_score' => round((float) $item->avg_score, 2),
             'count' => (int) $item->count,
         ])->toArray();
+
+        return $this->withGroupedInsights($rows, 'quality', 'avg_score', 'count');
     }
 
     /**
@@ -190,7 +192,7 @@ class QualityAnalyticsService
         $period = $this->periodForGroupBy($groupBy);
         $totals = $period ? $this->getEvaluationTotalsByPeriod($period, $filters) : collect();
 
-        return $query->get()->map(function ($item) use ($groupBy, $totals) {
+        $rows = $query->get()->map(function ($item) use ($groupBy, $totals) {
             $bucket = $groupBy === 'week' ? (string) $item->week_bucket : (string) $item->label;
             $total = $totals->get($bucket);
             $evaluationsWithMp = (int) $item->evaluations_with_mp;
@@ -209,6 +211,8 @@ class QualityAnalyticsService
 
             return $row;
         })->toArray();
+
+        return $this->withGroupedInsights($rows, 'mp', 'percentage', 'count');
     }
 
     /**
@@ -216,7 +220,7 @@ class QualityAnalyticsService
      */
     public function getTopDefects(array $filters = [], int $limit = 10): array
     {
-        return EvaluationItem::whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
+        $rows = EvaluationItem::whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
             ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
             ->select('quality_subattributes.name as label', DB::raw('COUNT(*) as count'), 'quality_subattributes.is_critical')
@@ -224,7 +228,14 @@ class QualityAnalyticsService
             ->orderByDesc('count')
             ->limit($limit)
             ->get()
+            ->map(fn($item) => [
+                'label' => $item->label,
+                'count' => (int) $item->count,
+                'is_critical' => (bool) $item->is_critical,
+            ])
             ->toArray();
+
+        return $this->withGroupedInsights($rows, 'defect', 'percentage', 'count');
     }
 
     /**
@@ -253,7 +264,7 @@ class QualityAnalyticsService
      */
     public function getFeedbackBySupervisor(array $filters = []): array
     {
-        return Evaluation::query()
+        $rows = Evaluation::query()
             ->tap(fn($q) => $this->applyFilters($q, $filters))
             ->join('users as agents', 'evaluations.agent_id', '=', 'agents.id')
             ->leftJoin('users as supervisors', 'agents.supervisor_id', '=', 'supervisors.id')
@@ -268,6 +279,8 @@ class QualityAnalyticsService
                 'done_pct' => $item->total > 0 ? round(($item->done / $item->total) * 100, 1) : 0,
             ])
             ->toArray();
+
+        return $this->withGroupedInsights($rows, 'feedback', 'done_pct', 'total');
     }
 
     /**
@@ -391,6 +404,41 @@ class QualityAnalyticsService
 
             return $row;
         }, $rows);
+    }
+
+    private function withGroupedInsights(array $rows, string $type, string $valueKey, string $countKey): array
+    {
+        $totalCount = collect($rows)->sum(fn(array $row) => (int) ($row[$countKey] ?? 0));
+
+        return array_map(function (array $row) use ($type, $valueKey, $countKey, $totalCount) {
+            $count = (int) ($row[$countKey] ?? 0);
+
+            if (! array_key_exists('percentage', $row)) {
+                $row['percentage'] = $totalCount > 0 ? round(($count / $totalCount) * 100, 1) : 0;
+            }
+
+            $row['insight'] = $this->groupedInsight($type, $row, $valueKey, $countKey);
+
+            return $row;
+        }, $rows);
+    }
+
+    private function groupedInsight(string $type, array $row, string $valueKey, string $countKey): string
+    {
+        $label = (string) ($row['label'] ?? 'Este grupo');
+        $value = round((float) ($row[$valueKey] ?? 0), 1);
+        $count = (int) ($row[$countKey] ?? 0);
+        $percentage = round((float) ($row['percentage'] ?? 0), 1);
+
+        return match ($type) {
+            'quality' => "{$label}: {$count} evaluaciones, calidad {$value}% y {$percentage}% de participacion.",
+            'mp' => "{$label}: {$count} malas practicas, {$percentage}% del total observado.",
+            'feedback' => "{$label}: {$value}% de feedback visto, {$count} evaluaciones en seguimiento.",
+            'defect' => "{$label}: {$count} incidencias, {$percentage}% de los fallos detectados.",
+            'evals' => "{$label}: {$count} evaluaciones, {$percentage}% de la muestra.",
+            'agent' => "{$label}: {$count} evaluaciones, calidad {$value}% y {$percentage}% de participacion.",
+            default => "{$label}: {$count} registros, {$percentage}% del total.",
+        };
     }
 
     private function trendInsight(string $type, array $row, string $valueKey, string $countKey, ?float $delta): string
@@ -736,7 +784,7 @@ class QualityAnalyticsService
             $this->applyFilters($query, $filters);
         }
 
-        return $query->join('users', 'evaluations.agent_id', '=', 'users.id')
+        $rows = $query->join('users', 'evaluations.agent_id', '=', 'users.id')
             ->selectRaw("
                 users.id,
                 users.name as label,
@@ -758,6 +806,8 @@ class QualityAnalyticsService
                 'critical' => (int) $item->critical,
             ])
             ->toArray();
+
+        return $this->withGroupedInsights($rows, 'agent', 'avg_score', 'total_evals');
     }
 
     /**
@@ -770,7 +820,7 @@ class QualityAnalyticsService
 
         $campaignLabel = $this->campaignLabelSql('campaigns', 'parent_campaigns');
 
-        return $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
+        $rows = $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
             ->leftJoin('campaigns as parent_campaigns', 'campaigns.parent_id', '=', 'parent_campaigns.id')
             ->selectRaw("$campaignLabel as label, COUNT(*) as count")
             ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name')
@@ -781,6 +831,8 @@ class QualityAnalyticsService
                 'count' => (int) $item->count,
             ])
             ->toArray();
+
+        return $this->withGroupedInsights($rows, 'evals', 'percentage', 'count');
     }
 
     /**

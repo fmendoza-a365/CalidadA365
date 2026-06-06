@@ -175,18 +175,7 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                     Spacer(modifier = Modifier.height(18.dp))
                     SectionHeader(title = "Tendencia de calidad", subtitle = "Últimos días con evaluaciones disponibles")
 
-                    val trendPoints = mutableListOf<ChartPoint>()
-                    for (i in 0 until trendArray.length()) {
-                        val point = trendArray.optJSONObject(i) ?: continue
-                        val score = point.optDouble("avg_score", 0.0)
-                        trendPoints.add(
-                            ChartPoint(
-                                label = point.optString("label", "Día").takeLast(5),
-                                value = score,
-                                color = getScoreColor(score)
-                            )
-                        )
-                    }
+                    val trendPoints = jsonArrayToComboPoints(trendArray, "count", "avg_score", Blue)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -200,7 +189,17 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            TrendLineChart(points = trendPoints)
+                            ComboBarLineChart(
+                                points = trendPoints,
+                                barLabel = "Evaluaciones",
+                                lineLabel = "Calidad",
+                                lineSuffix = "%"
+                            )
+                            val insight = trendPoints.lastOrNull { it.insight.isNotBlank() }?.insight
+                            if (!insight.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                InsightCallout(text = insight)
+                            }
                         }
                     }
                 }
@@ -462,29 +461,35 @@ private fun DashboardEvolutivosModule(data: JSONObject) {
         SectionHeader(title = "Evolutivos", subtitle = "Día, semana y mes en una sola lectura")
         DashboardPeriodChartCard(
             title = "Calidad",
-            subtitle = "Nota promedio evaluada",
+            subtitle = "Evaluaciones y nota promedio",
             series = qualitySeries,
-            metric = "avg_score",
-            valueSuffix = "%",
-            fixedMax = 100.0,
+            barMetric = "count",
+            lineMetric = "avg_score",
+            barLabel = "Evaluaciones",
+            lineLabel = "Calidad",
+            lineSuffix = "%",
             color = Blue
         )
         DashboardPeriodChartCard(
             title = "Malas prácticas",
-            subtitle = "Incidencias críticas detectadas",
+            subtitle = "Incidencias y participación",
             series = mpSeries,
-            metric = "count",
-            valueSuffix = "",
-            fixedMax = null,
+            barMetric = "count",
+            lineMetric = "percentage",
+            barLabel = "MP",
+            lineLabel = "% con MP",
+            lineSuffix = "%",
             color = Rose
         )
         DashboardPeriodChartCard(
             title = "Feedback respondido",
-            subtitle = "Porcentaje de feedback visto/respondido",
+            subtitle = "Evaluaciones y feedback visto",
             series = feedbackSeries,
-            metric = "done_pct",
-            valueSuffix = "%",
-            fixedMax = 100.0,
+            barMetric = "total",
+            lineMetric = "done_pct",
+            barLabel = "Evaluaciones",
+            lineLabel = "Visto",
+            lineSuffix = "%",
             color = Green,
             defaultPeriod = "week"
         )
@@ -592,15 +597,17 @@ private fun DashboardPeriodChartCard(
     title: String,
     subtitle: String,
     series: JSONObject,
-    metric: String,
-    valueSuffix: String,
-    fixedMax: Double?,
+    barMetric: String,
+    lineMetric: String,
+    barLabel: String,
+    lineLabel: String,
+    lineSuffix: String,
     color: Color,
     defaultPeriod: String = "day"
 ) {
     var period by remember { mutableStateOf(defaultPeriod) }
     val data = series.optJSONArray(period) ?: JSONArray()
-    val points = jsonArrayToPoints(data, metric, color)
+    val points = jsonArrayToComboPoints(data, barMetric, lineMetric, color)
 
     Card(
         modifier = Modifier
@@ -630,11 +637,19 @@ private fun DashboardPeriodChartCard(
             if (points.isEmpty()) {
                 EmptyInlineText("Sin datos para este periodo.")
             } else {
-                TrendLineChart(
+                ComboBarLineChart(
                     points = points,
-                    valueSuffix = valueSuffix,
-                    maxValue = fixedMax
+                    barLabel = barLabel,
+                    lineLabel = lineLabel,
+                    lineSuffix = lineSuffix,
+                    lineMaxValue = 100.0
                 )
+
+                val latestInsight = points.lastOrNull { it.insight.isNotBlank() }?.insight
+                if (!latestInsight.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    InsightCallout(text = latestInsight)
+                }
             }
         }
     }
@@ -756,7 +771,7 @@ private fun jsonArrayToPoints(
         val value = item.optDouble(metric, 0.0)
         val rawLabel = item.optString("label", "Dato")
         val label = if (rawLabel.length > maxLabelLength) {
-            rawLabel.take(maxLabelLength - 1) + "…"
+            rawLabel.take((maxLabelLength - 3).coerceAtLeast(1)) + "..."
         } else {
             rawLabel
         }
@@ -777,6 +792,74 @@ private fun jsonArrayToPoints(
     }
 
     return points
+}
+
+private fun jsonArrayToComboPoints(
+    array: JSONArray?,
+    barMetric: String,
+    lineMetric: String,
+    fallbackColor: Color,
+    maxLabelLength: Int = 12
+): List<ComboChartPoint> {
+    if (array == null) {
+        return emptyList()
+    }
+
+    val points = mutableListOf<ComboChartPoint>()
+    for (i in 0 until array.length()) {
+        val item = array.optJSONObject(i) ?: continue
+        val rawLabel = item.optString("label", "Dato")
+        val label = if (rawLabel.length > maxLabelLength) {
+            rawLabel.take(maxLabelLength - 1) + "…"
+        } else {
+            rawLabel
+        }
+        val displayLabel = if (rawLabel.length == 10 && rawLabel[4] == '-' && rawLabel[7] == '-') {
+            rawLabel.takeLast(5)
+        } else {
+            label
+        }
+        val lineValue = item.optDouble(lineMetric, 0.0)
+
+        points.add(
+            ComboChartPoint(
+                label = displayLabel,
+                barValue = item.optDouble(barMetric, 0.0),
+                lineValue = lineValue,
+                color = fallbackColor,
+                insight = item.optString("insight", "")
+            )
+        )
+    }
+
+    return points
+}
+
+@Composable
+private fun InsightCallout(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+            .padding(12.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+        )
+    }
 }
 
 @Composable

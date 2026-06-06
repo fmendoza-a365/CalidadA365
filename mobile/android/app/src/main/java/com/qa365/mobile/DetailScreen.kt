@@ -220,7 +220,24 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
         val audioUrl = evaluation.optString("audio_url", "")
         if (audioUrl.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
-            AudioPlayer(url = audioUrl, token = token)
+            AudioPlayer(
+                url = audioUrl,
+                token = token,
+                title = "Audio de la interacción",
+                subtitle = "Llamada original usada para la evaluación"
+            )
+        }
+
+        val feedbackAudio = evaluation.optJSONObject("feedback_audio") ?: JSONObject()
+        val feedbackAudioUrl = feedbackAudio.optString("url", "")
+        if (feedbackAudio.optBoolean("ready") && feedbackAudioUrl.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            AudioPlayer(
+                url = feedbackAudioUrl,
+                token = token,
+                title = "Feedback hablado",
+                subtitle = "Resumen narrado generado al publicar"
+            )
         }
 
         // AI Summary (collapsible, no emojis, uses AutoAwesome icon)

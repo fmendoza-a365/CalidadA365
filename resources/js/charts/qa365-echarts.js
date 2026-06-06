@@ -88,6 +88,53 @@ function escapeHtml(value) {
     }[char]));
 }
 
+function richTooltip(item, lines = []) {
+    const tokens = themeTokens();
+    const next = [`<strong>${escapeHtml(labelOf(item))}</strong>`, ...lines];
+    const hasCount = Number(item?.count ?? 0) > 0;
+    const hasTotal = Number(item?.total ?? 0) > 0;
+
+    if (hasCount && !lines.some((line) => line.includes('Cantidad'))) {
+        next.push(`Cantidad: <strong>${formatValue(numberOf(item, 'count'))}</strong>`);
+    }
+
+    if (hasTotal) {
+        next.push(`Total: <strong>${formatValue(numberOf(item, 'total'))}</strong>`);
+    }
+
+    if (Number.isFinite(Number(item?.percentage))) {
+        next.push(`Participacion: <strong>${formatValue(numberOf(item, 'percentage'), '%')}</strong>`);
+    }
+
+    if (Number.isFinite(Number(item?.avg_score))) {
+        next.push(`Calidad: <strong>${formatValue(numberOf(item, 'avg_score'), '%')}</strong>`);
+    }
+
+    if (Number.isFinite(Number(item?.done_pct))) {
+        next.push(`Feedback visto: <strong>${formatValue(numberOf(item, 'done_pct'), '%')}</strong>`);
+    }
+
+    if (Number.isFinite(Number(item?.done)) || Number.isFinite(Number(item?.pending))) {
+        next.push(`Vistos/Pendientes: <strong>${formatValue(numberOf(item, 'done'))}/${formatValue(numberOf(item, 'pending'))}</strong>`);
+    }
+
+    if (item.trend_delta !== null && item.trend_delta !== undefined) {
+        const delta = Number(item.trend_delta);
+        const sign = delta > 0 ? '+' : '';
+        next.push(`Variacion: <strong>${sign}${formatValue(delta, ' pts')}</strong>`);
+    }
+
+    if (item.top_defect) {
+        next.push(`Falla principal: <strong>${escapeHtml(item.top_defect)}</strong> (${formatValue(numberOf(item, 'top_defect_count'))})`);
+    }
+
+    if (item.insight) {
+        next.push(`<span style="color:${tokens.muted}">Insight:</span> ${escapeHtml(item.insight)}`);
+    }
+
+    return next.join('<br>');
+}
+
 function dataLabel(options = {}) {
     const tokens = themeTokens();
     const suffix = options.suffix ?? '';
@@ -334,11 +381,10 @@ function combo(selector, data, options = {}) {
                 formatter(params) {
                     const item = list[params.dataIndex] ?? {};
 
-                    return [
-                        `<strong>${labelOf(item)}</strong>`,
+                    return richTooltip(item, [
                         `${barName}: <strong>${formatValue(numberOf(item, 'avg_score'), '%')}</strong>`,
                         `Cantidad: <strong>${formatValue(numberOf(item, 'count'))}</strong>`,
-                    ].join('<br>');
+                    ]);
                 },
             },
             xAxis: categoryAxis(list),
@@ -385,6 +431,16 @@ function bar(selector, data, options = {}) {
                 containLabel: true,
             },
             color: [color],
+            tooltip: {
+                ...baseOption().tooltip,
+                formatter(params) {
+                    const item = list[params.dataIndex] ?? {};
+
+                    return richTooltip(item, [
+                        `${escapeHtml(valueName)}: <strong>${formatValue(numberOf(item, metric), options.suffix ?? '')}</strong>`,
+                    ]);
+                },
+            },
             xAxis: categoryAxis(list),
             yAxis: valueAxis(max),
             series: [
@@ -429,6 +485,16 @@ function horizontalBar(selector, data, options = {}) {
                 containLabel: true,
             },
             color: [color],
+            tooltip: {
+                ...baseOption().tooltip,
+                formatter(params) {
+                    const item = list[params.dataIndex] ?? {};
+
+                    return richTooltip(item, [
+                        `${escapeHtml(valueName)}: <strong>${formatValue(numberOf(item, metric), options.suffix ?? '')}</strong>`,
+                    ]);
+                },
+            },
             xAxis: valueAxis(max),
             yAxis: categoryAxis(list, true),
             series: [
@@ -477,6 +543,16 @@ function area(selector, data, options = {}) {
                 containLabel: true,
             },
             color: [color],
+            tooltip: {
+                ...baseOption().tooltip,
+                formatter(params) {
+                    const item = list[params.dataIndex] ?? {};
+
+                    return richTooltip(item, [
+                        `${escapeHtml(valueName)}: <strong>${formatValue(numberOf(item, metric), options.suffix ?? '%')}</strong>`,
+                    ]);
+                },
+            },
             xAxis: categoryAxis(list),
             yAxis: valueAxis(max),
             series: [
@@ -651,6 +727,18 @@ function stacked(selector, data, options = {}) {
                 containLabel: true,
             },
             color: [doneColor, pendingColor],
+            tooltip: {
+                ...baseOption().tooltip,
+                formatter(params) {
+                    const point = Array.isArray(params) ? params[0] : params;
+                    const item = list[point?.dataIndex ?? 0] ?? {};
+
+                    return richTooltip(item, [
+                        `Realizado: <strong>${formatValue(numberOf(item, 'done'))}</strong>`,
+                        `Pendiente: <strong>${formatValue(numberOf(item, 'pending') || Math.max(0, numberOf(item, 'total') - numberOf(item, 'done')))}</strong>`,
+                    ]);
+                },
+            },
             xAxis: categoryAxis(list),
             yAxis: valueAxis(),
             series: [

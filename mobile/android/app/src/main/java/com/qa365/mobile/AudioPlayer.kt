@@ -28,7 +28,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun AudioPlayer(url: String, token: String?) {
+fun AudioPlayer(url: String, token: String?, title: String = "Reproductor de Audio", subtitle: String? = null) {
     var isPlaying by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -94,11 +94,20 @@ fun AudioPlayer(url: String, token: String?) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Reproductor de Audio",
+                text = title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.56f)
+                )
+            }
             Spacer(modifier = Modifier.height(14.dp))
 
             // Waveform visualizer preview
