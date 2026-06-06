@@ -21,7 +21,12 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        $users = User::with('roles')
+        $users = User::with([
+            'roles',
+            'agentAssignments.campaign.parent',
+            'agentAssignments.supervisor',
+            'managedCampaigns.parent'
+        ])
             ->when($request->filled('q'), function ($query) use ($request) {
                 $term = trim($request->string('q')->toString());
 

@@ -125,10 +125,11 @@
                             >
                         </th>
                         <th>Usuario</th>
-                        <th class="w-48">Rol</th>
-                        <th class="w-72">Contacto</th>
-                        <th class="w-64">Ubicación</th>
-                        <th class="w-40 text-right">Acciones</th>
+                        <th class="w-36">Rol</th>
+                        <th class="w-64">Campaña / Subcampaña</th>
+                        <th class="w-52">Supervisor</th>
+                        <th class="w-64">Contacto</th>
+                        <th class="w-36 text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -136,6 +137,29 @@
                         @php
                             $primaryRole = $user->getRoleNames()->first();
                             $phone = $user->company_phone ?: $user->personal_phone;
+
+                            $campaignDisplay = '—';
+                            $supervisorDisplay = '—';
+
+                            if ($user->hasRole('agent')) {
+                                $activeAssignment = $user->agentAssignments->where('is_active', true)->first();
+                                if ($activeAssignment) {
+                                    if ($activeAssignment->campaign) {
+                                        $campaignDisplay = $activeAssignment->campaign->displayName();
+                                    }
+                                    if ($activeAssignment->supervisor) {
+                                        $supervisorDisplay = $activeAssignment->supervisor->name;
+                                    }
+                                }
+                            } elseif ($user->hasAnyRole(['qa_monitor', 'qa_coordinator', 'manager'])) {
+                                $managed = $user->managedCampaigns;
+                                if ($managed->isNotEmpty()) {
+                                    $campaignDisplay = $managed->map(fn($c) => $c->displayName())->join(', ');
+                                    if (strlen($campaignDisplay) > 50) {
+                                        $campaignDisplay = substr($campaignDisplay, 0, 47) . '...';
+                                    }
+                                }
+                            }
                         @endphp
                         <tr>
                             <td>
@@ -175,21 +199,32 @@
                             </td>
 
                             <td class="wrap-text">
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">
+                                    {{ $campaignDisplay }}
+                                </span>
+                            </td>
+
+                            <td class="wrap-text">
+                                @if($supervisorDisplay !== '—')
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $supervisorDisplay }}</div>
+                                    @php
+                                        $superAssignment = $user->agentAssignments->where('is_active', true)->first();
+                                    @endphp
+                                    @if($superAssignment && $superAssignment->supervisor)
+                                        <div class="mt-0.5 text-xs font-mono text-gray-500 dark:text-gray-400">
+                                            {{ '@' . $superAssignment->supervisor->username }}
+                                        </div>
+                                    @endif
+                                @else
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">—</span>
+                                @endif
+                            </td>
+
+                            <td class="wrap-text">
                                 <div class="text-sm text-gray-900 dark:text-white">{{ $user->email }}</div>
                                 <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     {{ $phone ?: 'Sin teléfono registrado' }}
                                 </div>
-                            </td>
-
-                            <td class="wrap-text">
-                                @if($user->department)
-                                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $user->department }}</div>
-                                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        {{ collect([$user->province, $user->district])->filter()->join(' / ') ?: 'Sin detalle' }}
-                                    </div>
-                                @else
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">No registrado</span>
-                                @endif
                             </td>
 
                             <td class="text-right">
@@ -228,7 +263,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty-state py-12">
                                     <div class="empty-state-icon">
                                         <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

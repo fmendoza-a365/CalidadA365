@@ -130,15 +130,23 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        @php
+                            $subcampaignsByParent = $subcampaigns->groupBy('parent_id');
+                        @endphp
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3" x-data="{
+                            parentCampaignId: '{{ old('default_campaign_id') }}',
+                            subcampaignId: '{{ old('default_subcampaign_id') }}',
+                            subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->displayName()])->values())) }},
+                            get availableSubcampaigns() {
+                                return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                            }
+                        }">
                             <div>
                                 <label class="form-label">Campaña general</label>
-                                <select name="default_campaign_id" class="form-select">
+                                <select name="default_campaign_id" class="form-select" x-model="parentCampaignId" @change="subcampaignId = ''">
                                     <option value="">Sin campaña general fija</option>
                                     @foreach($campaigns as $campaign)
-                                        <option value="{{ $campaign->id }}" @selected((string) old('default_campaign_id') === (string) $campaign->id)>
-                                            {{ $campaign->displayName() }}
-                                        </option>
+                                        <option value="{{ $campaign->id }}">{{ $campaign->displayName() }}</option>
                                     @endforeach
                                 </select>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Úsala como agrupador para filtrar la subcampaña destino.</p>
@@ -146,13 +154,11 @@
 
                             <div>
                                 <label class="form-label">Subcampaña destino</label>
-                                <select name="default_subcampaign_id" class="form-select">
+                                <select name="default_subcampaign_id" class="form-select disabled:opacity-50" x-model="subcampaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0">
                                     <option value="">Usar columna campaigns/subcampaigns</option>
-                                    @foreach($subcampaigns as $subcampaign)
-                                        <option value="{{ $subcampaign->id }}" @selected((string) old('default_subcampaign_id') === (string) $subcampaign->id)>
-                                            {{ $subcampaign->displayName() }}
-                                        </option>
-                                    @endforeach
+                                    <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                        <option :value="sub.id" x-text="sub.name" :selected="subcampaignId == sub.id"></option>
+                                    </template>
                                 </select>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Se aplica a todo el archivo como asignación operativa. Ejemplo: Claro / Upgrade.</p>
                             </div>
