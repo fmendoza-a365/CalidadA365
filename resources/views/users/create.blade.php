@@ -114,26 +114,78 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
-                                @foreach($campaigns as $campaign)
-                                    <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900">
-                                        <input
-                                            type="checkbox"
-                                            name="campaign_ids[]"
-                                            value="{{ $campaign->id }}"
-                                            @checked(is_array(old('campaign_ids')) && in_array($campaign->id, old('campaign_ids')))
-                                            class="form-checkbox h-5 w-5"
-                                        >
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-200">{{ $campaign->displayName() }}</span>
-                                            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $campaign->type }}</span>
-                                        </span>
-                                    </label>
+                            <div class="max-h-80 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
+                                @php
+                                    $parentCampaigns = $campaigns->whereNull('parent_id');
+                                    $orphanedSubcampaigns = $campaigns->whereNotNull('parent_id')->filter(function ($c) use ($parentCampaigns) {
+                                        return !$parentCampaigns->contains('id', $c->parent_id);
+                                    });
+                                @endphp
+
+                                @foreach($parentCampaigns as $parent)
+                                    <div class="space-y-2 mb-4">
+                                        <!-- Campaña Principal -->
+                                        <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900 bg-gray-50/30 dark:bg-gray-800/10">
+                                            <input
+                                                type="checkbox"
+                                                name="campaign_ids[]"
+                                                value="{{ $parent->id }}"
+                                                @checked(is_array(old('campaign_ids')) && in_array($parent->id, old('campaign_ids')))
+                                                class="form-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            >
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-sm font-semibold text-gray-800 dark:text-gray-200">{{ $parent->name }}</span>
+                                                <span class="block text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $parent->type }}</span>
+                                            </span>
+                                        </label>
+
+                                        <!-- Subcampañas -->
+                                        @php
+                                            $subcampaigns = $campaigns->where('parent_id', $parent->id);
+                                        @endphp
+                                        @if($subcampaigns->isNotEmpty())
+                                            <div class="ml-6 pl-4 border-l-2 border-gray-200 dark:border-gray-800 space-y-2">
+                                                @foreach($subcampaigns as $sub)
+                                                    <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-100 dark:border-gray-800/50 p-2.5 transition hover:border-indigo-200 hover:bg-indigo-50/30 dark:hover:border-gray-700 dark:hover:bg-gray-900/50">
+                                                        <input
+                                                            type="checkbox"
+                                                            name="campaign_ids[]"
+                                                            value="{{ $sub->id }}"
+                                                            @checked(is_array(old('campaign_ids')) && in_array($sub->id, old('campaign_ids')))
+                                                            class="form-checkbox h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                                        >
+                                                        <span class="min-w-0">
+                                                            <span class="block truncate text-sm font-medium text-gray-700 dark:text-gray-300">{{ $sub->name }}</span>
+                                                            <span class="block text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $sub->type }}</span>
+                                                        </span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+
+                                @foreach($orphanedSubcampaigns as $sub)
+                                    <div class="mb-4">
+                                        <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900">
+                                            <input
+                                                type="checkbox"
+                                                name="campaign_ids[]"
+                                                value="{{ $sub->id }}"
+                                                @checked(is_array(old('campaign_ids')) && in_array($sub->id, old('campaign_ids')))
+                                                class="form-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            >
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-sm font-medium text-gray-800 dark:text-gray-200">{{ $sub->displayName() }}</span>
+                                                <span class="block text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $sub->type }}</span>
+                                            </span>
+                                        </label>
+                                    </div>
                                 @endforeach
 
                                 @if($campaigns->isEmpty())
                                     <div class="empty-state py-6">
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">No hay campañas activas disponibles.</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center">No hay campañas activas disponibles.</p>
                                     </div>
                                 @endif
                             </div>
