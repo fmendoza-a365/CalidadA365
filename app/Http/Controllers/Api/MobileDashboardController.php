@@ -710,11 +710,10 @@ class MobileDashboardController extends Controller
     private function levelName(float $score): string
     {
         return match (true) {
-            $score >= 95 => 'Superior',
-            $score >= 90 => 'Excelente',
-            $score >= 80 => 'Solido',
-            $score >= 70 => 'En seguimiento',
-            default => 'Critico',
+            $score >= 90 => 'Q1 - Diamante',
+            $score >= 80 => 'Q2 - Oro',
+            $score >= 70 => 'Q3 - Plata',
+            default => 'Q4 - Bronce',
         };
     }
 }

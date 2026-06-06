@@ -728,25 +728,40 @@ class QualityAnalyticsService
      */
     public function getAgentLeague(float $averageScore): array
     {
-        if ($averageScore >= 100)
-            return ['name' => 'Calidad Perfecta', 'color' => 'text-amber-500 dark:text-amber-400', 'bg' => 'bg-amber-50 dark:bg-amber-950/20', 'border' => 'border-amber-400', 'icon' => '🌟'];
-        if ($averageScore >= 98)
-            return ['name' => 'Excelente Superior', 'color' => 'text-indigo-600 dark:text-indigo-400', 'bg' => 'bg-indigo-50 dark:bg-indigo-950/20', 'border' => 'border-indigo-400', 'icon' => '⭐'];
-        if ($averageScore >= 95)
-            return ['name' => 'Excelente', 'color' => 'text-indigo-500 dark:text-indigo-400', 'bg' => 'bg-indigo-50 dark:bg-indigo-950/10', 'border' => 'border-indigo-300', 'icon' => '🏅'];
-        if ($averageScore >= 90)
-            return ['name' => 'Sobresaliente', 'color' => 'text-blue-500 dark:text-blue-400', 'bg' => 'bg-blue-50 dark:bg-blue-950/10', 'border' => 'border-blue-300', 'icon' => '🏆'];
-        if ($averageScore >= 85)
-            return ['name' => 'Competente Alto', 'color' => 'text-emerald-600 dark:text-emerald-400', 'bg' => 'bg-emerald-50 dark:bg-emerald-950/10', 'border' => 'border-emerald-400', 'icon' => '🔰'];
-        if ($averageScore >= 80)
-            return ['name' => 'Satisfactorio', 'color' => 'text-emerald-500 dark:text-[#0AC8B9]', 'bg' => 'bg-emerald-50 dark:bg-emerald-950/5', 'border' => 'border-emerald-300', 'icon' => '📈'];
-        if ($averageScore >= 75)
-            return ['name' => 'Aceptable', 'color' => 'text-yellow-600 dark:text-yellow-400', 'bg' => 'bg-yellow-50 dark:bg-yellow-950/10', 'border' => 'border-yellow-400', 'icon' => '✔️'];
-        if ($averageScore >= 70)
-            return ['name' => 'En Desarrollo', 'color' => 'text-amber-500 dark:text-amber-400', 'bg' => 'bg-amber-50 dark:bg-amber-950/10', 'border' => 'border-amber-400', 'icon' => '⏱️'];
-        if ($averageScore >= 60)
-            return ['name' => 'Requiere Refuerzo', 'color' => 'text-orange-500 dark:text-orange-400', 'bg' => 'bg-orange-50 dark:bg-orange-950/10', 'border' => 'border-orange-400', 'icon' => '⚠️'];
-        return ['name' => 'Desempeño Crítico', 'color' => 'text-rose-600 dark:text-rose-400', 'bg' => 'bg-rose-50 dark:bg-rose-950/10', 'border' => 'border-rose-400', 'icon' => '🚨'];
+        if ($averageScore >= 90) {
+            return [
+                'name' => 'Q1 - Diamante',
+                'color' => 'text-cyan-500 dark:text-cyan-400',
+                'bg' => 'bg-cyan-50 dark:bg-cyan-950/20',
+                'border' => 'border-cyan-400',
+                'icon' => '<svg class="w-16 h-16 text-cyan-500 dark:text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="diamond-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee" /><stop offset="50%" stop-color="#818cf8" /><stop offset="100%" stop-color="#c084fc" /></linearGradient></defs><path d="M6 3h12l4 6-10 12L2 9z" fill="url(#diamond-grad)" fill-opacity="0.15" stroke="url(#diamond-grad)" stroke-width="1.8"/><path d="M11 3 8 9l4 12 4-12-3-6" stroke="url(#diamond-grad)" stroke-width="1"/><path d="M2 9h20" stroke="url(#diamond-grad)" stroke-width="1"/></svg>'
+            ];
+        }
+        if ($averageScore >= 80) {
+            return [
+                'name' => 'Q2 - Oro',
+                'color' => 'text-amber-500 dark:text-amber-400',
+                'bg' => 'bg-amber-50 dark:bg-amber-950/20',
+                'border' => 'border-amber-400',
+                'icon' => '<svg class="w-16 h-16 text-amber-500 dark:text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24" /><stop offset="100%" stop-color="#d97706" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#gold-grad)" fill-opacity="0.15" stroke="url(#gold-grad)" stroke-width="1.8"/><circle cx="12" cy="11" r="4" stroke="url(#gold-grad)" stroke-width="1.5"/><path d="m12 9 1 2h2l-1.5 1.5.5 2-2-1-2 1 .5-2L9 11h2z" fill="url(#gold-grad)"/></svg>'
+            ];
+        }
+        if ($averageScore >= 70) {
+            return [
+                'name' => 'Q3 - Plata',
+                'color' => 'text-slate-500 dark:text-slate-400',
+                'bg' => 'bg-slate-50 dark:bg-slate-950/20',
+                'border' => 'border-slate-400',
+                'icon' => '<svg class="w-16 h-16 text-slate-500 dark:text-slate-400 drop-shadow-[0_0_10px_rgba(148,163,184,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="silver-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#cbd5e1" /><stop offset="50%" stop-color="#94a3b8" /><stop offset="100%" stop-color="#64748b" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#silver-grad)" fill-opacity="0.15" stroke="url(#silver-grad)" stroke-width="1.8"/><path d="M12 8v8" stroke="url(#silver-grad)" stroke-width="1.5"/><path d="M9 11h6" stroke="url(#silver-grad)" stroke-width="1.5"/></svg>'
+            ];
+        }
+        return [
+            'name' => 'Q4 - Bronce',
+            'color' => 'text-orange-600 dark:text-orange-400',
+            'bg' => 'bg-orange-50 dark:bg-orange-950/20',
+            'border' => 'border-orange-400',
+            'icon' => '<svg class="w-16 h-16 text-orange-600 dark:text-orange-400 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="bronze-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fdba74" /><stop offset="50%" stop-color="#f97316" /><stop offset="100%" stop-color="#ea580c" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#bronze-grad)" fill-opacity="0.15" stroke="url(#bronze-grad)" stroke-width="1.8"/><path d="m12 8-3.5 6h7z" stroke="url(#bronze-grad)" stroke-width="1.5"/><circle cx="12" cy="13" r="0.5" fill="url(#bronze-grad)"/></svg>'
+        ];
     }
 
     /**
@@ -762,5 +777,19 @@ class QualityAnalyticsService
         $this->applyFilters($query, $filters);
 
         return $query->get();
+    }
+
+    /**
+     * Paginate Agent Match History (Evaluations)
+     */
+    public function paginateAgentMatchHistory(array $filters = [], int $perPage = 5): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        $query = Evaluation::query()
+            ->with(['campaign.parent', 'evaluator:id,name'])
+            ->orderByDesc('created_at');
+
+        $this->applyFilters($query, $filters);
+
+        return $query->paginate($perPage)->withQueryString();
     }
 }

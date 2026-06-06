@@ -92,8 +92,8 @@
                         </div>
 
                         <div
-                            class="text-5xl mb-2 filter drop-shadow-[0_0_8px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-                            {{ $league['icon'] }}</div>
+                            class="mb-2 filter drop-shadow-[0_0_8px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                            {!! $league['icon'] !!}</div>
                         <h3
                             class="{{ $league['color'] }} font-black text-2xl uppercase tracking-wider filter drop-shadow-sm dark:drop-shadow-md">
                             {{ $league['name'] }}</h3>
@@ -135,8 +135,13 @@
                             </svg>
                             Historial de Evaluaciones
                         </h3>
-                        <span class="text-[10px] text-gray-500 uppercase font-medium">Últimas
-                            {{ $matchHistory->count() }} evaluaciones</span>
+                        <span class="text-[10px] text-gray-500 uppercase font-medium">
+                            @if($matchHistory instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)
+                                Total: {{ $matchHistory->total() }}
+                            @else
+                                Últimas {{ $matchHistory->count() }} evaluaciones
+                            @endif
+                        </span>
                     </div>
 
                     <div class="space-y-2.5 flex-1 overflow-y-auto pr-1 custom-scrollbar">
@@ -155,7 +160,7 @@
                                 class="block border-l-4 {{ $borderClass }} {{ $bgClass }} rounded-r-lg border-y border-r border-gray-200 dark:border-[#2B2B2F] p-3 transition-colors group">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-4">
-                                        <div class="w-12 text-center">
+                                        <div class="w-20 shrink-0 text-center">
                                             <p class="{{ $textClass }} font-bold text-xs tracking-wider mb-0.5">
                                                 {{ $statusText }}</p>
                                             <div
@@ -196,6 +201,12 @@
                             </div>
                         @endforelse
                     </div>
+
+                    @if($matchHistory instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator && $matchHistory->hasPages())
+                        <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                            {{ $matchHistory->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -234,16 +245,14 @@
                             @forelse($agentRanking as $i => $agent)
                                 @php
                                     $score = $agent['avg_score'];
-                                    if ($score >= 95) {
-                                        $lName = 'Excelente';
-                                    } elseif ($score >= 90) {
-                                        $lName = 'Sobresaliente';
+                                    if ($score >= 90) {
+                                        $lName = 'Q1 - Diamante';
                                     } elseif ($score >= 80) {
-                                        $lName = 'Satisfactorio';
+                                        $lName = 'Q2 - Oro';
                                     } elseif ($score >= 70) {
-                                        $lName = 'En Desarrollo';
+                                        $lName = 'Q3 - Plata';
                                     } else {
-                                        $lName = 'Requiere Refuerzo';
+                                        $lName = 'Q4 - Bronce';
                                     }
 
                                     $isMe = $agent['id'] === auth()->id();
