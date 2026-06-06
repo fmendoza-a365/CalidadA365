@@ -69,6 +69,11 @@ class FeedbackAudioService
             return trim($configuredToken);
         }
 
+        $credentialsPath = config('ai.feedback_tts.credentials_path');
+        if (is_string($credentialsPath) && trim($credentialsPath) !== '') {
+            putenv('GOOGLE_APPLICATION_CREDENTIALS='.trim($credentialsPath));
+        }
+
         $credentials = ApplicationDefaultCredentials::getCredentials((string) config('ai.feedback_tts.scope'));
         $token = $credentials->fetchAuthToken();
         $accessToken = $token['access_token'] ?? null;

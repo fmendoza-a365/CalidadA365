@@ -76,6 +76,7 @@ return [
         'audio_disk' => env('AI_FEEDBACK_AUDIO_DISK', 's3'),
         'endpoint' => env('AI_FEEDBACK_TTS_ENDPOINT', 'https://texttospeech.googleapis.com/v1beta1/text:synthesize'),
         'scope' => env('AI_FEEDBACK_TTS_SCOPE', 'https://www.googleapis.com/auth/cloud-platform'),
+        'credentials_path' => env('GOOGLE_APPLICATION_CREDENTIALS'),
         'access_token' => env('AI_FEEDBACK_TTS_ACCESS_TOKEN'),
         'prompt' => env('AI_FEEDBACK_TTS_PROMPT', 'Lee el feedback en español latino con tono profesional, claro y cercano.'),
         'prompt_byte_limit' => (int) env('AI_FEEDBACK_TTS_PROMPT_BYTE_LIMIT', 900),
