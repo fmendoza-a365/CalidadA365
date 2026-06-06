@@ -113,7 +113,7 @@
             </div>
 
             <!-- Interactive Animated Logo (Limpio y Elegante en el Centro) -->
-            <div class="logo-shell-hero my-12" id="logoStageHero">
+            <div class="logo-shell-hero my-8" id="logoStageHero">
                 <div class="logo-wrap-hero">
                     <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-label="QA365 Logo Animado">
                         <g transform="translate(0,699) scale(0.1,-0.1)">
@@ -130,29 +130,35 @@
                 </div>
             </div>
 
+            <!-- Subtitle/Description (debajo del logo) -->
+            <p class="text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-10 mt-2 leading-relaxed font-medium">
+                Evalúa el 100% de tus llamadas automáticamente. Detecta oportunidades de mejora y eleva la calidad de
+                servicio con nuestra plataforma de QA inteligente.
+            </p>
+
             <!-- CTA Buttons -->
-            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full max-w-2xl px-4 z-20">
+            <div class="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-xl px-4 z-20">
                 @auth
-                    <a href="{{ route('dashboard') }}" class="btn-primary text-lg px-8 py-4">
+                    <a href="{{ route('dashboard') }}" class="btn-primary text-sm px-5 py-2.5">
                         Ir al Dashboard
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
                     </a>
                 @else
-                    <a href="{{ route('login') }}" class="btn-primary text-lg px-8 py-4">
+                    <a href="{{ route('login') }}" class="btn-primary text-sm px-5 py-2.5">
                         Comenzar Ahora
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
                     </a>
                 @endauth
-                <a href="#features" class="btn-secondary text-lg px-8 py-4">
+                <a href="#features" class="btn-secondary text-sm px-5 py-2.5">
                     Ver Características
                 </a>
-                <a href="#mobile-app" class="btn-secondary text-lg px-8 py-4">
+                <a href="#mobile-app" class="btn-secondary text-sm px-5 py-2.5">
                     App Android
                 </a>
             </div>
@@ -417,27 +423,38 @@
             width: 100%;
             height: 100%;
             overflow: visible;
-            filter: drop-shadow(0 0 18px rgba(57, 213, 255, 0.28));
+            filter: drop-shadow(0 0 18px var(--logo-glow-color));
             animation: floatLogo 5.2s ease-in-out infinite;
             transform-origin: center;
         }
 
         @keyframes floatLogo {
-            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 18px rgba(57, 213, 255, 0.28)); }
-            50% { transform: translateY(-10px) scale(1.012); filter: drop-shadow(0 0 26px rgba(57, 213, 255, 0.44)); }
+            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 18px var(--logo-glow-color)); }
+            50% { transform: translateY(-10px) scale(1.012); filter: drop-shadow(0 0 26px var(--logo-glow-active)); }
         }
 
         /* Variables y tokens de marca */
         :root {
             --qa-blue: #2D5792;
             --qa-red: #C4090F;
-            --logo-fill-light: #1e293b; /* Slate 800 */
-            --logo-fill-dark: #f8fafc;  /* Slate 50 */
+            --logo-fill: #1f2937; /* Gris oscuro neutro (Gray 800) en modo claro, acorde al logo */
+            --logo-glow-color: rgba(107, 114, 128, 0.16); /* Brillo gris/plata suave en modo claro */
+            --logo-glow-active: rgba(107, 114, 128, 0.28);
+            --logo-breath-color: rgba(107, 114, 128, 0.14);
+            --particle-glow: rgba(107, 114, 128, 0.45);
+        }
+
+        .dark {
+            --logo-fill: #f9fafb; /* Off-white para modo oscuro */
+            --logo-glow-color: rgba(255, 255, 255, 0.15); /* Brillo blanco limpio en modo oscuro, libre de azul */
+            --logo-glow-active: rgba(255, 255, 255, 0.28);
+            --logo-breath-color: rgba(255, 255, 255, 0.12);
+            --particle-glow: rgba(255, 255, 255, 0.65);
         }
 
         /* Estilo y respiración continua de los caminos del logo */
         .qa-logo .logo-part {
-            fill: var(--logo-fill-light) !important;
+            fill: var(--logo-fill) !important;
             stroke: none !important;
             opacity: 1 !important;
             transform-box: fill-box;
@@ -447,13 +464,9 @@
             animation-delay: calc(var(--i, 0) * 70ms);
         }
 
-        .dark .qa-logo .logo-part {
-            fill: var(--logo-fill-dark) !important;
-        }
-
         @keyframes logoBreath {
-            0%, 100% { filter: drop-shadow(0 0 0 rgba(57,213,255,0)); }
-            50% { filter: drop-shadow(0 0 7px rgba(57,213,255,.22)); }
+            0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+            50% { filter: drop-shadow(0 0 7px var(--logo-breath-color)); }
         }
 
         /* Revelación de los colores reales de marca al pasar el mouse por encima del logo */
@@ -487,7 +500,7 @@
             height: 5px;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.74);
-            box-shadow: 0 0 14px rgba(57, 213, 255, 0.75);
+            box-shadow: 0 0 14px var(--particle-glow);
             pointer-events: none;
             opacity: 0;
             animation: particle 6.6s linear infinite;
@@ -496,7 +509,6 @@
 
         .dark .orb {
             background: rgba(255, 255, 255, 0.85);
-            box-shadow: 0 0 14px rgba(57, 213, 255, 0.85);
         }
 
         @keyframes particle {
