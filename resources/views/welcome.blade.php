@@ -98,10 +98,10 @@
             <!-- Interactive Animated Logo (Limpio y Elegante) -->
             <div class="logo-shell-hero mb-8" id="logoStageHero">
                 <div class="logo-wrap-hero">
-                    <svg class="w-full h-auto qa-logo" viewBox="0 0 15620 6990" role="img" aria-labelledby="hero-title hero-desc">
+                    <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-labelledby="hero-title hero-desc">
                         <title id="hero-title">QA365 Logo Animado</title>
                         <desc id="hero-desc">Logo interactivo y animado de QA365 en el centro del Hero</desc>
-                        <g transform="translate(0,6990) scale(1,-1)">
+                        <g transform="translate(0,699) scale(0.1,-0.1)">
                             <path class="logo-part blue slash-main" style="--i: 0;" d="M1121 6977 c-46 -15 -98 -69 -111 -115 -14 -53 -15 -51 293 -992 417 -1278 1121 -3450 1663 -5125 108 -335 206 -629 216 -652 50 -106 191 -119 271 -24 22 27 27 42 27 86 0 72 -29 169 -298 995 -383 1173 -1246 3833 -1546 4765 -334 1036 -326 1014 -390 1044 -56 27 -85 31 -125 18z"/>
                             <path class="logo-part red num-6" style="--i: 1;" d="M6905 5083 c-115 -42 -229 -133 -402 -324 -544 -604 -858 -1138 -974 -1659 -15 -69 -22 -144 -26 -275 -4 -155 -2 -198 17 -309 47 -277 135 -464 294 -621 160 -159 363 -253 644 -300 141 -24 419 -17 539 14 191 48 355 129 506 251 140 112 250 274 313 458 49 143 58 212 57 442 -1 245 -14 305 -97 475 -124 252 -324 408 -637 499 -104 30 -334 66 -418 66 -34 0 -61 4 -61 8 0 13 77 120 134 187 28 33 138 150 245 259 295 306 326 352 326 496 0 73 -4 93 -28 142 -35 72 -105 141 -176 175 -74 35 -184 42 -256 16z m-57 -1918 c60 -18 161 -105 211 -183 131 -204 40 -498 -186 -604 -59 -28 -81 -33 -169 -36 -95 -4 -104 -2 -180 29 -125 52 -215 154 -248 284 -59 224 71 459 286 520 64 18 208 13 286 -10z"/>
                             <path class="logo-part red num-3" style="--i: 2;" d="M3495 5076 c-341 -78 -637 -314 -748 -595 -26 -65 -30 -90 -31 -171 -1 -110 19 -168 82 -233 70 -73 162 -104 256 -86 97 18 163 60 309 198 161 152 220 187 333 197 99 9 171 -13 235 -73 65 -60 84 -111 76 -206 -15 -186 -80 -252 -334 -341 -246 -85 -317 -154 -318 -306 0 -60 5 -86 26 -130 52 -110 106 -151 285 -213 143 -50 238 -101 302 -160 74 -71 104 -132 110 -228 8 -139 -38 -236 -152 -314 l-58 -40 -140 -3 c-161 -4 -191 3 -298 74 -62 40 -182 156 -228 219 l-21 30 19 -70 c11 -38 91 -290 179 -560 l158 -490 149 3 c278 6 412 32 591 117 317 149 512 394 585 730 19 92 16 333 -6 430 -57 251 -196 453 -404 585 -39 25 -71 49 -71 53 -1 5 32 54 73 110 198 273 277 506 247 724 -48 344 -306 622 -681 735 -86 26 -432 35 -525 14z"/>
@@ -396,10 +396,11 @@
             position: relative;
             margin-inline: auto;
             width: 70%;
-            max-width: 580px; /* Ocupa el 70% del hero con tope de 580px */
+            max-width: 900px; /* Ocupa el 70% del hero con tope de 900px en escritorio */
             aspect-ratio: 1562 / 699;
             z-index: 10;
             overflow: visible;
+            isolation: isolate;
         }
 
         @media (max-width: 640px) {
@@ -414,10 +415,10 @@
             position: absolute;
             inset: 17% 2%;
             border-radius: 999px;
-            background: radial-gradient(circle at 40% 50%, rgba(99, 102, 241, 0.18), transparent 58%),
-                        radial-gradient(circle at 70% 46%, rgba(57, 213, 255, 0.15), transparent 62%);
-            filter: blur(28px);
-            opacity: 0.75;
+            background: radial-gradient(circle at 40% 50%, rgba(53, 242, 196, 0.26), transparent 58%),
+                        radial-gradient(circle at 70% 46%, rgba(57, 213, 255, 0.20), transparent 62%);
+            filter: blur(34px);
+            opacity: 0.70;
             z-index: -2;
             animation: glowPulse 3.8s ease-in-out infinite;
             pointer-events: none;
@@ -425,7 +426,7 @@
 
         @keyframes glowPulse {
             0%, 100% { opacity: 0.48; transform: scale(.96); }
-            50% { opacity: 0.86; transform: scale(1.04); }
+            50% { opacity: 0.86; transform: scale(1.08); }
         }
 
         /* Envoltura para el barrido de brillo del logo */
@@ -470,14 +471,14 @@
             width: 100%;
             height: 100%;
             overflow: visible;
-            filter: drop-shadow(0 0 16px rgba(57, 213, 255, 0.2));
+            filter: drop-shadow(0 0 18px rgba(57, 213, 255, 0.28));
             animation: floatLogo 5.2s ease-in-out infinite;
             transform-origin: center;
         }
 
         @keyframes floatLogo {
-            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 16px rgba(57, 213, 255, 0.2)); }
-            50% { transform: translateY(-8px) scale(1.01); filter: drop-shadow(0 0 24px rgba(57, 213, 255, 0.35)); }
+            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 18px rgba(57, 213, 255, 0.28)); }
+            50% { transform: translateY(-10px) scale(1.012); filter: drop-shadow(0 0 26px rgba(57, 213, 255, 0.44)); }
         }
 
         /* Variables y tokens de marca */
@@ -506,7 +507,7 @@
 
         @keyframes logoBreath {
             0%, 100% { filter: drop-shadow(0 0 0 rgba(57,213,255,0)); }
-            50% { filter: drop-shadow(0 0 6px rgba(57,213,255,.2)); }
+            50% { filter: drop-shadow(0 0 7px rgba(57,213,255,.22)); }
         }
 
         /* Revelación de los colores reales de marca al pasar el mouse por encima del logo */
@@ -536,11 +537,11 @@
         /* Partículas flotantes sutiles (orbs) */
         .orb {
             position: absolute;
-            width: 4px;
-            height: 4px;
+            width: 5px;
+            height: 5px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.75);
-            box-shadow: 0 0 10px rgba(57, 213, 255, 0.85);
+            background: rgba(255, 255, 255, 0.74);
+            box-shadow: 0 0 14px rgba(57, 213, 255, 0.75);
             pointer-events: none;
             opacity: 0;
             animation: particle 6.6s linear infinite;
@@ -549,14 +550,14 @@
 
         .dark .orb {
             background: rgba(255, 255, 255, 0.85);
-            box-shadow: 0 0 12px rgba(57, 213, 255, 0.95);
+            box-shadow: 0 0 14px rgba(57, 213, 255, 0.85);
         }
 
         @keyframes particle {
-            0% { opacity: 0; transform: translate3d(0, 30px, 0) scale(.5); }
-            18% { opacity: 0.75; }
-            76% { opacity: 0.55; }
-            100% { opacity: 0; transform: translate3d(var(--tx), -220px, 0) scale(1.15); }
+            0% { opacity: 0; transform: translate3d(0, 34px, 0) scale(.55); }
+            18% { opacity: .72; }
+            76% { opacity: .50; }
+            100% { opacity: 0; transform: translate3d(var(--tx), -230px, 0) scale(1.16); }
         }
     </style>
     <script>
