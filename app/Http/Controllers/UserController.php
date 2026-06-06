@@ -506,7 +506,14 @@ class UserController extends Controller
             $supervisor = $this->supervisorQuery()
                 ->where(function ($query) use ($supervisorCode, $supervisorEmail, $supervisorName) {
                     if (filled($supervisorCode)) {
-                        $query->where('username', trim($supervisorCode));
+                        $code = trim($supervisorCode);
+                        $normalizedCode = $this->makeUsername($code);
+
+                        $query->where(function ($query) use ($code, $normalizedCode) {
+                            $query->where('username', $code)
+                                ->orWhereRaw('LOWER(username) = ?', [Str::lower($code)])
+                                ->orWhere('username', $normalizedCode);
+                        });
                     }
 
                     if (filled($supervisorEmail)) {

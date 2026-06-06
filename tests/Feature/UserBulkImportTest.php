@@ -213,6 +213,40 @@ class UserBulkImportTest extends TestCase
         ]);
     }
 
+    public function test_bulk_import_resolves_normalized_supervisor_username(): void
+    {
+        $admin = $this->userWithRole('admin');
+        Role::firstOrCreate(['name' => 'agent', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'supervisor', 'guard_name' => 'web']);
+        $parent = Campaign::create(['name' => 'Claro']);
+        $subcampaign = Campaign::create(['name' => 'Prepago', 'parent_id' => $parent->id]);
+
+        $csv = "username,name,email,role,password,supervisor_username\n"
+            ."E8179303,Beathriz Haro,bharo@example.com,supervisor,Password123,\n"
+            ."E8179344,Ada Vilcaluri,ada@example.com,agent,Password123,E8179303";
+
+        $this->actingAs($admin)
+            ->post(route('users.import.store'), [
+                'csv_file' => $this->csvFile($csv, 'usuarios.csv'),
+                'default_campaign_id' => $parent->id,
+                'default_subcampaign_id' => $subcampaign->id,
+                'update_existing' => '1',
+                'sync_campaigns' => '1',
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $supervisor = User::where('username', 'e8179303')->firstOrFail();
+        $agent = User::where('username', 'e8179344')->firstOrFail();
+
+        $this->assertSame($supervisor->id, $agent->supervisor_id);
+        $this->assertDatabaseHas('campaign_user_assignments', [
+            'campaign_id' => $subcampaign->id,
+            'agent_id' => $agent->id,
+            'supervisor_id' => $supervisor->id,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_admin_can_bulk_delete_users_and_skip_protected_records(): void
     {
         $admin = $this->userWithRole('admin');
