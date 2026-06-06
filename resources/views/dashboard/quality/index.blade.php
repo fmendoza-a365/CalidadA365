@@ -709,20 +709,42 @@
                 const mpTrendSeries = @json($mpTrendSeries);
                 const feedbackTrendSeries = @json($feedbackTrendSeries);
 
-                const renderQualityTrend = (period = 'day') => charts.area('#chart-quality-trend', qualityTrendSeries[period] || [], {
-                    color: colors.indigo,
-                    valueName: 'Nota %',
-                    suffix: '%',
+                const renderQualityTrend = (period = 'day') => charts.trendCombo('#chart-quality-trend', qualityTrendSeries[period] || [], {
+                    barColor: colors.sky,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
                 });
 
-                const renderMpTrend = (period = 'day') => charts.bar('#chart-mp-trend', mpTrendSeries[period] || [], {
-                    color: colors.rose,
-                    valueName: 'Monitoreos',
+                const renderMpTrend = (period = 'day') => charts.trendCombo('#chart-mp-trend', mpTrendSeries[period] || [], {
+                    barColor: colors.rose,
+                    lineColor: colors.orange,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'MP',
+                    lineName: 'Eval. con MP',
+                    lineSuffix: '%',
+                    details: [
+                        { key: 'total', label: 'Evaluaciones' },
+                        { key: 'evaluations_with_mp', label: 'Evals con MP' },
+                    ],
                 });
 
-                const renderFeedbackTrend = (period = 'week') => charts.stacked('#chart-feedback-trend', feedbackTrendSeries[period] || [], {
-                    doneColor: colors.teal,
-                    pendingColor: colors.amber,
+                const renderFeedbackTrend = (period = 'week') => charts.trendCombo('#chart-feedback-trend', feedbackTrendSeries[period] || [], {
+                    barColor: colors.teal,
+                    lineColor: colors.amber,
+                    barMetric: 'total',
+                    lineMetric: 'done_pct',
+                    barName: 'Evaluaciones',
+                    lineName: 'Feedback visto',
+                    lineSuffix: '%',
+                    details: [
+                        { key: 'done', label: 'Vistos' },
+                        { key: 'pending', label: 'Pendientes' },
+                    ],
                 });
 
                 window.QA365DashboardCharts = {
@@ -774,8 +796,14 @@
                     max: 100,
                     suffix: '%',
                 });
-                charts.area('#chart-gestion-daily', @json($qualityDaily), {
-                    color: colors.violet,
+                charts.trendCombo('#chart-gestion-daily', qualityTrendSeries.day || [], {
+                    barColor: colors.violet,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
                 });
 
                 charts.resizeAll();

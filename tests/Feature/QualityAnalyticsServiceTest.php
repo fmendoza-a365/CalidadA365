@@ -50,6 +50,46 @@ class QualityAnalyticsServiceTest extends TestCase
         );
     }
 
+    public function test_evolution_series_include_volume_percentages_delta_and_insights(): void
+    {
+        [$campaign, $agent, $supervisor, $version, $criticalSubAttribute] = $this->dashboardFixtures();
+
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $criticalSubAttribute, '2026-06-02 10:00:00', 80, true);
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $criticalSubAttribute, '2026-06-02 11:00:00', 90, false, 'compliant');
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $criticalSubAttribute, '2026-06-10 10:00:00', 70, false);
+
+        $filters = [
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-06-30',
+        ];
+
+        $analytics = app(QualityAnalyticsService::class);
+
+        $quality = $analytics->getQualityTrendSeries($filters)['day'];
+        $this->assertSame(2, $quality[0]['count']);
+        $this->assertSame(85.0, $quality[0]['avg_score']);
+        $this->assertNull($quality[0]['trend_delta']);
+        $this->assertSame('Consentimiento', $quality[0]['top_defect']);
+        $this->assertStringContainsString('Principal falla: Consentimiento', $quality[0]['insight']);
+        $this->assertSame(-15.0, $quality[1]['trend_delta']);
+
+        $mp = $analytics->getMpTrendSeries($filters)['day'];
+        $this->assertSame(2, $mp[0]['total']);
+        $this->assertSame(1, $mp[0]['count']);
+        $this->assertSame(1, $mp[0]['evaluations_with_mp']);
+        $this->assertSame(50.0, $mp[0]['percentage']);
+        $this->assertSame(50.0, $mp[1]['trend_delta']);
+        $this->assertStringContainsString('Principal MP: Consentimiento', $mp[0]['insight']);
+
+        $feedback = $analytics->getFeedbackTrendSeries($filters)['day'];
+        $this->assertSame(2, $feedback[0]['total']);
+        $this->assertSame(1, $feedback[0]['done']);
+        $this->assertSame(1, $feedback[0]['pending']);
+        $this->assertSame(50.0, $feedback[0]['done_pct']);
+        $this->assertSame(-50.0, $feedback[1]['trend_delta']);
+        $this->assertStringContainsString('pendientes', $feedback[0]['insight']);
+    }
+
     private function dashboardFixtures(): array
     {
         $admin = User::factory()->create();
@@ -89,7 +129,8 @@ class QualityAnalyticsServiceTest extends TestCase
         QualitySubAttribute $criticalSubAttribute,
         string $createdAt,
         int $score,
-        bool $feedbackDone
+        bool $feedbackDone,
+        string $itemStatus = 'non_compliant'
     ): Evaluation {
         $interaction = Interaction::create([
             'campaign_id' => $campaign->id,
@@ -121,7 +162,7 @@ class QualityAnalyticsServiceTest extends TestCase
         EvaluationItem::create([
             'evaluation_id' => $evaluation->id,
             'subattribute_id' => $criticalSubAttribute->id,
-            'status' => 'non_compliant',
+            'status' => $itemStatus,
             'score' => 0,
             'max_score' => 100,
             'weighted_score' => 0,

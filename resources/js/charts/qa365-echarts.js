@@ -1,12 +1,13 @@
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
-import { GraphicComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
+import { AxisPointerComponent, GraphicComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { LabelLayout } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 
 echarts.use([
     BarChart,
     LineChart,
+    AxisPointerComponent,
     GraphicComponent,
     GridComponent,
     LabelLayout,
@@ -75,6 +76,16 @@ function formatValue(value, suffix = '') {
     const formatted = Number.isInteger(number) ? number.toString() : number.toFixed(1);
 
     return suffix ? `${formatted}${suffix}` : formatted;
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+    }[char]));
 }
 
 function dataLabel(options = {}) {
@@ -491,6 +502,135 @@ function area(selector, data, options = {}) {
     });
 }
 
+function trendCombo(selector, data, options = {}) {
+    const list = rows(data);
+    const barMetric = options.barMetric ?? 'count';
+    const lineMetric = options.lineMetric ?? 'percentage';
+    const barName = options.barName ?? 'Cantidad';
+    const lineName = options.lineName ?? '%';
+    const barColor = options.barColor ?? colorTokens.sky;
+    const lineColor = options.lineColor ?? colorTokens.indigo;
+    const lineSuffix = options.lineSuffix ?? '%';
+    const details = Array.isArray(options.details) ? options.details : [];
+
+    return render(selector, () => {
+        if (!list.length) {
+            return emptyOption();
+        }
+
+        const tokens = themeTokens();
+
+        return {
+            ...baseOption(),
+            grid: {
+                left: 8,
+                right: 52,
+                top: 42,
+                bottom: 16,
+                containLabel: true,
+            },
+            legend: {
+                ...baseOption().legend,
+                show: true,
+            },
+            tooltip: {
+                ...baseOption().tooltip,
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'cross',
+                },
+                formatter(params) {
+                    const point = Array.isArray(params) ? params[0] : params;
+                    const item = list[point?.dataIndex ?? 0] ?? {};
+                    const lines = [
+                        `<strong>${escapeHtml(labelOf(item))}</strong>`,
+                        `${escapeHtml(barName)}: <strong>${formatValue(numberOf(item, barMetric))}</strong>`,
+                        `${escapeHtml(lineName)}: <strong>${formatValue(numberOf(item, lineMetric), lineSuffix)}</strong>`,
+                    ];
+
+                    details.forEach((detail) => {
+                        lines.push(`${escapeHtml(detail.label)}: <strong>${formatValue(numberOf(item, detail.key), detail.suffix ?? '')}</strong>`);
+                    });
+
+                    if (item.trend_delta !== null && item.trend_delta !== undefined) {
+                        const delta = Number(item.trend_delta);
+                        const sign = delta > 0 ? '+' : '';
+                        lines.push(`Variacion: <strong>${sign}${formatValue(delta, ' pts')}</strong>`);
+                    }
+
+                    if (item.top_defect) {
+                        lines.push(`Falla principal: <strong>${escapeHtml(item.top_defect)}</strong> (${formatValue(numberOf(item, 'top_defect_count'))})`);
+                    }
+
+                    if (item.insight) {
+                        lines.push(`<span style="color:${tokens.muted}">Insight:</span> ${escapeHtml(item.insight)}`);
+                    }
+
+                    return lines.join('<br>');
+                },
+            },
+            color: [barColor, lineColor],
+            xAxis: categoryAxis(list),
+            yAxis: [
+                {
+                    ...valueAxis(),
+                    name: barName,
+                    nameTextStyle: {
+                        color: tokens.muted,
+                        fontSize: 10,
+                    },
+                },
+                {
+                    ...valueAxis(100),
+                    name: lineName,
+                    nameTextStyle: {
+                        color: tokens.muted,
+                        fontSize: 10,
+                    },
+                    axisLabel: {
+                        ...valueAxis(100).axisLabel,
+                        formatter(value) {
+                            return formatValue(value, lineSuffix);
+                        },
+                    },
+                },
+            ],
+            series: [
+                {
+                    name: barName,
+                    type: 'bar',
+                    yAxisIndex: 0,
+                    data: list.map((item) => numberOf(item, barMetric)),
+                    barWidth: '48%',
+                    barMaxWidth: 92,
+                    itemStyle: {
+                        borderRadius: [4, 4, 0, 0],
+                    },
+                    label: dataLabel({ suffix: options.barSuffix ?? '', hideZero: true }),
+                    labelLayout: {
+                        hideOverlap: true,
+                    },
+                },
+                {
+                    name: lineName,
+                    type: 'line',
+                    yAxisIndex: 1,
+                    data: list.map((item) => numberOf(item, lineMetric)),
+                    smooth: true,
+                    symbolSize: 6,
+                    lineStyle: {
+                        width: 2.5,
+                    },
+                    label: dataLabel({ suffix: lineSuffix, position: 'top', hideZero: options.hideZeroLineLabels ?? false }),
+                    labelLayout: {
+                        hideOverlap: true,
+                    },
+                },
+            ],
+        };
+    });
+}
+
 function stacked(selector, data, options = {}) {
     const list = rows(data);
     const doneColor = options.doneColor ?? colorTokens.teal;
@@ -568,6 +708,7 @@ window.QA365Charts = {
     bar,
     horizontalBar,
     area,
+    trendCombo,
     stacked,
     resizeAll,
     refreshAll,

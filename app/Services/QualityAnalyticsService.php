@@ -132,6 +132,7 @@ class QualityAnalyticsService
         }
 
         return $query->get()->map(fn($item) => [
+            'bucket' => $groupBy === 'week' ? (string) $item->week_bucket : (string) $item->label,
             'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
             'avg_score' => round((float) $item->avg_score, 2),
             'count' => (int) $item->count,
@@ -151,12 +152,12 @@ class QualityAnalyticsService
 
         switch ($groupBy) {
             case 'month':
-                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'month')} as label, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'month')} as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'week':
                 $weekBucket = $this->getWeekOfMonthSql('evaluations.created_at');
-                $query->selectRaw("$weekBucket as week_bucket, COUNT(*) as count")
+                $query->selectRaw("$weekBucket as week_bucket, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupByRaw($weekBucket)->orderByRaw($weekBucket);
                 break;
             case 'campaign':
@@ -164,32 +165,50 @@ class QualityAnalyticsService
 
                 $query->join('campaigns', 'evaluations.campaign_id', '=', 'campaigns.id')
                     ->leftJoin('campaigns as parent_campaigns', 'campaigns.parent_id', '=', 'parent_campaigns.id')
-                    ->selectRaw("$campaignLabel as label, COUNT(*) as count")
+                    ->selectRaw("$campaignLabel as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name');
                 break;
             case 'supervisor':
                 $query->join('users as agents', 'evaluations.agent_id', '=', 'agents.id')
                     ->leftJoin('users as supervisors', 'agents.supervisor_id', '=', 'supervisors.id')
-                    ->selectRaw("COALESCE(supervisors.name, 'Sin Supervisor') as label, COUNT(*) as count")
+                    ->selectRaw("COALESCE(supervisors.name, 'Sin Supervisor') as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupBy('supervisors.id', 'supervisors.name')
                     ->orderByDesc('count');
                 break;
             case 'daily':
-                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'day')} as label, COUNT(*) as count")
+                $query->selectRaw("{$this->getDateFormatSql('evaluations.created_at', 'day')} as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupBy('label')->orderBy('label');
                 break;
             case 'agent':
                 $query->join('users', 'evaluations.agent_id', '=', 'users.id')
-                    ->selectRaw("users.name as label, COUNT(*) as count")
+                    ->selectRaw("users.name as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
                     ->groupBy('users.id', 'users.name')
                     ->orderByDesc('count');
                 break;
         }
 
-        return $query->get()->map(fn($item) => [
-            'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
-            'count' => (int) $item->count,
-        ])->toArray();
+        $period = $this->periodForGroupBy($groupBy);
+        $totals = $period ? $this->getEvaluationTotalsByPeriod($period, $filters) : collect();
+
+        return $query->get()->map(function ($item) use ($groupBy, $totals) {
+            $bucket = $groupBy === 'week' ? (string) $item->week_bucket : (string) $item->label;
+            $total = $totals->get($bucket);
+            $evaluationsWithMp = (int) $item->evaluations_with_mp;
+
+            $row = [
+                'bucket' => $bucket,
+                'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
+                'count' => (int) $item->count,
+                'evaluations_with_mp' => $evaluationsWithMp,
+            ];
+
+            if ($total !== null) {
+                $row['total'] = (int) $total;
+                $row['percentage'] = $total > 0 ? round(($evaluationsWithMp / $total) * 100, 1) : 0;
+            }
+
+            return $row;
+        })->toArray();
     }
 
     /**
@@ -283,6 +302,7 @@ class QualityAnalyticsService
             ->orderByRaw($bucket)
             ->get()
             ->map(fn($item) => [
+                'bucket' => (string) $item->bucket,
                 'label' => $this->periodLabel((string) $item->bucket, $period),
                 'total' => (int) $item->total,
                 'done' => (int) $item->done,
@@ -295,28 +315,235 @@ class QualityAnalyticsService
     public function getQualityTrendSeries(array $filters = []): array
     {
         return [
-            'day' => $this->getQualityGrouped('daily', $filters),
-            'week' => $this->getQualityGrouped('week', $filters),
-            'month' => $this->getQualityGrouped('month', $filters),
+            'day' => $this->getQualityTrendByPeriod('day', $filters),
+            'week' => $this->getQualityTrendByPeriod('week', $filters),
+            'month' => $this->getQualityTrendByPeriod('month', $filters),
         ];
     }
 
     public function getMpTrendSeries(array $filters = []): array
     {
         return [
-            'day' => $this->getMPGrouped('daily', $filters),
-            'week' => $this->getMPGrouped('week', $filters),
-            'month' => $this->getMPGrouped('month', $filters),
+            'day' => $this->getMpTrendByPeriod('day', $filters),
+            'week' => $this->getMpTrendByPeriod('week', $filters),
+            'month' => $this->getMpTrendByPeriod('month', $filters),
         ];
     }
 
     public function getFeedbackTrendSeries(array $filters = []): array
     {
         return [
-            'day' => $this->getFeedbackByPeriod('day', $filters),
-            'week' => $this->getFeedbackByPeriod('week', $filters),
-            'month' => $this->getFeedbackByPeriod('month', $filters),
+            'day' => $this->withTrendInsights($this->getFeedbackByPeriod('day', $filters), 'feedback', 'done_pct', 'total'),
+            'week' => $this->withTrendInsights($this->getFeedbackByPeriod('week', $filters), 'feedback', 'done_pct', 'total'),
+            'month' => $this->withTrendInsights($this->getFeedbackByPeriod('month', $filters), 'feedback', 'done_pct', 'total'),
         ];
+    }
+
+    private function getQualityTrendByPeriod(string $period, array $filters): array
+    {
+        $rows = $this->getQualityGrouped($this->groupByForPeriod($period), $filters);
+        $rows = $this->withTopDefects($rows, $period, $filters);
+
+        return $this->withTrendInsights($rows, 'quality', 'avg_score', 'count');
+    }
+
+    private function getMpTrendByPeriod(string $period, array $filters): array
+    {
+        $rows = $this->getMPGrouped($this->groupByForPeriod($period), $filters);
+        $rows = $this->withTopDefects($rows, $period, $filters, true);
+
+        return $this->withTrendInsights($rows, 'mp', 'percentage', 'count');
+    }
+
+    private function groupByForPeriod(string $period): string
+    {
+        return match ($period) {
+            'week' => 'week',
+            'month' => 'month',
+            default => 'daily',
+        };
+    }
+
+    private function periodForGroupBy(string $groupBy): ?string
+    {
+        return match ($groupBy) {
+            'daily' => 'day',
+            'week' => 'week',
+            'month' => 'month',
+            default => null,
+        };
+    }
+
+    private function withTrendInsights(array $rows, string $type, string $valueKey, string $countKey): array
+    {
+        $previous = null;
+
+        return array_map(function (array $row) use (&$previous, $type, $valueKey, $countKey) {
+            $currentValue = round((float) ($row[$valueKey] ?? 0), 1);
+            $previousValue = $previous ? round((float) ($previous[$valueKey] ?? 0), 1) : null;
+            $delta = $previousValue === null ? null : round($currentValue - $previousValue, 1);
+
+            $row['trend_value'] = $currentValue;
+            $row['trend_delta'] = $delta;
+            $row['insight'] = $this->trendInsight($type, $row, $valueKey, $countKey, $delta);
+
+            $previous = $row;
+
+            return $row;
+        }, $rows);
+    }
+
+    private function trendInsight(string $type, array $row, string $valueKey, string $countKey, ?float $delta): string
+    {
+        $value = round((float) ($row[$valueKey] ?? 0), 1);
+        $count = (int) ($row[$countKey] ?? 0);
+        $sample = (int) ($row['total'] ?? $count);
+        $sampleNote = $sample > 0 && $sample < 3 ? "Muestra baja ({$sample}). " : '';
+
+        if ($sample === 0) {
+            return 'Sin muestra en este periodo.';
+        }
+
+        return match ($type) {
+            'mp' => $this->mpTrendInsight($row, $delta, $sampleNote),
+            'feedback' => $this->feedbackTrendInsight($row, $delta, $sampleNote),
+            default => $this->qualityTrendInsight($row, $value, $count, $delta, $sampleNote),
+        };
+    }
+
+    private function qualityTrendInsight(array $row, float $value, int $count, ?float $delta, string $sampleNote): string
+    {
+        if ($delta === null) {
+            $message = "Primer dato del periodo: {$value}% con {$count} evaluaciones.";
+        } elseif ($delta >= 2) {
+            $message = "Sube {$this->formatDelta($delta)} pts vs periodo anterior con {$count} evaluaciones.";
+        } elseif ($delta <= -2) {
+            $message = "Baja {$this->formatDelta(abs($delta))} pts vs periodo anterior; revisar los fallos del periodo.";
+        } else {
+            $message = "Se mantiene estable vs periodo anterior con {$count} evaluaciones.";
+        }
+
+        return trim($sampleNote.$message.' '.$this->topDefectSentence($row));
+    }
+
+    private function mpTrendInsight(array $row, ?float $delta, string $sampleNote): string
+    {
+        $total = (int) ($row['total'] ?? 0);
+        $evaluationsWithMp = (int) ($row['evaluations_with_mp'] ?? 0);
+        $percentage = round((float) ($row['percentage'] ?? 0), 1);
+
+        if ($evaluationsWithMp === 0) {
+            return trim($sampleNote."Sin malas practicas criticas en {$total} evaluaciones.");
+        }
+
+        if ($delta === null) {
+            $message = "MP en {$evaluationsWithMp}/{$total} evaluaciones ({$percentage}%).";
+        } elseif ($delta >= 2) {
+            $message = "Aumenta {$this->formatDelta($delta)} pts; {$evaluationsWithMp}/{$total} evaluaciones tuvieron MP.";
+        } elseif ($delta <= -2) {
+            $message = "Disminuye {$this->formatDelta(abs($delta))} pts; {$evaluationsWithMp}/{$total} evaluaciones tuvieron MP.";
+        } else {
+            $message = "MP estable: {$evaluationsWithMp}/{$total} evaluaciones ({$percentage}%).";
+        }
+
+        return trim($sampleNote.$message.' '.$this->topDefectSentence($row, 'Principal MP'));
+    }
+
+    private function feedbackTrendInsight(array $row, ?float $delta, string $sampleNote): string
+    {
+        $total = (int) ($row['total'] ?? 0);
+        $done = (int) ($row['done'] ?? 0);
+        $pending = (int) ($row['pending'] ?? max(0, $total - $done));
+        $percentage = round((float) ($row['done_pct'] ?? 0), 1);
+
+        if ($delta === null) {
+            $message = "{$done} feedbacks vistos y {$pending} pendientes de {$total} ({$percentage}%).";
+        } elseif ($delta >= 2) {
+            $message = "Mejora {$this->formatDelta($delta)} pts; {$done} vistos y {$pending} pendientes.";
+        } elseif ($delta <= -2) {
+            $message = "Retrocede {$this->formatDelta(abs($delta))} pts; {$pending} feedbacks siguen pendientes.";
+        } else {
+            $message = "Avance estable: {$done} vistos y {$pending} pendientes.";
+        }
+
+        return trim($sampleNote.$message);
+    }
+
+    private function topDefectSentence(array $row, string $prefix = 'Principal falla'): string
+    {
+        $label = trim((string) ($row['top_defect'] ?? ''));
+        $count = (int) ($row['top_defect_count'] ?? 0);
+
+        if ($label === '' || $count <= 0) {
+            return '';
+        }
+
+        return "{$prefix}: {$label} ({$count}).";
+    }
+
+    private function formatDelta(float $delta): string
+    {
+        return number_format($delta, 1, '.', '');
+    }
+
+    private function withTopDefects(array $rows, string $period, array $filters, bool $criticalOnly = false): array
+    {
+        $topDefects = $this->getTopDefectsByPeriod($period, $filters, $criticalOnly);
+
+        return array_map(function (array $row) use ($topDefects) {
+            $bucket = (string) ($row['bucket'] ?? '');
+            $topDefect = $topDefects->get($bucket);
+
+            if ($topDefect) {
+                $row['top_defect'] = $topDefect['label'];
+                $row['top_defect_count'] = $topDefect['count'];
+                $row['top_defect_critical'] = $topDefect['is_critical'];
+            }
+
+            return $row;
+        }, $rows);
+    }
+
+    private function getEvaluationTotalsByPeriod(string $period, array $filters): Collection
+    {
+        $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
+
+        return Evaluation::query()
+            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->selectRaw("$bucket as bucket, COUNT(*) as total")
+            ->groupByRaw($bucket)
+            ->pluck('total', 'bucket')
+            ->map(fn($total) => (int) $total);
+    }
+
+    private function getTopDefectsByPeriod(string $period, array $filters, bool $criticalOnly = false): Collection
+    {
+        $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
+
+        $query = EvaluationItem::query()
+            ->whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
+            ->where('evaluation_items.status', 'non_compliant')
+            ->join('evaluations', 'evaluation_items.evaluation_id', '=', 'evaluations.id')
+            ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id');
+
+        if ($criticalOnly) {
+            $query->where('quality_subattributes.is_critical', true);
+        }
+
+        return $query
+            ->selectRaw("$bucket as bucket, quality_subattributes.name as label, quality_subattributes.is_critical, COUNT(*) as count")
+            ->groupByRaw("$bucket, quality_subattributes.id, quality_subattributes.name, quality_subattributes.is_critical")
+            ->get()
+            ->groupBy(fn($item) => (string) $item->bucket)
+            ->map(function (Collection $items) {
+                $top = $items->sortByDesc('count')->first();
+
+                return [
+                    'label' => $top->label,
+                    'count' => (int) $top->count,
+                    'is_critical' => (bool) $top->is_critical,
+                ];
+            });
     }
 
     public function getAudioUploadPerformance(array $filters = [], int $recentLimit = 10): array
