@@ -96,8 +96,8 @@
 
         <div class="relative z-10 w-full mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
             <!-- Interactive Animated Logo -->
-            <div class="logo-shell-hero mb-6 max-w-sm sm:max-w-md md:max-w-lg mx-auto w-full">
-                <div class="qa-logo-hero-wrap qa-logo-link is-playing">
+            <div class="logo-shell-hero mb-8">
+                <div class="qa-logo-hero-card qa-logo-hero-wrap qa-logo-link is-playing">
                     <svg class="w-full h-auto qa-logo-svg" viewBox="0 0 15620 6990" role="img" aria-labelledby="hero-title hero-desc">
                         <title id="hero-title">QA365 Logo Animado</title>
                         <desc id="hero-desc">Logo interactivo y animado de QA365 en el centro del Hero</desc>
@@ -395,9 +395,39 @@
         .logo-shell-hero {
             position: relative;
             margin-inline: auto;
-            width: min(420px, 80vw);
-            padding: 10px;
+            max-width: 200px; /* Tamaño más sutil y balanceado para una mejor UX */
+            width: 100%;
             z-index: 10;
+        }
+
+        .qa-logo-hero-card {
+            background: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 16px 20px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .dark .qa-logo-hero-card {
+            background: rgba(10, 10, 10, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+        }
+
+        .qa-logo-hero-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.12);
+            border-color: rgba(99, 102, 241, 0.25);
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .dark .qa-logo-hero-card:hover {
+            box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.20);
+            border-color: rgba(99, 102, 241, 0.30);
+            background: rgba(15, 15, 15, 0.70);
         }
 
         .qa-logo-hero-wrap {
