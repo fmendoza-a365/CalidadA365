@@ -160,7 +160,11 @@ class EvaluationController extends Controller
             ? route('evaluations.feedback-audio', $evaluation)
             : null;
 
-        return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl'));
+        $interactionAudioUrl = $evaluation->interaction?->isAudio() && auth()->user()->can('view_transcripts')
+            ? route('transcripts.audio', $evaluation->interaction)
+            : null;
+
+        return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl', 'interactionAudioUrl'));
     }
 
     public function publish(Request $request, Evaluation $evaluation)

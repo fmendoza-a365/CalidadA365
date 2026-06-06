@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Campaign;
+use App\Models\Evaluation;
 use App\Models\Interaction;
+use App\Models\QualityForm;
+use App\Models\QualityFormVersion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -193,6 +196,54 @@ class TranscriptConversationViewTest extends TestCase
             ->get(route('transcripts.audio', $interaction))
             ->assertStatus(416)
             ->assertHeader('Content-Range', 'bytes */16');
+    }
+
+    public function test_audio_interaction_player_is_visible_on_evaluation_show_for_transcript_viewers(): void
+    {
+        $admin = $this->userWithRole('admin');
+        $campaign = Campaign::create(['name' => 'Soporte']);
+        $form = QualityForm::create([
+            'campaign_id' => $campaign->id,
+            'name' => 'Quality Form',
+            'created_by' => $admin->id,
+        ]);
+        $version = QualityFormVersion::create([
+            'quality_form_id' => $form->id,
+            'version_number' => 1,
+            'status' => 'published',
+        ]);
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'demo/audio.wav',
+            'file_name' => 'audio.wav',
+            'source_type' => 'audio',
+            'audio_duration' => 30,
+            'transcription_status' => 'completed',
+            'transcript_text' => '[00:00] Agente: Hola',
+            'status' => 'scored',
+        ]);
+        $evaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'type' => 'ai',
+            'total_score' => 100,
+            'max_possible_score' => 100,
+            'percentage_score' => 100,
+            'status' => Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+            'ai_summary' => 'Feedback IA.',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('evaluations.show', $evaluation))
+            ->assertOk()
+            ->assertSee('Audio de la interacción')
+            ->assertSee(route('transcripts.audio', $interaction), false);
     }
 
     private function userWithRole(string $role): User

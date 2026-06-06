@@ -140,6 +140,24 @@
             </div>
         </div>
 
+        @if($interactionAudioUrl)
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Audio de la interacción</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            Grabación original cargada para esta evaluación.
+                        </p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <audio controls src="{{ $interactionAudioUrl }}" class="w-full">
+                        Tu navegador no soporta el reproductor de audio.
+                    </audio>
+                </div>
+            </div>
+        @endif
+
         @if($evaluation->isClosed())
             <div class="alert alert-info">
                 <div>
