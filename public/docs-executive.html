@@ -273,6 +273,13 @@
                                         segmentada por campaña, asesor, supervisor, monitor y estado de revisión.</p>
                                 </div>
                             </div>
+                            <div class="flex gap-6">
+                                <div class="step-number text-5xl font-extrabold opacity-50">04</div>
+                                <div>
+                                    <h4 class="text-xl font-bold mb-2">Jerarquía y Segmentación de Campañas</h4>
+                                    <p class="text-neutral-400 leading-relaxed">El sistema implementa una jerarquía rigurosa para la asignación de usuarios y visualización de datos. Esto garantiza que agentes y supervisores (por ejemplo, del área de Prepago o Upgrade) interactúen únicamente con su respectivo ámbito operativo, evitando cruces de información.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="flex items-center justify-center mt-12 lg:mt-0">
@@ -370,9 +377,7 @@
                             </li>
                             <li class="flex gap-3">
                                 <div class="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2"></div>
-                                <span><strong>Scoring por ficha:</strong> La nota se calcula con los pesos y criterios
-                                    definidos en cada formulario de calidad, separando evaluación IA y corrección
-                                    manual.</span>
+                                <span><strong>Scoring y Localización:</strong> La nota se calcula con los pesos y criterios definidos en cada formulario de calidad, mapeados en español ("Cumple", "No Cumple", "No Aplica", "No Encontrado") tanto en el portal web como en la APK móvil.</span>
                             </li>
                             <li class="flex gap-3">
                                 <div class="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2"></div>
@@ -472,12 +477,13 @@ php artisan queue:work redis --tries=3</code></pre>
                 <!-- Seguridad -->
                 <div
                     class="p-10 bg-white rounded-[2.5rem] border border-neutral-100 shadow-sm hover:border-brand-300 transition-colors">
-                    <h4 class="text-lg font-bold mb-4 font-outfit">Seguridad de la Información</h4>
+                    <h4 class="text-lg font-bold mb-4 font-outfit">Seguridad y Gestión de Accesos</h4>
                     <p class="text-sm text-neutral-500 leading-relaxed mb-6">
                         Implementamos un modelo RBAC (Role-Based Access Control) estricto. Los datos sensibles están
                         protegidos mediante el cifrado nativo de Laravel (AES-256) y las llaves de API se gestionan de
-                        forma cifrada en la base de datos. Además, la aplicación incluye bloqueos de concurrencia e
-                        idempotencia atómicos (`Cache::lock`) para evitar race conditions y envíos duplicados.
+                        forma cifrada en la base de datos.
+                        <br><br>
+                        <strong>Fórmula de Usuarios Autogenerados:</strong> Para garantizar consistencia, los nombres de usuario se crean de forma automatizada mediante la regla: <code class="bg-neutral-100 text-brand-600 px-1.5 py-0.5 rounded font-mono text-xs">1ra letra del nombre + 1er apellido + 1ra letra del 2do apellido</code> (si no posee segundo apellido, se emplea la primera letra del primer apellido).
                     </p>
                     <div class="flex flex-wrap gap-2">
                         <span
@@ -485,11 +491,9 @@ php artisan queue:work redis --tries=3</code></pre>
                         <span
                             class="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded uppercase">AES-256</span>
                         <span
-                            class="px-2 py-1 bg-purple-50 text-purple-600 text-[10px] font-bold rounded uppercase">CSRF/XSS
-                            Protec</span>
+                            class="px-2 py-1 bg-purple-50 text-purple-600 text-[10px] font-bold rounded uppercase">Username Rule</span>
                         <span
-                            class="px-2 py-1 bg-rose-50 text-rose-600 text-[10px] font-bold rounded uppercase">Idempotency
-                            Locks</span>
+                            class="px-2 py-1 bg-rose-50 text-rose-600 text-[10px] font-bold rounded uppercase">Idempotency</span>
                     </div>
                 </div>
 
@@ -582,18 +586,30 @@ TranscribeAudioJob <span class="json-key">➔</span> ScoreTranscriptJob <span cl
                     <div
                         class="p-8 bg-white border border-neutral-100 rounded-3xl executive-shadow group hover:border-brand-500 transition-all duration-300">
                         <div class="flex justify-between items-start mb-6">
-                            <h4 class="text-xl font-bold">Feedback del Asesor</h4>
+                            <h4 class="text-xl font-bold">Feedback & KPIs Móviles</h4>
                             <span
                                 class="text-[10px] font-bold py-1 px-2 bg-brand-50 text-brand-600 rounded tracking-widest leading-none">KPI
                                 VIEW</span>
                         </div>
-                        <p class="text-neutral-500 text-sm leading-relaxed mb-6">Las evaluaciones publicadas pueden ser
-                            vistas por el asesor en web o app móvil. El asesor puede aceptar el feedback o abrir disputa,
-                            dejando trazabilidad del proceso.</p>
+                        <p class="text-neutral-500 text-sm leading-relaxed mb-6">El asesor puede aceptar o disputar su feedback en web o la APK. El sistema registra KPIs analíticos en la APK móvil para seguimiento de coaching: Tasa de Lectura (Visto), Tasa de Respuesta y Tasa de Aceptación.</p>
                         <div class="flex gap-2">
                             <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
                             <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
                             <span class="w-8 h-1 bg-brand-200 rounded-full"></span>
+                        </div>
+                    </div>
+                    <div
+                        class="p-8 bg-white border border-neutral-100 rounded-3xl executive-shadow group hover:border-brand-500 transition-all duration-300">
+                        <div class="flex justify-between items-start mb-6">
+                            <h4 class="text-xl font-bold">Monitoreo Realtime y Ondas de Audio</h4>
+                            <span
+                                class="text-[10px] font-bold py-1 px-2 bg-indigo-50 text-indigo-600 rounded tracking-widest leading-none">REALTIME</span>
+                        </div>
+                        <p class="text-neutral-500 text-sm leading-relaxed mb-6">Los dashboards se auto-actualizan cada 15 segundos en tiempo real. Los audios de evaluación integran un visor de ondas interactivo (Waveforms/Sentiment histogram) con soporte HTTP 206 Byte Range para búsquedas rápidas.</p>
+                        <div class="flex gap-2">
+                            <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
+                            <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
+                            <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
                         </div>
                     </div>
                     <div
@@ -604,9 +620,7 @@ TranscribeAudioJob <span class="json-key">➔</span> ScoreTranscriptJob <span cl
                                 class="text-[10px] font-bold py-1 px-2 bg-sky-50 text-sky-600 rounded tracking-widest leading-none">TELEGRAM
                                 IA</span>
                         </div>
-                        <p class="text-neutral-500 text-sm leading-relaxed mb-6">El módulo de Insights consolida
-                            evaluaciones reales para generar análisis ejecutivo, hallazgos, riesgos y material de
-                            presentación para operaciones y cliente.</p>
+                        <p class="text-neutral-500 text-sm leading-relaxed mb-6">El módulo de Insights consolida evaluaciones reales para generar análisis ejecutivo, hallazgos, riesgos y un guion dinámico con material de presentación para reuniones operativas.</p>
                         <div class="flex gap-2">
                             <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
                             <span class="w-8 h-1 bg-brand-500 rounded-full"></span>
