@@ -98,9 +98,7 @@
             <!-- Interactive Animated Logo (Limpio y Elegante) -->
             <div class="logo-shell-hero mb-8" id="logoStageHero">
                 <div class="logo-wrap-hero">
-                    <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-labelledby="hero-title hero-desc">
-                        <title id="hero-title">QA365 Logo Animado</title>
-                        <desc id="hero-desc">Logo interactivo y animado de QA365 en el centro del Hero</desc>
+                    <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-label="QA365 Logo Animado">
                         <g transform="translate(0,699) scale(0.1,-0.1)">
                             <path class="logo-part blue slash-main" style="--i: 0;" d="M1121 6977 c-46 -15 -98 -69 -111 -115 -14 -53 -15 -51 293 -992 417 -1278 1121 -3450 1663 -5125 108 -335 206 -629 216 -652 50 -106 191 -119 271 -24 22 27 27 42 27 86 0 72 -29 169 -298 995 -383 1173 -1246 3833 -1546 4765 -334 1036 -326 1014 -390 1044 -56 27 -85 31 -125 18z"/>
                             <path class="logo-part red num-6" style="--i: 1;" d="M6905 5083 c-115 -42 -229 -133 -402 -324 -544 -604 -858 -1138 -974 -1659 -15 -69 -22 -144 -26 -275 -4 -155 -2 -198 17 -309 47 -277 135 -464 294 -621 160 -159 363 -253 644 -300 141 -24 419 -17 539 14 191 48 355 129 506 251 140 112 250 274 313 458 49 143 58 212 57 442 -1 245 -14 305 -97 475 -124 252 -324 408 -637 499 -104 30 -334 66 -418 66 -34 0 -61 4 -61 8 0 13 77 120 134 187 28 33 138 150 245 259 295 306 326 352 326 496 0 73 -4 93 -28 142 -35 72 -105 141 -176 175 -74 35 -184 42 -256 16z m-57 -1918 c60 -18 161 -105 211 -183 131 -204 40 -498 -186 -604 -59 -28 -81 -33 -169 -36 -95 -4 -104 -2 -180 29 -125 52 -215 154 -248 284 -59 224 71 459 286 520 64 18 208 13 286 -10z"/>
@@ -124,13 +122,9 @@
             </div>
 
             <!-- Title -->
-            <h1
-                class="text-5xl md:text-7xl font-bold tracking-tight mb-6 flex flex-col items-center md:grid md:grid-cols-2 md:gap-x-2">
-                <span class="md:text-right">Transforma</span>
-                <span x-data="typewriter" class="inline-block md:text-left relative">
-                    <span x-html="formattedText" class="whitespace-nowrap"></span><span
-                        class="animate-pulse text-gray-900 dark:text-white">|</span>
-                </span>
+            <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-center">
+                <span>Transforma a</span>
+                <span class="text-gradient font-['Orbitron'] tracking-wider">A365</span>
             </h1><!-- End Title -->
 
             <!-- Subtitle -->
@@ -396,7 +390,7 @@
             position: relative;
             margin-inline: auto;
             width: 70%;
-            max-width: 900px; /* Ocupa el 70% del hero con tope de 900px en escritorio */
+            max-width: 650px; /* Centrado y proporcionado para el Hero en escritorio */
             aspect-ratio: 1562 / 699;
             z-index: 10;
             overflow: visible;
@@ -409,60 +403,15 @@
             }
         }
 
-        /* Halo y brillo ambiental detrás del logo (glowPulse) */
-        .logo-shell-hero::before {
-            content: "";
-            position: absolute;
-            inset: 17% 2%;
-            border-radius: 999px;
-            background: radial-gradient(circle at 40% 50%, rgba(53, 242, 196, 0.26), transparent 58%),
-                        radial-gradient(circle at 70% 46%, rgba(57, 213, 255, 0.20), transparent 62%);
-            filter: blur(34px);
-            opacity: 0.70;
-            z-index: -2;
-            animation: glowPulse 3.8s ease-in-out infinite;
-            pointer-events: none;
-        }
-
-        @keyframes glowPulse {
-            0%, 100% { opacity: 0.48; transform: scale(.96); }
-            50% { opacity: 0.86; transform: scale(1.08); }
-        }
-
-        /* Envoltura para el barrido de brillo del logo */
+        /* Envoltura del logo */
         .logo-wrap-hero {
             position: relative;
-            overflow: hidden;
+            overflow: visible; /* Permite que las partículas fluyan sin recortes rectangulares */
             width: 100%;
             height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-        }
-
-        /* Barrido de brillo diagonal sobre el logo */
-        .logo-wrap-hero::after {
-            content: "";
-            position: absolute;
-            inset: -20% -40%;
-            background: linear-gradient(115deg,
-                transparent 35%,
-                rgba(255,255,255,.08) 43%,
-                rgba(255,255,255,.45) 49%,
-                rgba(255,255,255,.10) 55%,
-                transparent 64%);
-            transform: translateX(-95%);
-            animation: logoShine 4.4s cubic-bezier(.22, .61, .36, 1) 2.25s infinite;
-            pointer-events: none;
-            mix-blend-mode: screen;
-            z-index: 5;
-        }
-
-        @keyframes logoShine {
-            0%, 55% { transform: translateX(-95%); opacity: 0; }
-            65% { opacity: 0.75; }
-            84% { opacity: 0.45; }
-            100% { transform: translateX(95%); opacity: 0; }
         }
 
         /* Flotación y sombreado continuo del logo */
@@ -561,67 +510,6 @@
         }
     </style>
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('typewriter', () => ({
-                text: '',
-                words: [
-                    { text: 'tu BPO', split: 3 },
-                    { text: 'a A365', split: 2 }
-                ],
-                wordIndex: 0,
-                charIndex: 0,
-                isDeleting: false,
-                typeSpeed: 100,
-                deleteSpeed: 50,
-                wait: 2000,
-
-                init() {
-                    this.type();
-                },
-
-                get formattedText() {
-                    const currentWord = this.words[this.wordIndex % this.words.length];
-                    const splitAt = currentWord.split;
-
-                    if (this.text.length <= splitAt) {
-                        return `<span class="text-gray-900 dark:text-white">${this.text}</span>`;
-                    }
-
-                    const prefix = this.text.substring(0, splitAt);
-                    const suffix = this.text.substring(splitAt);
-
-                    return `<span class="text-gray-900 dark:text-white">${prefix}</span><span class="text-gradient font-['Orbitron'] tracking-wider">${suffix}</span>`;
-                },
-
-                type() {
-                    const currentIndex = this.wordIndex % this.words.length;
-                    const fullTxt = this.words[currentIndex].text;
-
-                    if (this.isDeleting) {
-                        this.text = fullTxt.substring(0, this.charIndex - 1);
-                        this.charIndex--;
-                    } else {
-                        this.text = fullTxt.substring(0, this.charIndex + 1);
-                        this.charIndex++;
-                    }
-
-                    let typeSpeed = this.typeSpeed;
-                    if (this.isDeleting) typeSpeed /= 2;
-
-                    if (!this.isDeleting && this.text === fullTxt) {
-                        typeSpeed = this.wait;
-                        this.isDeleting = true;
-                    } else if (this.isDeleting && this.text === '') {
-                        this.isDeleting = false;
-                        this.wordIndex++;
-                        typeSpeed = 500;
-                    }
-
-                    setTimeout(() => this.type(), typeSpeed);
-                }
-            }))
-        });
-
         // Partículas (orbs) elegantes flotantes en el fondo del logo
         window.addEventListener('DOMContentLoaded', () => {
             const stage = document.querySelector('#logoStageHero');
