@@ -170,7 +170,8 @@ class Evaluation extends Model
         $markers = [];
         foreach ($aliases as $key => $labels) {
             foreach ($labels as $label) {
-                if (preg_match_all('/(?:^|\R|\s)(?:#{1,4}\s*)?'.preg_quote($label, '/').'\s*:/iu', $summary, $matches, PREG_OFFSET_CAPTURE)) {
+                $regex = '/(?<=^|\s)(?:#{1,4}\s*)?(?:[^\w\s]+\s*)?'.preg_quote($label, '/').'(?:\s*[^\w\s]+)*\s*(?::|\R|$)/iu';
+                if (preg_match_all($regex, $summary, $matches, PREG_OFFSET_CAPTURE)) {
                     foreach ($matches[0] as $match) {
                         $markers[] = [
                             'key' => $key,
