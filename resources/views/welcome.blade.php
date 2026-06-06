@@ -191,56 +191,120 @@
             <div class="text-center mb-16">
                 <h2 class="text-3xl md:text-4xl font-bold mb-4">Todo lo que Necesitas</h2>
                 <p class="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                    Herramientas diseñadas para equipos de calidad de alto rendimiento.
+                    Herramientas diseñadas para equipos de calidad y auditoría de alto rendimiento.
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-3 gap-8">
-                <!-- Feature 1 -->
-                <div class="card card-hover p-8">
-                    <div
-                        class="w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-6">
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                <!-- Feature 1: Auditoría con IA -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-indigo-500/20 group-hover:bg-indigo-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-6">
                         <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold mb-3">Evaluación con IA</h3>
-                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        Nuestra IA analiza cada transcripción y extrae evidencias precisas para cada criterio de
-                        evaluación.
+                    <h3 class="text-lg font-bold mb-2">Auditoría con IA</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        La IA transcribe llamadas de audio y extrae evidencias precisas para evaluar automáticamente cada criterio de calidad.
                     </p>
                 </div>
 
-                <!-- Feature 2 -->
-                <div class="card card-hover p-8">
-                    <div
-                        class="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-6">
+                <!-- Feature 2: Dashboards en Tiempo Real -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/20 group-hover:bg-emerald-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-6">
                         <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold mb-3">Dashboards en Tiempo Real</h3>
-                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        Visualiza métricas clave, tendencias y rendimiento de agentes al instante con gráficos
-                        interactivos.
+                    <h3 class="text-lg font-bold mb-2">Dashboards de Calidad</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Visualiza de forma inmediata indicadores clave (KPIs), rankings de agentes y alertas críticas con gráficos interactivos.
                     </p>
                 </div>
 
-                <!-- Feature 3 -->
-                <div class="card card-hover p-8">
-                    <div
-                        class="w-14 h-14 rounded-2xl bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-6">
+                <!-- Feature 3: Insights e Informes IA -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-purple-500/20 group-hover:bg-purple-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-6">
                         <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364.364l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 113.536 0V21h2v-2.243a5 5 0 01-3.536 0z" />
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold mb-3">Fichas Personalizables</h3>
-                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        Crea formularios de calidad adaptados a cada campaña con atributos ponderados y criterios
-                        críticos.
+                    <h3 class="text-lg font-bold mb-2">Insights IA</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Genera informes estratégicos con resúmenes detallados de hallazgos, fortalezas y oportunidades accionables por IA.
+                    </p>
+                </div>
+
+                <!-- Feature 4: Fichas Personalizables -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500/20 group-hover:bg-amber-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2">Fichas Ponderadas</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Diseña formularios dinámicos a medida por campaña, configurando criterios ponderados y alertas de fallo inmediato.
+                    </p>
+                </div>
+
+                <!-- Feature 5: Planes de Muestreo -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-rose-500/20 group-hover:bg-rose-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2">Planes de Muestreo</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Genera planes de muestreo diario con sorteos aleatorios auditables a partir de dotaciones cargadas.
+                    </p>
+                </div>
+
+                <!-- Feature 6: Bandeja de Trabajo -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500/20 group-hover:bg-blue-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2">Bandeja de Trabajo</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Cola de asignación (Work Queue) para que los auditores procesen y calibren las evaluaciones de forma secuencial.
+                    </p>
+                </div>
+
+                <!-- Feature 7: Campañas y Subcampañas -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-teal-500/20 group-hover:bg-teal-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2">Filtros Dinámicos</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Estructura tus operaciones mediante campañas principales y subcampañas, utilizando filtros dependientes y dinámicos.
+                    </p>
+                </div>
+
+                <!-- Feature 8: Soporte 24/7 de Bearlytic's - Lalo's Analysts -->
+                <div class="card card-hover p-8 relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-pink-500/20 group-hover:bg-pink-500 transition-all"></div>
+                    <div class="w-14 h-14 rounded-2xl bg-pink-100 dark:bg-pink-500/20 text-pink-600 dark:text-pink-400 flex items-center justify-center mb-6">
+                        <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold mb-2">Soporte 24/7</h3>
+                    <p class="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                        Respaldo continuo garantizado por Bearlytic's - Lalo's Analysts. Aseguramos calibración experta y soporte operativo diario.
                     </p>
                 </div>
             </div>
@@ -376,7 +440,7 @@
                         class="h-8 w-auto object-contain transition-all duration-300 filter grayscale hover:grayscale-0 hover:filter-none dark:invert dark:hover:invert-0">
                 </div>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                    &copy; {{ date('Y') }} QA365 - Powered By <a href="https://wa.me/+51901235322" target="_blank"
+                    &copy; {{ date('Y') }} QA365 - Powered By <a href="https://wa.me/51916305593" target="_blank"
                         class="font-bold hover:text-indigo-500 transition-colors">Bearlytic's</a>
                 </p>
             </div>
