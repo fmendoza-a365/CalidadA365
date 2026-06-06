@@ -125,7 +125,7 @@ class MobileApiTest extends TestCase
             ->assertJsonPath('overview.total_evaluations', 1)
             ->assertJsonPath('modules.feedback.summary.published', 1)
             ->assertJsonPath('modules.feedback.summary.pending_response', 1)
-            ->assertJsonPath('agent.league.name', 'Hierro')
+            ->assertJsonPath('agent.league.name', 'Desempeño Crítico')
             ->assertJsonPath('agent.match_history.0.id', $evaluation->id);
     }
 

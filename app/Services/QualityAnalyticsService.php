@@ -729,24 +729,24 @@ class QualityAnalyticsService
     public function getAgentLeague(float $averageScore): array
     {
         if ($averageScore >= 100)
-            return ['name' => 'Retador', 'color' => 'text-amber-300', 'bg' => 'bg-amber-900', 'border' => 'border-amber-400', 'icon' => '👑'];
-        if ($averageScore >= 99)
-            return ['name' => 'Gran Maestro', 'color' => 'text-red-400', 'bg' => 'bg-red-900', 'border' => 'border-red-500', 'icon' => '🛡️'];
+            return ['name' => 'Calidad Perfecta', 'color' => 'text-amber-500 dark:text-amber-400', 'bg' => 'bg-amber-50 dark:bg-amber-950/20', 'border' => 'border-amber-400', 'icon' => '🌟'];
         if ($averageScore >= 98)
-            return ['name' => 'Maestro', 'color' => 'text-purple-400', 'bg' => 'bg-purple-900', 'border' => 'border-purple-500', 'icon' => '👁️'];
+            return ['name' => 'Excelente Superior', 'color' => 'text-indigo-600 dark:text-indigo-400', 'bg' => 'bg-indigo-50 dark:bg-indigo-950/20', 'border' => 'border-indigo-400', 'icon' => '⭐'];
         if ($averageScore >= 95)
-            return ['name' => 'Diamante', 'color' => 'text-blue-300', 'bg' => 'bg-blue-900', 'border' => 'border-blue-400', 'icon' => '💎'];
+            return ['name' => 'Excelente', 'color' => 'text-indigo-500 dark:text-indigo-400', 'bg' => 'bg-indigo-50 dark:bg-indigo-950/10', 'border' => 'border-indigo-300', 'icon' => '🏅'];
         if ($averageScore >= 90)
-            return ['name' => 'Esmeralda', 'color' => 'text-emerald-400', 'bg' => 'bg-emerald-900', 'border' => 'border-emerald-500', 'icon' => '❇️'];
+            return ['name' => 'Sobresaliente', 'color' => 'text-blue-500 dark:text-blue-400', 'bg' => 'bg-blue-50 dark:bg-blue-950/10', 'border' => 'border-blue-300', 'icon' => '🏆'];
         if ($averageScore >= 85)
-            return ['name' => 'Platino', 'color' => 'text-teal-300', 'bg' => 'bg-teal-900', 'border' => 'border-teal-400', 'icon' => '💠'];
+            return ['name' => 'Competente Alto', 'color' => 'text-emerald-600 dark:text-emerald-400', 'bg' => 'bg-emerald-50 dark:bg-emerald-950/10', 'border' => 'border-emerald-400', 'icon' => '🔰'];
         if ($averageScore >= 80)
-            return ['name' => 'Oro', 'color' => 'text-yellow-400', 'bg' => 'bg-yellow-900', 'border' => 'border-yellow-500', 'icon' => '🏆'];
+            return ['name' => 'Satisfactorio', 'color' => 'text-emerald-500 dark:text-[#0AC8B9]', 'bg' => 'bg-emerald-50 dark:bg-emerald-950/5', 'border' => 'border-emerald-300', 'icon' => '📈'];
+        if ($averageScore >= 75)
+            return ['name' => 'Aceptable', 'color' => 'text-yellow-600 dark:text-yellow-400', 'bg' => 'bg-yellow-50 dark:bg-yellow-950/10', 'border' => 'border-yellow-400', 'icon' => '✔️'];
         if ($averageScore >= 70)
-            return ['name' => 'Plata', 'color' => 'text-gray-300', 'bg' => 'bg-gray-800', 'border' => 'border-gray-400', 'icon' => '🥈'];
+            return ['name' => 'En Desarrollo', 'color' => 'text-amber-500 dark:text-amber-400', 'bg' => 'bg-amber-50 dark:bg-amber-950/10', 'border' => 'border-amber-400', 'icon' => '⏱️'];
         if ($averageScore >= 60)
-            return ['name' => 'Bronce', 'color' => 'text-orange-400', 'bg' => 'bg-orange-900', 'border' => 'border-orange-500', 'icon' => '🥉'];
-        return ['name' => 'Hierro', 'color' => 'text-gray-500', 'bg' => 'bg-gray-900', 'border' => 'border-gray-600', 'icon' => '⚔️'];
+            return ['name' => 'Requiere Refuerzo', 'color' => 'text-orange-500 dark:text-orange-400', 'bg' => 'bg-orange-50 dark:bg-orange-950/10', 'border' => 'border-orange-400', 'icon' => '⚠️'];
+        return ['name' => 'Desempeño Crítico', 'color' => 'text-rose-600 dark:text-rose-400', 'bg' => 'bg-rose-50 dark:bg-rose-950/10', 'border' => 'border-rose-400', 'icon' => '🚨'];
     }
 
     /**

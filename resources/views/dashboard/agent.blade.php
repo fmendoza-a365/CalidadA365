@@ -73,7 +73,7 @@
                                 class="w-24 h-24 rounded-full border-4 border-[#C8AA6E] object-cover shadow-[0_0_15px_rgba(200,170,110,0.5)] z-10 relative bg-white dark:bg-transparent">
                             <div
                                 class="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white dark:bg-[#1E2328] border border-[#C8AA6E] text-gray-800 dark:text-[#F0E6D2] text-[10px] font-bold px-2.5 py-0.5 rounded-full z-20 whitespace-nowrap shadow-sm">
-                                Nvl. {{ number_format($stats['total_evaluations']) }}
+                                Evals: {{ number_format($stats['total_evaluations']) }}
                             </div>
                         </div>
                     </div>
@@ -100,19 +100,19 @@
 
                         <div class="mt-3 flex items-center justify-between w-full px-2">
                             <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Win Rate</p>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Efectividad</p>
                                 <p class="text-sm font-bold text-gray-900 dark:text-gray-200">
                                     {{ number_format($stats['average_score'], 1) }}%</p>
                             </div>
                             <div class="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
                             <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Puntuación</p>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Total Evals</p>
                                 <p class="text-sm font-bold text-gray-900 dark:text-gray-200">
-                                    {{ $stats['total_evaluations'] }} Evals</p>
+                                    {{ $stats['total_evaluations'] }}</p>
                             </div>
                             <div class="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
                             <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Fallidas</p>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Críticas</p>
                                 <p class="text-sm font-bold text-rose-600 dark:text-rose-400">{{ $stats['mp_count'] }}
                                 </p>
                             </div>
@@ -225,7 +225,7 @@
                                 class="border-b border-gray-200 dark:border-gray-800 text-gray-500 uppercase tracking-wider text-[9px]">
                                 <th class="text-center py-2 px-2 font-semibold">Pos</th>
                                 <th class="text-left py-2 px-2 font-semibold">Agente</th>
-                                <th class="text-center py-2 px-2 font-semibold">Liga</th>
+                                <th class="text-center py-2 px-2 font-semibold">Rendimiento</th>
                                 <th class="text-center py-2 px-2 font-semibold">Efectividad</th>
                                 <th class="text-center py-2 px-2 font-semibold">Evals</th>
                             </tr>
@@ -235,15 +235,15 @@
                                 @php
                                     $score = $agent['avg_score'];
                                     if ($score >= 95) {
-                                        $lName = 'Diamante/Superior';
+                                        $lName = 'Excelente';
                                     } elseif ($score >= 90) {
-                                        $lName = 'Esmeralda';
+                                        $lName = 'Sobresaliente';
                                     } elseif ($score >= 80) {
-                                        $lName = 'Oro';
+                                        $lName = 'Satisfactorio';
                                     } elseif ($score >= 70) {
-                                        $lName = 'Plata';
+                                        $lName = 'En Desarrollo';
                                     } else {
-                                        $lName = 'Bronce/Hierro';
+                                        $lName = 'Requiere Refuerzo';
                                     }
 
                                     $isMe = $agent['id'] === auth()->id();
