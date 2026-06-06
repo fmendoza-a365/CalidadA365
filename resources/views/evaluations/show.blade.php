@@ -457,12 +457,20 @@
                                             @endif
                                         </div>
                                     @endif
-
-                                    @if($primaryNotes)
-                                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                            <strong>{{ $evaluation->type === 'manual' ? 'Nota del monitor:' : 'Notas:' }}</strong> {{ $primaryNotes }}
-                                        </div>
-                                    @endif
+                                    @php
+                                        $displayNotes = trim($primaryNotes ?: '');
+                                        if (!$displayNotes) {
+                                            $displayNotes = match($item?->status) {
+                                                'compliant' => 'Cumple con los criterios establecidos.',
+                                                'non_compliant' => 'No cumple con el protocolo de calidad.',
+                                                'not_found' => 'Criterio no identificado o no aplica en la interacción.',
+                                                default => 'Sin observaciones registradas.'
+                                            };
+                                        }
+                                    @endphp
+                                    <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <strong>{{ $evaluation->type === 'manual' ? 'Nota del monitor:' : 'Notas:' }}</strong> {{ $displayNotes }}
+                                    </div>
 
                                     @if($showReferenceNotes)
                                         <div class="mt-2 text-sm text-gray-500 dark:text-gray-500">
