@@ -26,22 +26,7 @@ class FeedbackAudioService
 
         $response = Http::withToken($this->accessToken())
             ->timeout(90)
-            ->post((string) config('ai.feedback_tts.endpoint'), [
-                'input' => [
-                    'prompt' => $this->limitBytes((string) config('ai.feedback_tts.prompt'), (int) config('ai.feedback_tts.prompt_byte_limit', 900)),
-                    'text' => $this->limitBytes($text, (int) config('ai.feedback_tts.text_byte_limit', 900)),
-                ],
-                'voice' => [
-                    'languageCode' => (string) config('ai.feedback_tts.language', 'es-419'),
-                    'modelName' => (string) config('ai.feedback_tts.model', 'gemini-2.5-flash-tts'),
-                    'name' => (string) config('ai.feedback_tts.voice', 'Orus'),
-                ],
-                'audioConfig' => [
-                    'audioEncoding' => 'MP3',
-                    'speakingRate' => 1.05,
-                    'pitch' => 0,
-                ],
-            ]);
+            ->post((string) config('ai.feedback_tts.endpoint'), $this->synthesizePayload($text));
 
         if ($response->failed()) {
             throw new RuntimeException('Google Cloud TTS error: '.AiProviderErrors::sanitize($response->body()));
@@ -93,6 +78,36 @@ class FeedbackAudioService
         }
 
         return $accessToken;
+    }
+
+    private function synthesizePayload(string $text): array
+    {
+        $model = trim((string) config('ai.feedback_tts.model', ''));
+        $voice = [
+            'languageCode' => (string) config('ai.feedback_tts.language', 'es-419'),
+            'name' => (string) config('ai.feedback_tts.voice', 'Orus'),
+        ];
+        $input = [
+            'text' => $this->limitBytes($text, (int) config('ai.feedback_tts.text_byte_limit', 900)),
+        ];
+
+        if ($model !== '') {
+            $voice['modelName'] = $model;
+            $input = [
+                'prompt' => $this->limitBytes((string) config('ai.feedback_tts.prompt'), (int) config('ai.feedback_tts.prompt_byte_limit', 900)),
+                'text' => $input['text'],
+            ];
+        }
+
+        return [
+            'input' => $input,
+            'voice' => $voice,
+            'audioConfig' => [
+                'audioEncoding' => 'MP3',
+                'speakingRate' => 1.05,
+                'pitch' => 0,
+            ],
+        ];
     }
 
     private function limitBytes(string $text, int $limit): string

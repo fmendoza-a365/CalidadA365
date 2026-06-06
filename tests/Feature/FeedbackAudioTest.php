@@ -94,6 +94,47 @@ class FeedbackAudioTest extends TestCase
         });
     }
 
+    public function test_feedback_audio_job_can_use_legacy_tts_payload_for_free_tier_voices(): void
+    {
+        Storage::fake('local');
+        config([
+            'ai.feedback_tts.enabled' => true,
+            'ai.feedback_tts.audio_disk' => 'local',
+            'ai.feedback_tts.access_token' => 'test-oauth-token',
+            'ai.feedback_tts.endpoint' => 'https://texttospeech.googleapis.com/v1/text:synthesize',
+            'ai.feedback_tts.model' => '',
+            'ai.feedback_tts.voice' => 'es-US-Standard-B',
+            'ai.feedback_tts.language' => 'es-US',
+        ]);
+        Http::fake([
+            'https://texttospeech.googleapis.com/v1/text:synthesize' => Http::response([
+                'audioContent' => base64_encode('free-tier-mp3-binary'),
+            ]),
+        ]);
+
+        [, , $evaluation] = $this->evaluation(Evaluation::STATUS_PUBLISHED_TO_AGENT);
+        $evaluation->update([
+            'ai_feedback' => [
+                'performanceSummary' => 'Atención clara.',
+            ],
+        ]);
+
+        (new GenerateFeedbackAudioJob($evaluation->id))->handle(app(FeedbackAudioService::class));
+
+        $this->assertSame('ready', $evaluation->fresh()->feedback_audio_status);
+        Http::assertSent(function ($request): bool {
+            $data = $request->data();
+
+            return $request->url() === 'https://texttospeech.googleapis.com/v1/text:synthesize'
+                && ! array_key_exists('prompt', $data['input'] ?? [])
+                && ! array_key_exists('modelName', $data['voice'] ?? [])
+                && ($data['input']['text'] ?? null) === 'Resumen del desempeño: Atención clara.'
+                && ($data['voice']['languageCode'] ?? null) === 'es-US'
+                && ($data['voice']['name'] ?? null) === 'es-US-Standard-B'
+                && ($data['audioConfig']['audioEncoding'] ?? null) === 'MP3';
+        });
+    }
+
     public function test_feedback_audio_job_marks_failed_without_throwing(): void
     {
         config([

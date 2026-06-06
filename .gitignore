@@ -6,6 +6,7 @@
 .env
 .env.backup
 .env.production
+qa365-pry-*.json
 /yarn.lock
 .phpunit.result.cache
 Homestead.json
