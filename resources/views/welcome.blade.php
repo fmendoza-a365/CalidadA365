@@ -112,18 +112,6 @@
                 </div>
             </div>
 
-            <!-- Title -->
-            <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-center">
-                <span>Transforma a</span>
-                <span class="text-gradient font-['Orbitron'] tracking-wider">A365</span>
-            </h1><!-- End Title -->
-
-            <!-- Subtitle -->
-            <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                Evalúa el 100% de tus llamadas automáticamente. Detecta oportunidades de mejora y eleva la calidad de
-                servicio con nuestra plataforma de QA inteligente.
-            </p>
-
             <!-- Interactive Animated Logo (Limpio y Elegante en el Centro) -->
             <div class="logo-shell-hero my-12" id="logoStageHero">
                 <div class="logo-wrap-hero">
@@ -399,7 +387,7 @@
             position: relative;
             margin-inline: auto;
             width: 70%;
-            max-width: 740px; /* Centrado y ampliado para el Hero en escritorio */
+            max-width: 800px; /* Centrado y ampliado para el Hero en escritorio */
             aspect-ratio: 1562 / 699;
             z-index: 10;
             overflow: visible;
