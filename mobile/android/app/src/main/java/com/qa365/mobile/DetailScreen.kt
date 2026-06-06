@@ -155,7 +155,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                     ) {
                         Column {
                             Text(
-                                text = evaluation.optString("campaign", "Sin campaña"),
+                                text = campaignHierarchyLabel(evaluation),
                                 fontSize = 14.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 fontWeight = FontWeight.Medium
@@ -886,9 +886,9 @@ fun TranscriptDetail(transcript: JSONObject, token: String?) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    InfoColumn("Campaña", transcript.optString("campaign", "—"))
+                    InfoColumn("Campaña", campaignParentLabel(transcript, "—"))
+                    InfoColumn("Subcampaña", subcampaignLabel(transcript, "—"))
                     InfoColumn("Asesor", transcript.optString("agent", "—"))
-                    InfoColumn("Duración", transcript.optString("duration_label", "00:00"))
                 }
             }
         }
@@ -1187,7 +1187,8 @@ fun QualityFormDetail(form: JSONObject) {
                 Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                InfoRow("Operación / Campaña", form.optString("campaign", "General"))
+                InfoRow("Campaña", campaignParentLabel(form, "General"))
+                InfoRow("Subcampaña", subcampaignLabel(form, "—"))
                 InfoRow("Versión", "V${form.optInt("versions", 1)}")
                 InfoRow("Estado de Versión", form.optString("latest_status", "Activo"))
             }
@@ -1267,7 +1268,8 @@ fun InsightDetail(insight: JSONObject) {
                 Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                InfoRow("Campaña Analizada", insight.optString("campaign", "—"))
+                InfoRow("Campaña Analizada", campaignParentLabel(insight, "—"))
+                InfoRow("Subcampaña Analizada", subcampaignLabel(insight, "—"))
                 InfoRow("Rango de Fechas", insight.optString("date_range", "—"))
                 InfoRow("Hallazgos Identificados", "${insight.optInt("findings", 0)} detectados")
             }

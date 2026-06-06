@@ -274,7 +274,7 @@
                                 {{-- Columna Agente --}}
                                 <td>
                                     <div class="flex items-center gap-1">
-                                        <span class="font-semibold text-gray-900 dark:text-white text-sm">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
+                                        <span class="font-semibold text-gray-900 dark:text-white text-sm">{{ $evaluation->agent?->full_name ?? 'Sin asesor' }}</span>
                                         @if($evaluation->agent_viewed_at)
                                             <span class="inline-flex items-center text-emerald-600 dark:text-emerald-400" title="Visto por asesor el {{ $evaluation->agent_viewed_at->format('d/m/Y H:i') }}">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
@@ -426,7 +426,7 @@
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
+                                    <span class="font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->full_name ?? 'Sin asesor' }}</span>
                                     <span class="rounded-full border px-1.5 py-0.5 text-[10px] font-semibold {{ $typeTone($evaluation->type) }}">{{ $evaluation->type === 'ai' ? 'IA' : 'MNL' }}</span>
                                     @if($evaluation->agent_viewed_at)
                                         <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>

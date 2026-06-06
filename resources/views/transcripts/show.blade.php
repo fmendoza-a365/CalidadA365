@@ -37,7 +37,7 @@
                     <div>
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Asesor</div>
                         <p class="font-medium text-gray-900 dark:text-white">
-                            {{ $interaction->agent?->name ?? 'Usuario eliminado' }}
+                            {{ $interaction->agent?->full_name ?? 'Usuario eliminado' }}
                         </p>
                     </div>
                     <div>
@@ -49,7 +49,7 @@
                     <div>
                         <div class="text-sm text-gray-500 dark:text-gray-400 mb-1">Supervisor</div>
                         <p class="font-medium text-gray-900 dark:text-white">
-                            {{ $interaction->supervisor?->name ?? '—' }}
+                            {{ $interaction->supervisor?->full_name ?? '—' }}
                         </p>
                     </div>
                     <div>

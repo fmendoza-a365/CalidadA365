@@ -16,6 +16,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
+import org.json.JSONObject
+
+private fun JSONObject.cleanOptString(key: String): String {
+    val value = optString(key, "").trim()
+    return if (value.equals("null", ignoreCase = true)) "" else value
+}
+
+fun campaignHierarchyLabel(item: JSONObject, fallback: String = "Sin campaña"): String {
+    val parent = item.cleanOptString("campaign_parent").ifBlank { item.cleanOptString("parent_name") }
+    val subcampaign = item.cleanOptString("subcampaign")
+    val campaign = item.cleanOptString("campaign").ifBlank { item.cleanOptString("name") }
+
+    return when {
+        parent.isNotBlank() && subcampaign.isNotBlank() -> "$parent / $subcampaign"
+        campaign.isNotBlank() -> campaign
+        parent.isNotBlank() -> parent
+        else -> fallback
+    }
+}
+
+fun campaignParentLabel(item: JSONObject, fallback: String = "Sin campaña"): String {
+    return item.cleanOptString("campaign_parent")
+        .ifBlank { item.cleanOptString("parent_name") }
+        .ifBlank { item.cleanOptString("campaign") }
+        .ifBlank { item.cleanOptString("name") }
+        .ifBlank { fallback }
+}
+
+fun subcampaignLabel(item: JSONObject, fallback: String = "Sin subcampaña"): String {
+    return item.cleanOptString("subcampaign").ifBlank { fallback }
+}
 
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null) {

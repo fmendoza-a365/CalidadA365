@@ -115,7 +115,7 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->name ?? '—' }}</span>
+                                <span class="font-medium text-gray-900 dark:text-white">{{ $interaction->agent?->full_name ?? '—' }}</span>
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interactionCampaign?->parent?->name ?? $interactionCampaign?->name ?? '—' }}

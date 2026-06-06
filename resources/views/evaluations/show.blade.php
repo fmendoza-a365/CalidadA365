@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">Evaluación - {{ $evaluation->agent->name }}</x-slot>
+    <x-slot name="header">Evaluación - {{ $evaluation->agent->full_name }}</x-slot>
 
     <div class="space-y-6">
         @if(session('success'))
@@ -49,7 +49,7 @@
                                         {{ $isCorrectedFinal ? 'Final corregida' : 'Evaluación IA' }}
                                     </p>
                                     @if($evaluation->evaluator)
-                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Monitor: {{ $evaluation->evaluator->name }}</p>
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Monitor: {{ $evaluation->evaluator->full_name }}</p>
                                     @endif
                                 </div>
                                 <div>
@@ -163,7 +163,7 @@
                 <div>
                     <strong>Evaluación cerrada</strong>
                     <p class="mt-1 text-sm">
-                        Cerrada por {{ $evaluation->closer?->name ?? 'N/A' }}
+                        Cerrada por {{ $evaluation->closer?->full_name ?? 'N/A' }}
                         @if($evaluation->closed_at)
                             el {{ $evaluation->closed_at->format('d/m/Y H:i') }}
                         @endif

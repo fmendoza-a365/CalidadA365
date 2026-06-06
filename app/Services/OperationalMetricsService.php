@@ -13,7 +13,7 @@ class OperationalMetricsService
     {
         $evaluations = Evaluation::query()
             ->forUser($user)
-            ->with('evaluator:id,name')
+            ->with('evaluator:id,name,paternal_surname,maternal_surname')
             ->when(! empty($filters['start_date']) && ! empty($filters['end_date']), function ($query) use ($filters) {
                 $query->whereBetween('evaluations.created_at', [
                     $filters['start_date'].' 00:00:00',
@@ -40,7 +40,7 @@ class OperationalMetricsService
                 ->whereNotNull('evaluator_id')
                 ->groupBy('evaluator_id')
                 ->map(fn ($rows) => [
-                    'name' => $rows->first()->evaluator?->name ?? 'N/A',
+                    'name' => $rows->first()->evaluator?->full_name ?? 'N/A',
                     'count' => $rows->count(),
                     'avg_score' => round((float) $rows->whereNotNull('percentage_score')->avg('percentage_score'), 2),
                 ])

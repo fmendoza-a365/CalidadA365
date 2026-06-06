@@ -33,7 +33,7 @@
             <div class="flex items-center justify-between gap-4">
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="truncate font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->name ?? 'Sin asesor' }}</span>
+                        <span class="truncate font-semibold text-gray-900 dark:text-white">{{ $evaluation->agent?->full_name ?? 'Sin asesor' }}</span>
                         <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ $statusTone($evaluation->status) }}">
                             {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                         </span>

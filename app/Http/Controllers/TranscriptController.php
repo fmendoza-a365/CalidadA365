@@ -207,7 +207,7 @@ class TranscriptController extends Controller
 
         // Agents list needs to be filtered by assignment.
         // Also provide all agents for fallback or non-javascript users
-        $assignmentsQuery = \App\Models\CampaignUserAssignment::with('agent')
+        $assignmentsQuery = \App\Models\CampaignUserAssignment::with(['agent', 'supervisor'])
             ->whereIn('campaign_id', $campaignIds)
             ->where('is_active', true);
 
@@ -227,7 +227,17 @@ class TranscriptController extends Controller
             return $assignedAgents->map(function ($assignment) {
                 return [
                     'id' => $assignment->agent->id,
-                    'name' => $assignment->agent->name,
+                    'name' => $assignment->agent->full_name,
+                    'supervisor_id' => $assignment->supervisor_id,
+                ];
+            })->unique('id')->values();
+        });
+
+        $supervisorsByCampaign = $assignments->groupBy('campaign_id')->map(function ($assignedAgents) {
+            return $assignedAgents->filter(fn($a) => $a->supervisor)->map(function ($assignment) {
+                return [
+                    'id' => $assignment->supervisor->id,
+                    'name' => $assignment->supervisor->full_name,
                 ];
             })->unique('id')->values();
         });
@@ -242,6 +252,7 @@ class TranscriptController extends Controller
             'agents',
             'qualityForms',
             'agentsByCampaign',
+            'supervisorsByCampaign',
             'formOptions'
         ));
     }

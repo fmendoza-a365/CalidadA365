@@ -38,7 +38,7 @@
                             <select name="agent_id" id="agent_id" class="form-select" required>
                                 @foreach($agents as $agent)
                                     <option value="{{ $agent->id }}" {{ old('agent_id', $interaction->agent_id) == $agent->id ? 'selected' : '' }}>
-                                        {{ $agent->name }}
+                                        {{ $agent->full_name }}
                                     </option>
                                 @endforeach
                             </select>

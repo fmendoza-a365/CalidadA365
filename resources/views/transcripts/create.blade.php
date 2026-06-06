@@ -26,12 +26,15 @@
                             selectedParent: '{{ old('_parent_campaign_id', $selectedParentId) }}',
                             selectedCampaign: '{{ old('campaign_id') }}',
                             selectedForm: '{{ old('quality_form_id') }}',
+                            selectedSupervisor: '',
                             selectedAgent: '{{ old('agent_id') }}',
                             subcampaignsByParent: @js($subcampaignsByParent),
                             allForms: @js($qualityForms),
                             allAgents: @js($agentsByCampaign),
+                            allSupervisors: @js($supervisorsByCampaign),
                             availableSubcampaigns: [],
                             availableForms: [],
+                            availableSupervisors: [],
                             availableAgents: [],
                             init() {
                                 this.refreshSubcampaigns(false);
@@ -39,6 +42,12 @@
 
                                 this.$watch('selectedParent', () => this.refreshSubcampaigns(true));
                                 this.$watch('selectedCampaign', () => this.refreshDependents(true));
+                                this.$watch('selectedSupervisor', () => {
+                                    this.filterAgents();
+                                    if (this.selectedAgent && !this.availableAgents.some((agent) => String(agent.id) === String(this.selectedAgent))) {
+                                        this.selectedAgent = '';
+                                    }
+                                });
                             },
                             refreshSubcampaigns(resetSelection = true) {
                                 this.availableSubcampaigns = this.subcampaignsByParent[this.selectedParent] || [];
@@ -52,23 +61,30 @@
                             refreshDependents(resetSelection = true) {
                                 const key = String(this.selectedCampaign || '');
                                 this.availableForms = this.allForms[key] || [];
-                                this.availableAgents = this.allAgents[key] || [];
+                                this.availableSupervisors = this.allSupervisors[key] || [];
 
                                 if (resetSelection) {
                                     this.selectedForm = '';
+                                    this.selectedSupervisor = '';
                                     this.selectedAgent = '';
                                 }
+
+                                this.filterAgents();
 
                                 if (this.selectedForm && !this.availableForms.some((form) => String(form.id) === String(this.selectedForm))) {
                                     this.selectedForm = '';
                                 }
-
-                                if (this.selectedAgent && !this.availableAgents.some((agent) => String(agent.id) === String(this.selectedAgent))) {
-                                    this.selectedAgent = '';
+                            },
+                            filterAgents() {
+                                const key = String(this.selectedCampaign || '');
+                                let agents = this.allAgents[key] || [];
+                                if (this.selectedSupervisor) {
+                                    agents = agents.filter(agent => String(agent.supervisor_id) === String(this.selectedSupervisor));
                                 }
+                                this.availableAgents = agents;
                             }
                         }">
-                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-5">
                                 <div class="form-group">
                                     <label for="_parent_campaign_id" class="form-label">Campaña <span class="text-rose-500">*</span></label>
                                     <select name="_parent_campaign_id" id="_parent_campaign_id" class="form-select" required x-model="selectedParent">
@@ -105,6 +121,16 @@
                                 </div>
 
                                 <div class="form-group">
+                                    <label for="supervisor_filter_id" class="form-label">Supervisor</label>
+                                    <select id="supervisor_filter_id" class="form-select" x-model="selectedSupervisor" :disabled="!selectedCampaign">
+                                        <option value="">Todos los supervisores</option>
+                                        <template x-for="superv in availableSupervisors" :key="superv.id">
+                                            <option :value="superv.id" x-text="superv.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
                                     <label for="agent_id" class="form-label">Asesor <span class="text-rose-500">*</span></label>
                                     <select name="agent_id" id="agent_id" class="form-select" required x-model="selectedAgent" :disabled="!selectedCampaign">
                                         <option value="">Seleccione un asesor</option>
@@ -113,7 +139,7 @@
                                         </template>
                                     </select>
                                     <p x-show="selectedCampaign && availableAgents.length === 0" x-cloak class="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                                        No hay asesores asignados a esta subcampaña.
+                                        No hay asesores asignados a esta subcampaña o al supervisor seleccionado.
                                     </p>
                                     <x-input-error :messages="$errors->get('agent_id')" class="mt-1" />
                                 </div>

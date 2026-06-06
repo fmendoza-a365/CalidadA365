@@ -197,7 +197,7 @@
                             <a href="{{ route('evaluations.show', $dispute->evaluation) }}" class="block rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition hover:border-rose-200 hover:bg-rose-50/30 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/5">
                                 <div class="flex items-center justify-between gap-3">
                                     <div class="min-w-0">
-                                        <div class="font-semibold text-gray-900 dark:text-white">{{ $dispute->evaluation->agent?->name ?? 'N/A' }}</div>
+                                        <div class="font-semibold text-gray-900 dark:text-white">{{ $dispute->evaluation->agent?->full_name ?? 'N/A' }}</div>
                                         <div class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ $dispute->evaluation->campaign?->displayName() ?? 'N/A' }}</div>
                                         <div class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ $dispute->created_at->diffForHumans() }}</div>
                                     </div>

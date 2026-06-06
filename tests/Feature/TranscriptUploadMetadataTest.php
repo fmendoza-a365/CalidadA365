@@ -254,6 +254,53 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame('completed', $interaction->transcription_status);
     }
 
+    public function test_create_view_passes_supervisors_by_campaign_and_full_names(): void
+    {
+        $admin = $this->userWithRoleAndPermissions('admin', ['create_transcripts']);
+        $agent = $this->userWithRoleAndPermissions('agent');
+        $agent->update([
+            'name' => 'AgentName',
+            'paternal_surname' => 'Paternal',
+            'maternal_surname' => 'Maternal',
+        ]);
+        $supervisor = $this->userWithRoleAndPermissions('supervisor');
+        $supervisor->update([
+            'name' => 'SuperName',
+            'paternal_surname' => 'SuperPat',
+            'maternal_surname' => 'SuperMat',
+        ]);
+
+        $campaign = Campaign::create([
+            'name' => 'Campaña QA',
+            'is_active' => true,
+        ]);
+
+        CampaignUserAssignment::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $agent->id,
+            'supervisor_id' => $supervisor->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('transcripts.create'))
+            ->assertOk();
+
+        $supervisorsByCampaign = $response->viewData('supervisorsByCampaign');
+        $agentsByCampaign = $response->viewData('agentsByCampaign');
+
+        $this->assertArrayHasKey($campaign->id, $supervisorsByCampaign);
+        $this->assertCount(1, $supervisorsByCampaign[$campaign->id]);
+        $this->assertSame('SuperName SuperPat SuperMat', $supervisorsByCampaign[$campaign->id]->first()['name']);
+        $this->assertSame($supervisor->id, $supervisorsByCampaign[$campaign->id]->first()['id']);
+
+        $this->assertArrayHasKey($campaign->id, $agentsByCampaign);
+        $this->assertCount(1, $agentsByCampaign[$campaign->id]);
+        $this->assertSame('AgentName Paternal Maternal', $agentsByCampaign[$campaign->id]->first()['name']);
+        $this->assertSame($agent->id, $agentsByCampaign[$campaign->id]->first()['id']);
+        $this->assertSame($supervisor->id, $agentsByCampaign[$campaign->id]->first()['supervisor_id']);
+    }
+
     private function userWithRoleAndPermissions(string $role, array $permissions = []): User
     {
         $roleModel = Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
