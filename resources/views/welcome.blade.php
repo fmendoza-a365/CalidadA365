@@ -95,8 +95,37 @@
         </div>
 
         <div class="relative z-10 w-full mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
-            <!-- Interactive Animated Logo (Limpio y Elegante) -->
-            <div class="logo-shell-hero mb-8" id="logoStageHero">
+            <!-- Tech AI Badge -->
+            <div class="tech-badge-container mb-8">
+                <div class="tech-badge">
+                    <span class="tech-ai-icon">
+                        <svg class="w-5 h-5 text-indigo-500 dark:text-indigo-400 tech-ai-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- CPU Board Outer Contacts -->
+                            <path d="M9 3V5M15 3V5M9 19V21M15 19V21M3 9H5M3 15H5M19 9H21M19 15H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <!-- Chip Body -->
+                            <rect x="5" y="5" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
+                            <!-- Inner Core Glowing Circle -->
+                            <circle cx="12" cy="12" r="3" fill="currentColor" class="animate-pulse"/>
+                        </svg>
+                    </span>
+                    <span class="tech-badge-text">Potenciado por Inteligencia Artificial</span>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-center">
+                <span>Transforma a</span>
+                <span class="text-gradient font-['Orbitron'] tracking-wider">A365</span>
+            </h1><!-- End Title -->
+
+            <!-- Subtitle -->
+            <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+                Evalúa el 100% de tus llamadas automáticamente. Detecta oportunidades de mejora y eleva la calidad de
+                servicio con nuestra plataforma de QA inteligente.
+            </p>
+
+            <!-- Interactive Animated Logo (Limpio y Elegante en el Centro) -->
+            <div class="logo-shell-hero my-12" id="logoStageHero">
                 <div class="logo-wrap-hero">
                     <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-label="QA365 Logo Animado">
                         <g transform="translate(0,699) scale(0.1,-0.1)">
@@ -113,28 +142,8 @@
                 </div>
             </div>
 
-            <!-- Badge -->
-            <div
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 dark:bg-white/5 border border-indigo-200 dark:border-white/10 mb-8">
-                <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                <span class="text-sm font-medium text-indigo-700 dark:text-indigo-400">Potenciado por Inteligencia
-                    Artificial</span>
-            </div>
-
-            <!-- Title -->
-            <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-center">
-                <span>Transforma a</span>
-                <span class="text-gradient font-['Orbitron'] tracking-wider">A365</span>
-            </h1><!-- End Title -->
-
-            <!-- Subtitle -->
-            <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                Evalúa el 100% de tus llamadas automáticamente. Detecta oportunidades de mejora y eleva la calidad de
-                servicio con nuestra plataforma de QA inteligente.
-            </p>
-
             <!-- CTA Buttons -->
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-12 w-full max-w-2xl px-4 z-20">
                 @auth
                     <a href="{{ route('dashboard') }}" class="btn-primary text-lg px-8 py-4">
                         Ir al Dashboard
@@ -390,7 +399,7 @@
             position: relative;
             margin-inline: auto;
             width: 70%;
-            max-width: 650px; /* Centrado y proporcionado para el Hero en escritorio */
+            max-width: 740px; /* Centrado y ampliado para el Hero en escritorio */
             aspect-ratio: 1562 / 699;
             z-index: 10;
             overflow: visible;
@@ -507,6 +516,82 @@
             18% { opacity: .72; }
             76% { opacity: .50; }
             100% { opacity: 0; transform: translate3d(var(--tx), -230px, 0) scale(1.16); }
+        }
+
+        /* Tech AI Badge Styling */
+        .tech-badge-container {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .tech-badge {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 18px;
+            border-radius: 9999px;
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.1), inset 0 0 10px rgba(99, 102, 241, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            animation: techBadgeFloat 4s ease-in-out infinite;
+        }
+
+        .dark .tech-badge {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+        }
+
+        .tech-badge:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 25px rgba(99, 102, 241, 0.3), inset 0 0 15px rgba(99, 102, 241, 0.1);
+            transform: scale(1.03);
+        }
+
+        .tech-badge-text {
+            font-size: 0.825rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #4f46e5, #818cf8, #4f46e5);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shineText 3s linear infinite;
+        }
+
+        .dark .tech-badge-text {
+            background: linear-gradient(90deg, #a5b4fc, #e0e7ff, #a5b4fc);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shineText 3s linear infinite;
+        }
+
+        /* SVG AI Icon Animation */
+        .tech-ai-svg {
+            animation: techRotate 6s linear infinite;
+            filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.6));
+        }
+
+        @keyframes techRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes techBadgeFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+
+        @keyframes shineText {
+            to { background-position: 200% center; }
         }
     </style>
     <script>
