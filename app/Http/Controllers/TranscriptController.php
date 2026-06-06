@@ -102,6 +102,8 @@ class TranscriptController extends Controller
 
         if ($request->campaign_id) {
             $query->whereIn('campaign_id', Campaign::idsForFilter($request->campaign_id));
+        } elseif ($request->parent_campaign_id) {
+            $query->whereIn('campaign_id', Campaign::idsForFilter($request->parent_campaign_id));
         }
 
         if ($request->status) {

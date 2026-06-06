@@ -1,6 +1,11 @@
 <x-app-layout>
     <x-slot name="header">Muestreo QA</x-slot>
 
+    @php
+        $parentCampaigns = $campaigns->whereNull('parent_id');
+        $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
+    @endphp
+
     <div class="space-y-6">
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
@@ -68,14 +73,40 @@
                                     <input type="date" name="period_end" value="{{ old('period_end') }}" class="form-input">
                                     @error('period_end')<p class="form-error">{{ $message }}</p>@enderror
                                 </div>
-                                <div class="md:col-span-2">
+                                <div class="md:col-span-2" x-data="{
+                                    parentCampaignId: '{{ old('parent_campaign_id') }}',
+                                    campaignId: '{{ old('campaign_id') }}',
+                                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                                    get availableSubcampaigns() {
+                                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                                    },
+                                    get resolvedCampaignId() {
+                                        if (this.parentCampaignId && this.availableSubcampaigns.length === 0) {
+                                            return this.parentCampaignId;
+                                        }
+                                        return this.campaignId;
+                                    }
+                                }">
+                                    <input type="hidden" name="campaign_id" :value="resolvedCampaignId">
                                     <label class="form-label">Campaña / Subcampaña fija</label>
-                                    <select name="campaign_id" class="form-select">
-                                        <option value="">Tomar campaña/subcampaña desde el archivo</option>
-                                        @foreach($operationalCampaigns as $campaign)
-                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
-                                        @endforeach
-                                    </select>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <select x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
+                                                <option value="">Tomar desde el archivo (Campaña)</option>
+                                                @foreach($parentCampaigns as $pCamp)
+                                                    <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <select x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                                                <option value="">Tomar desde el archivo (Subcampaña)</option>
+                                                <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                                    <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                    </div>
                                     @error('campaign_id')<p class="form-error">{{ $message }}</p>@enderror
                                 </div>
                             </div>
@@ -153,14 +184,41 @@
                                     <input type="time" name="end_hour" value="{{ old('end_hour', '18:00') }}" class="form-input" required>
                                 </div>
 
-                                <div>
+                                <div class="md:col-span-2" x-data="{
+                                    parentCampaignId: '{{ old('parent_campaign_id') }}',
+                                    campaignId: '{{ old('campaign_id') }}',
+                                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                                    get availableSubcampaigns() {
+                                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                                    },
+                                    get resolvedCampaignId() {
+                                        if (this.parentCampaignId && this.availableSubcampaigns.length === 0) {
+                                            return this.parentCampaignId;
+                                        }
+                                        return this.campaignId;
+                                    }
+                                }">
+                                    <input type="hidden" name="campaign_id" :value="resolvedCampaignId">
                                     <label class="form-label">Campaña / Subcampaña</label>
-                                    <select name="campaign_id" class="form-select">
-                                        <option value="">Todas las campañas de la dotación</option>
-                                        @foreach($operationalCampaigns as $campaign)
-                                            <option value="{{ $campaign->id }}" @selected((string) old('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
-                                        @endforeach
-                                    </select>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <select x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
+                                                <option value="">Todas las campañas de la dotación</option>
+                                                @foreach($parentCampaigns as $pCamp)
+                                                    <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <select x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                                                <option value="">Todas las subcampañas de la dotación</option>
+                                                <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                                    <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    @error('campaign_id')<p class="form-error">{{ $message }}</p>@enderror
                                 </div>
 
                                 <div>
@@ -238,12 +296,31 @@
                                 <h3 class="font-semibold text-gray-900 dark:text-white">Planes generados</h3>
                                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Histórico de semanas y estado de ejecución.</p>
                             </div>
-                            <form method="GET" action="{{ route('sampling.index') }}" class="w-full md:w-64">
-                                <select name="campaign_id" class="form-select" onchange="this.form.submit()">
+                            <form method="GET" action="{{ route('sampling.index') }}" class="w-full md:w-[400px] flex gap-2" x-data="{
+                                parentCampaignId: '{{ request('parent_campaign_id') }}',
+                                campaignId: '{{ request('campaign_id') }}',
+                                subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                                get availableSubcampaigns() {
+                                    return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                                }
+                            }">
+                                <select name="parent_campaign_id" x-model="parentCampaignId" 
+                                        @change="campaignId = ''; $nextTick(() => $el.form.submit())"
+                                        class="form-select text-sm py-1.5">
                                     <option value="">Todas las campañas</option>
-                                    @foreach($campaigns as $campaign)
-                                        <option value="{{ $campaign->id }}" @selected((string) request('campaign_id') === (string) $campaign->id)>{{ $campaign->displayName() }}</option>
+                                    @foreach($parentCampaigns as $pCamp)
+                                        <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
                                     @endforeach
+                                </select>
+
+                                <select name="campaign_id" x-model="campaignId"
+                                        @change="$el.form.submit()"
+                                        :disabled="!parentCampaignId || availableSubcampaigns.length === 0"
+                                        class="form-select text-sm py-1.5 disabled:opacity-50">
+                                    <option value="">Todas las subcampañas</option>
+                                    <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                        <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                                    </template>
                                 </select>
                             </form>
                         </div>

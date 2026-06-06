@@ -20,6 +20,7 @@ class DashboardController extends Controller
                 'start_date' => request('start_date', now()->startOfMonth()->format('Y-m-d')),
                 'end_date' => request('end_date', now()->endOfMonth()->format('Y-m-d')),
                 'campaign_id' => request('campaign_id'),
+                'parent_campaign_id' => request('parent_campaign_id'),
             ];
 
             $stats = $analytics->getOverviewStats($filters);

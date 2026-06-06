@@ -27,6 +27,7 @@ class SamplingPlanController extends Controller
                 'orders as pending_orders_count' => fn ($query) => $query->where('status', SamplingOrder::STATUS_PENDING),
             ])
             ->when($request->filled('campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('campaign_id'))))
+            ->when(!$request->filled('campaign_id') && $request->filled('parent_campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('parent_campaign_id'))))
             ->latest('week_start')
             ->paginate(12)
             ->withQueryString();
@@ -65,8 +66,14 @@ class SamplingPlanController extends Controller
         ]);
 
         $campaign = ! empty($validated['campaign_id'])
-            ? Campaign::find($validated['campaign_id'])
+            ? Campaign::active()->operational()->whereKey($validated['campaign_id'])->first()
             : null;
+
+        if (! empty($validated['campaign_id']) && ! $campaign) {
+            return back()
+                ->withInput()
+                ->withErrors(['campaign_id' => 'Selecciona una subcampaña operativa o una campaña general sin subcampañas.']);
+        }
 
         $staffingBatch = StaffingBatch::with('activeMembers')->find($validated['staffing_batch_id']);
         $staffCsv = $this->staffCsvFromBatch($staffingBatch);

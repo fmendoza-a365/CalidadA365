@@ -21,6 +21,7 @@ class OperationalMetricsService
                 ]);
             })
             ->when(! empty($filters['campaign_id']), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($filters['campaign_id'])))
+            ->when(empty($filters['campaign_id']) && ! empty($filters['parent_campaign_id']), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($filters['parent_campaign_id'])))
             ->get();
 
         $published = $evaluations->whereNotNull('visible_to_agent_at');

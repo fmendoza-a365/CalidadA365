@@ -25,6 +25,7 @@ class DashboardQualityController extends Controller
             'start_date' => $request->input('start_date', now()->startOfMonth()->format('Y-m-d')),
             'end_date' => $request->input('end_date', now()->format('Y-m-d')),
             'campaign_id' => $request->input('campaign_id'),
+            'parent_campaign_id' => $request->input('parent_campaign_id'),
         ];
 
         // Tab 1: Dashboard Calidad

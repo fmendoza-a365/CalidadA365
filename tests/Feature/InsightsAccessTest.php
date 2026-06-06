@@ -184,6 +184,74 @@ class InsightsAccessTest extends TestCase
             ->assertSee('Hallazgo principal');
     }
 
+    public function test_manager_can_generate_insights_using_parent_campaign_id(): void
+    {
+        $admin = $this->userWithRoleAndPermissions('admin', ['view_insights', 'generate_insights']);
+        $agent = $this->userWithRoleAndPermissions('agent', []);
+        $supervisor = $this->userWithRoleAndPermissions('supervisor', []);
+        
+        $parentCampaign = Campaign::create(['name' => 'Parent Campaign']);
+        $subCampaign = Campaign::create(['name' => 'Sub Campaign', 'parent_id' => $parentCampaign->id]);
+        
+        $form = QualityForm::create([
+            'campaign_id' => $subCampaign->id,
+            'name' => 'Ficha Premium',
+            'created_by' => $admin->id,
+        ]);
+        $version = QualityFormVersion::create([
+            'quality_form_id' => $form->id,
+            'version_number' => 1,
+            'status' => 'published',
+        ]);
+        
+        $interaction = Interaction::create([
+            'campaign_id' => $subCampaign->id,
+            'agent_id' => $agent->id,
+            'supervisor_id' => $supervisor->id,
+            'occurred_at' => now()->subDays(3),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'transcripts/insight-test.txt',
+            'file_name' => 'insight-test.txt',
+            'source_type' => 'text',
+            'transcript_text' => 'Transcripción para reporte de insights.',
+            'status' => 'uploaded',
+        ]);
+
+        $evaluation = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $subCampaign->id,
+            'agent_id' => $agent->id,
+            'type' => 'manual',
+            'evaluator_id' => $admin->id,
+            'total_score' => 90,
+            'max_possible_score' => 100,
+            'percentage_score' => 90,
+            'status' => Evaluation::STATUS_APPROVED,
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+
+        $this->mock(AIEvaluationService::class, function ($mock) {
+            $mock->shouldReceive('generateInsightReport')
+                ->once()
+                ->andReturn([
+                    'executive_summary' => 'Resumen ejecutivo para parent.',
+                ]);
+        });
+
+        $this->actingAs($admin)
+            ->post(route('insights.generate'), [
+                'parent_campaign_id' => $parentCampaign->id,
+                'type' => 'operational',
+                'days' => 30,
+            ])
+            ->assertRedirect();
+
+        $report = InsightReport::firstOrFail();
+        $this->assertSame($parentCampaign->id, $report->campaign_id);
+    }
+
     private function userWithRoleAndPermissions(string $roleName, array $permissionNames): User
     {
         $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);

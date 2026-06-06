@@ -66,6 +66,7 @@ class EvaluationController extends Controller
     {
         $query
             ->when($request->filled('campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('campaign_id'))))
+            ->when(! $request->filled('campaign_id') && $request->filled('parent_campaign_id'), fn ($query) => $query->whereIn('campaign_id', Campaign::idsForFilter($request->integer('parent_campaign_id'))))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('type'), fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('start_date'), fn ($query) => $query->whereDate('evaluations.created_at', '>=', $request->date('start_date')->format('Y-m-d')))

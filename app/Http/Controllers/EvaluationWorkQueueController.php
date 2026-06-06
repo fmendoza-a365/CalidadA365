@@ -51,15 +51,22 @@ class EvaluationWorkQueueController extends Controller
             'start_date' => $request->input('start_date', now()->subDays(30)->format('Y-m-d')),
             'end_date' => $request->input('end_date', now()->format('Y-m-d')),
             'campaign_id' => $request->input('campaign_id'),
+            'parent_campaign_id' => $request->input('parent_campaign_id'),
         ];
 
         $calibrationAlerts = collect($calibrationService->recentPairs($filters, $user, 50))
             ->filter(fn (array $pair) => $pair['absolute_score_delta'] >= 10)
             ->values();
         $productivity = $operationalMetrics->summary($filters, $user);
+        
+        $campaignIds = null;
         if ($request->filled('campaign_id')) {
             $campaignIds = Campaign::idsForFilter($request->input('campaign_id'));
+        } elseif ($request->filled('parent_campaign_id')) {
+            $campaignIds = Campaign::idsForFilter($request->input('parent_campaign_id'));
+        }
 
+        if ($campaignIds) {
             $pendingReviewQuery->whereIn('campaign_id', $campaignIds);
             $aiQueueQuery->whereIn('campaign_id', $campaignIds);
             $disputesQuery->whereHas('evaluation', fn ($query) => $query->whereIn('campaign_id', $campaignIds));

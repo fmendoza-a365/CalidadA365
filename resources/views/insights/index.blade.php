@@ -181,15 +181,35 @@
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">El reporte se arma con evaluaciones reales del periodo seleccionado y queda listo para presentar.</p>
             </div>
             <div class="card-body">
-                <form action="{{ route('insights.generate') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                @php
+                    $parentCampaigns = $campaigns->whereNull('parent_id');
+                    $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
+                @endphp
+                <form action="{{ route('insights.generate') }}" method="POST" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end" x-data="{
+                    parentCampaignId: '',
+                    campaignId: '',
+                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                    get availableSubcampaigns() {
+                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                    }
+                }">
                     @csrf
                     <div class="form-group">
-                        <label class="form-label">Alcance</label>
-                        <select name="campaign_id" class="form-select">
+                        <label class="form-label">Campaña</label>
+                        <select name="parent_campaign_id" x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
                             <option value="">Todas las campañas visibles</option>
-                            @foreach($campaigns as $campaign)
-                                <option value="{{ $campaign->id }}">{{ $campaign->displayName() }}</option>
+                            @foreach($parentCampaigns as $pCamp)
+                                <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
                             @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Subcampaña</label>
+                        <select name="campaign_id" x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                            <option value="">Todas las subcampañas</option>
+                            <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                <option :value="sub.id" x-text="sub.name"></option>
+                            </template>
                         </select>
                     </div>
                     <div class="form-group">

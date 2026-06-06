@@ -494,6 +494,8 @@ class QualityAnalyticsService
 
             if (!empty($filters['campaign_id'])) {
                 $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
+            } elseif (!empty($filters['parent_campaign_id'])) {
+                $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
             }
 
             if (!empty($filters['agent_id'])) {
@@ -644,6 +646,8 @@ class QualityAnalyticsService
 
         if (!empty($filters['campaign_id'])) {
             $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
+        } elseif (!empty($filters['parent_campaign_id'])) {
+            $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
         }
 
         if (!empty($filters['agent_id'])) {
@@ -666,6 +670,8 @@ class QualityAnalyticsService
 
         if (!empty($filters['campaign_id'])) {
             $query->whereIn('interactions.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
+        } elseif (!empty($filters['parent_campaign_id'])) {
+            $query->whereIn('interactions.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
         }
 
         if (!empty($filters['agent_id'])) {

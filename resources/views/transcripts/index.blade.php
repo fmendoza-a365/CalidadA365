@@ -11,17 +11,38 @@
             
             <div class="flex items-center gap-4">
                  <!-- Filters (Inline for better space usage, or keep separate if too many) -->
-                <form method="GET" action="{{ route('transcripts.index') }}" class="flex flex-wrap items-center gap-2">
+                @php
+                    $parentCampaigns = $campaigns->whereNull('parent_id');
+                    $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
+                @endphp
+                <form method="GET" action="{{ route('transcripts.index') }}" class="flex flex-wrap items-center gap-2" x-data="{
+                    parentCampaignId: '{{ request('parent_campaign_id') }}',
+                    campaignId: '{{ request('campaign_id') }}',
+                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                    get availableSubcampaigns() {
+                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                    }
+                }">
                     <input type="search" name="search" value="{{ request('search') }}"
                         class="form-input py-1 text-sm w-48" placeholder="Buscar SN, ID o motivo">
 
-                    <select name="campaign_id" class="form-select py-1 text-sm w-56" onchange="this.form.submit()">
+                    <select name="parent_campaign_id" x-model="parentCampaignId" 
+                        @change="campaignId = ''; $nextTick(() => $el.form.submit())"
+                        class="form-select py-1 text-sm w-48">
                         <option value="">Todas las campañas</option>
-                        @foreach($campaigns as $campaign)
-                            <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
-                                {{ $campaign->displayName() }}
-                            </option>
+                        @foreach($parentCampaigns as $pCamp)
+                            <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
                         @endforeach
+                    </select>
+
+                    <select name="campaign_id" x-model="campaignId"
+                        @change="$el.form.submit()"
+                        :disabled="!parentCampaignId || availableSubcampaigns.length === 0"
+                        class="form-select py-1 text-sm w-48 disabled:opacity-50">
+                        <option value="">Todas las subcampañas</option>
+                        <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                            <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                        </template>
                     </select>
                     
                     <select name="status" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
@@ -48,7 +69,7 @@
                         @endforeach
                     </select>
                     
-                    @if(request('campaign_id') || request('status') || request('search') || request('channel') || request('priority'))
+                    @if(request('campaign_id') || request('parent_campaign_id') || request('status') || request('search') || request('channel') || request('priority'))
                         <a href="{{ route('transcripts.index') }}" class="btn-ghost btn-sm text-gray-500" title="Limpiar filtros">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

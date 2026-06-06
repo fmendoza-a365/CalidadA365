@@ -65,6 +65,7 @@
         $activeFilterCount = collect(request()->only([
             'q',
             'campaign_id',
+            'parent_campaign_id',
             'status',
             'type',
             'score_band',
@@ -173,14 +174,36 @@
                         <input type="search" name="q" id="q" value="{{ request('q') }}" class="form-input" placeholder="Agente, campaña o monitor">
                     </div>
 
-                    <div>
-                        <label for="campaign_id" class="form-label">Campaña / Subcampaña</label>
-                        <select name="campaign_id" id="campaign_id" class="form-select">
-                            <option value="">Todas</option>
-                            @foreach($campaigns ?? [] as $campaign)
-                                <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>{{ $campaign->displayName() }}</option>
-                            @endforeach
-                        </select>
+                    @php
+                        $parentCampaigns = ($campaigns ?? collect())->whereNull('parent_id');
+                        $subcampaignsByParent = ($campaigns ?? collect())->whereNotNull('parent_id')->groupBy('parent_id');
+                    @endphp
+                    <div class="grid grid-cols-2 gap-2 md:col-span-1" x-data="{
+                        parentCampaignId: '{{ request('parent_campaign_id') }}',
+                        campaignId: '{{ request('campaign_id') }}',
+                        subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                        get availableSubcampaigns() {
+                            return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                        }
+                    }">
+                        <div>
+                            <label for="parent_campaign_id" class="form-label">Campaña</label>
+                            <select name="parent_campaign_id" id="parent_campaign_id" x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
+                                <option value="">Todas</option>
+                                @foreach($parentCampaigns as $pCamp)
+                                    <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="campaign_id" class="form-label">Subcampaña</label>
+                            <select name="campaign_id" id="campaign_id" x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                                <option value="">Todas</option>
+                                <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                    <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                                </template>
+                            </select>
+                        </div>
                     </div>
 
                     <div>

@@ -113,6 +113,7 @@ class InsightsController extends Controller
         $user = auth()->user();
         $validated = $request->validate([
             'campaign_id' => 'nullable|exists:campaigns,id',
+            'parent_campaign_id' => 'nullable|exists:campaigns,id',
             'type' => 'required|in:operational,strategic',
             'days' => 'required|integer|min:1|max:90',
         ]);
@@ -120,9 +121,11 @@ class InsightsController extends Controller
         $campaign = null;
         if (! empty($validated['campaign_id'])) {
             $campaign = Campaign::forUser($user)->whereKey($validated['campaign_id'])->first();
+        } elseif (! empty($validated['parent_campaign_id'])) {
+            $campaign = Campaign::forUser($user)->whereKey($validated['parent_campaign_id'])->first();
         }
 
-        if (! empty($validated['campaign_id']) && ! $campaign) {
+        if ((! empty($validated['campaign_id']) || ! empty($validated['parent_campaign_id'])) && ! $campaign) {
             abort(403, 'No tiene permiso para generar insights en esta campaña.');
         }
 

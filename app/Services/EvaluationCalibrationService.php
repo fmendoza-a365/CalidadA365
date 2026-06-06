@@ -164,6 +164,8 @@ class EvaluationCalibrationService
 
         if (! empty($filters['campaign_id'])) {
             $query->whereIn('campaign_id', Campaign::idsForFilter($filters['campaign_id']));
+        } elseif (! empty($filters['parent_campaign_id'])) {
+            $query->whereIn('campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
         }
 
         return $query;
