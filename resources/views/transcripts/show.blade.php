@@ -4,6 +4,7 @@
     @php
         $audioReviewConfig = null;
         $interactionCampaign = $interaction->campaign;
+        $shouldAutoRefreshTranscript = $interaction->isTranscribing() || ($interaction->isAudio() && ! $interaction->evaluation);
 
         if ($interaction->isAudio()) {
             $audioReviewConfig = json_encode([
@@ -401,4 +402,8 @@
             </a>
         </div>
     </div>
+
+    @if($shouldAutoRefreshTranscript)
+        @include('partials.auto-refresh')
+    @endif
 </x-app-layout>

@@ -73,6 +73,16 @@
             'end_date',
         ]))->filter(fn ($value) => filled($value))->count();
 
+        $autoRefreshStatuses = [
+            \App\Models\Evaluation::STATUS_PENDING_AI,
+            \App\Models\Evaluation::STATUS_AI_PROCESSING,
+            \App\Models\Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
+        ];
+        $shouldAutoRefreshEvaluations = $evaluations->getCollection()->contains(
+            fn ($evaluation) => in_array($evaluation->status, $autoRefreshStatuses, true)
+                || in_array($evaluation->feedback_audio_status, ['pending', 'processing'], true)
+        );
+
         // Helper para canal
         $channelData = function (?string $channel): array {
             $ch = strtolower($channel ?? '');
@@ -502,4 +512,8 @@
             @endif
         </div>
     </div>
+
+    @if($shouldAutoRefreshEvaluations)
+        @include('partials.auto-refresh')
+    @endif
 </x-app-layout>

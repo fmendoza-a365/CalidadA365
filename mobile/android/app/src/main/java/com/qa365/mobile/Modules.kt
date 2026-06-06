@@ -55,6 +55,7 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
     val rankingArray = data.optJSONArray("ranking")
     val trendArray = data.optJSONArray("quality_trend")
     val defectsArray = data.optJSONArray("top_defects")
+    val generatedAt = data.optString("generated_at", "")
 
     var selectedSubTab by remember { mutableStateOf("resumen") }
 
@@ -138,6 +139,9 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        RealtimeStatusPill(label = generatedAtLabel(generatedAt))
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -810,7 +814,7 @@ private fun jsonArrayToComboPoints(
         val item = array.optJSONObject(i) ?: continue
         val rawLabel = item.optString("label", "Dato")
         val label = if (rawLabel.length > maxLabelLength) {
-            rawLabel.take(maxLabelLength - 1) + "…"
+            rawLabel.take(maxLabelLength - 3) + "..."
         } else {
             rawLabel
         }
@@ -833,6 +837,48 @@ private fun jsonArrayToComboPoints(
     }
 
     return points
+}
+
+@Composable
+private fun RealtimeStatusPill(label: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(Green)
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun generatedAtLabel(value: String): String {
+    if (value.isBlank()) {
+        return "Actualizacion automatica cada 15s"
+    }
+
+    val compact = value
+        .replace("T", " ")
+        .substringBefore(".")
+        .removeSuffix("Z")
+        .take(16)
+
+    return "Tiempo real cada 15s | actualizado $compact"
 }
 
 @Composable
@@ -922,7 +968,7 @@ private fun DashboardExecutiveHero(
                         text = if (isAgent) {
                             "Tus resultados, feedback y próximas revisiones."
                         } else {
-                            "Calidad, feedback, audios, alertas y operación."
+                            "Datos visibles según tu jerarquía: calidad, evaluaciones, audio y feedback."
                         },
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
@@ -963,14 +1009,16 @@ private fun DashboardExecutiveHero(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 HeroSignal(
-                    label = "Estado",
+                    label = "Estado QA",
                     value = statusText,
+                    hint = "calidad promedio",
                     color = scoreColor,
                     modifier = Modifier.weight(1f)
                 )
                 HeroSignal(
-                    label = "Feedback",
+                    label = "Feedback visto",
                     value = String.format("%.0f%%", responsePct),
+                    hint = "respondido/publicado",
                     color = if (responsePct >= 80.0) Green else Amber,
                     modifier = Modifier.weight(1f)
                 )
@@ -983,14 +1031,16 @@ private fun DashboardExecutiveHero(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 HeroSignal(
-                    label = "Audios",
+                    label = "Audios cargados",
                     value = transcriptSummary.optString("audio", "0"),
+                    hint = "interacciones audio",
                     color = Cyan,
                     modifier = Modifier.weight(1f)
                 )
                 HeroSignal(
-                    label = "Alertas",
+                    label = "Alertas abiertas",
                     value = summary.optString("open_alerts", "0"),
+                    hint = "riesgos activos",
                     color = if (summary.optInt("open_alerts", 0) > 0) Rose else Green,
                     modifier = Modifier.weight(1f)
                 )
@@ -1037,7 +1087,7 @@ private fun DashboardExecutiveHero(
 }
 
 @Composable
-private fun HeroSignal(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+private fun HeroSignal(label: String, value: String, color: Color, modifier: Modifier = Modifier, hint: String = "") {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -1060,6 +1110,16 @@ private fun HeroSignal(label: String, value: String, color: Color, modifier: Mod
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        if (hint.isNotBlank()) {
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = hint,
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -1076,17 +1136,17 @@ private fun DashboardKpiGrid(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             DashboardMiniMetric(
-                title = "Evaluaciones",
+                title = "Evals visibles",
                 value = overview.optString("total_evaluations", "0"),
-                subtitle = "visibles",
+                subtitle = "según tu rol",
                 icon = Icons.Default.Assessment,
                 color = Blue,
                 modifier = Modifier.weight(1f)
             )
             DashboardMiniMetric(
-                title = "Pend. monitor",
+                title = "Rev. monitor",
                 value = summary.optString("pending_reviews", summary.optString("monitor_pending", "0")),
-                subtitle = "por revisar",
+                subtitle = "pendientes",
                 icon = Icons.Default.RateReview,
                 color = Amber,
                 modifier = Modifier.weight(1f)
@@ -1097,7 +1157,7 @@ private fun DashboardKpiGrid(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             DashboardMiniMetric(
-                title = "Feedback",
+                title = "Feedback pend.",
                 value = feedbackSummary.optString("pending_response", "0"),
                 subtitle = "sin respuesta",
                 icon = Icons.Default.Chat,
@@ -1105,7 +1165,7 @@ private fun DashboardKpiGrid(
                 modifier = Modifier.weight(1f)
             )
             DashboardMiniMetric(
-                title = "Audios IA",
+                title = "Audio IA cola",
                 value = transcriptSummary.optString("processing", "0"),
                 subtitle = "procesando",
                 icon = Icons.Default.Audiotrack,

@@ -21,6 +21,13 @@
                 default => 'score-poor',
             };
             $isCorrectedFinal = $evaluation->type === 'manual' && $evaluation->interaction?->aiEvaluation;
+            $autoRefreshStatuses = [
+                \App\Models\Evaluation::STATUS_PENDING_AI,
+                \App\Models\Evaluation::STATUS_AI_PROCESSING,
+                \App\Models\Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
+            ];
+            $shouldAutoRefreshEvaluation = in_array($evaluation->status, $autoRefreshStatuses, true)
+                || in_array($evaluation->feedback_audio_status, ['pending', 'processing'], true);
             $statusBadgeClass = match ($evaluation->status) {
                 \App\Models\Evaluation::STATUS_PUBLISHED_TO_AGENT => 'badge-warning',
                 \App\Models\Evaluation::STATUS_AGENT_ACCEPTED,
@@ -141,21 +148,13 @@
         </div>
 
         @if($interactionAudioUrl)
-            <div class="card">
-                <div class="card-header">
-                    <div>
-                        <h3 class="font-semibold text-gray-900 dark:text-white">Audio de la interacción</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            Grabación original cargada para esta evaluación.
-                        </p>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <audio controls src="{{ $interactionAudioUrl }}" class="w-full">
-                        Tu navegador no soporta el reproductor de audio.
-                    </audio>
-                </div>
-            </div>
+            @include('transcripts.partials.audio-player-simple', [
+                'audioUrl' => $interactionAudioUrl,
+                'title' => 'Audio de la interacción',
+                'subtitle' => 'Grabación original cargada para esta evaluación.',
+                'fileName' => $evaluation->interaction?->file_name,
+                'durationLabel' => null,
+            ])
         @endif
 
         @if($evaluation->isClosed())
@@ -320,11 +319,14 @@
                     @endphp
 
                     @if($feedbackAudioUrl)
-                        <div class="mb-4 rounded-xl border border-indigo-100 bg-white p-4 dark:border-indigo-500/30 dark:bg-gray-800">
-                            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Feedback por voz</div>
-                            <audio controls src="{{ $feedbackAudioUrl }}" class="w-full">
-                                Tu navegador no soporta el reproductor de audio.
-                            </audio>
+                        <div class="mb-4">
+                            @include('transcripts.partials.audio-player-simple', [
+                                'audioUrl' => $feedbackAudioUrl,
+                                'title' => 'Feedback por voz',
+                                'subtitle' => 'Resumen narrado generado al publicar la evaluación.',
+                                'fileName' => $evaluation->feedback_audio_path ? basename($evaluation->feedback_audio_path) : null,
+                                'durationLabel' => null,
+                            ])
                         </div>
                     @elseif($evaluation->feedback_audio_status === 'processing' || $evaluation->feedback_audio_status === 'pending')
                         <div class="mb-4 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
@@ -780,4 +782,8 @@
             </a>
         </div>
     </div>
+
+    @if($shouldAutoRefreshEvaluation)
+        @include('partials.auto-refresh')
+    @endif
 </x-app-layout>

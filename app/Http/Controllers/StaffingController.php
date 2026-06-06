@@ -258,7 +258,7 @@ class StaffingController extends Controller
 
     private function authorizeStaffingManagement(): void
     {
-        if (! auth()->user()->can('manage_staffing') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+        if (! auth()->user()->can('manage_staffing') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
             abort(403);
         }
     }

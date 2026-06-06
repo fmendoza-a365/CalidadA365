@@ -20,6 +20,8 @@ class SamplingPlanController extends Controller
     {
         $this->authorizeSamplingAccess();
 
+        $selectedCampaignIds = $this->campaignIdsForStaffingFilter($request);
+
         $plans = SamplingPlan::with(['campaign.parent', 'creator'])
             ->withCount([
                 'orders',
@@ -34,14 +36,26 @@ class SamplingPlanController extends Controller
 
         $campaigns = Campaign::active()->forUser(auth()->user())->orderedForSelect()->get();
         $operationalCampaigns = Campaign::active()->forUser(auth()->user())->operational()->orderedForSelect()->get();
+
+        $staffingBatchesForSelection = StaffingBatch::active()
+            ->with(['campaign.parent', 'activeMembers.campaign.parent'])
+            ->withCount(['members', 'activeMembers'])
+            ->latest()
+            ->get();
+
         $staffingBatches = StaffingBatch::active()
             ->with('campaign.parent')
             ->withCount(['members', 'activeMembers'])
+            ->when(! empty($selectedCampaignIds), fn ($query) => $this->scopeStaffingBatchToCampaignIds($query, $selectedCampaignIds))
             ->latest()
             ->limit(20)
             ->get();
 
-        return view('sampling.index', compact('plans', 'campaigns', 'operationalCampaigns', 'staffingBatches'));
+        $staffingBatchOptions = $staffingBatchesForSelection
+            ->map(fn (StaffingBatch $batch) => $this->staffingBatchOption($batch))
+            ->values();
+
+        return view('sampling.index', compact('plans', 'campaigns', 'operationalCampaigns', 'staffingBatches', 'staffingBatchOptions'));
     }
 
     public function store(Request $request, RandomSamplingPlannerService $planner)
@@ -75,8 +89,23 @@ class SamplingPlanController extends Controller
                 ->withErrors(['campaign_id' => 'Selecciona una subcampaña operativa o una campaña general sin subcampañas.']);
         }
 
-        $staffingBatch = StaffingBatch::with('activeMembers')->find($validated['staffing_batch_id']);
-        $staffCsv = $this->staffCsvFromBatch($staffingBatch);
+        $staffingBatch = StaffingBatch::active()
+            ->with(['activeMembers.campaign.parent'])
+            ->find($validated['staffing_batch_id']);
+
+        if (! $staffingBatch) {
+            return back()
+                ->withInput()
+                ->withErrors(['staffing_batch_id' => 'Selecciona una dotación activa.']);
+        }
+
+        if ($campaign && ! $this->staffingBatchMatchesCampaign($staffingBatch, $campaign)) {
+            return back()
+                ->withInput()
+                ->withErrors(['staffing_batch_id' => 'La dotación seleccionada no pertenece a la subcampaña indicada.']);
+        }
+
+        $staffCsv = $this->staffCsvFromBatch($staffingBatch, $campaign);
 
         try {
             $plan = $planner->createPlan([
@@ -290,11 +319,17 @@ class SamplingPlanController extends Controller
         ]);
     }
 
-    private function staffCsvFromBatch(StaffingBatch $batch): string
+    private function staffCsvFromBatch(StaffingBatch $batch, ?Campaign $campaign = null): string
     {
         $lines = ['codigo,nombre,supervisor,campania,cuartil,estado'];
 
-        foreach ($batch->activeMembers as $member) {
+        $members = $batch->activeMembers;
+
+        if ($campaign) {
+            $members = $members->filter(fn (StaffingMember $member) => (int) $member->campaign_id === (int) $campaign->id);
+        }
+
+        foreach ($members as $member) {
             /** @var StaffingMember $member */
             $lines[] = collect([
                 $member->employee_code,
@@ -307,6 +342,67 @@ class SamplingPlanController extends Controller
         }
 
         return implode("\n", $lines);
+    }
+
+    private function campaignIdsForStaffingFilter(Request $request): array
+    {
+        if ($request->filled('campaign_id')) {
+            return [(int) $request->integer('campaign_id')];
+        }
+
+        if ($request->filled('parent_campaign_id')) {
+            return Campaign::idsForFilter($request->integer('parent_campaign_id'));
+        }
+
+        return [];
+    }
+
+    private function scopeStaffingBatchToCampaignIds($query, array $campaignIds)
+    {
+        return $query->where(function ($query) use ($campaignIds) {
+            $query
+                ->whereIn('campaign_id', $campaignIds)
+                ->orWhereHas('activeMembers', fn ($memberQuery) => $memberQuery->whereIn('campaign_id', $campaignIds));
+        });
+    }
+
+    private function staffingBatchMatchesCampaign(StaffingBatch $batch, Campaign $campaign): bool
+    {
+        if ((int) $batch->campaign_id === (int) $campaign->id) {
+            return true;
+        }
+
+        return $batch->activeMembers
+            ->contains(fn (StaffingMember $member) => (int) $member->campaign_id === (int) $campaign->id);
+    }
+
+    private function staffingBatchOption(StaffingBatch $batch): array
+    {
+        $memberCampaignIds = $batch->activeMembers
+            ->pluck('campaign_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $memberParentIds = $batch->activeMembers
+            ->map(fn (StaffingMember $member) => $member->campaign?->parent_id ?: $member->campaign_id)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        return [
+            'id' => $batch->id,
+            'name' => $batch->name,
+            'label' => $batch->name.' · '.($batch->campaign?->displayName() ?? $batch->campaign_name ?? 'Mixta').' · '.$batch->active_members_count.' activos',
+            'campaign_id' => $batch->campaign_id ? (int) $batch->campaign_id : null,
+            'parent_campaign_id' => $batch->campaign
+                ? (int) ($batch->campaign->parent_id ?: $batch->campaign_id)
+                : null,
+            'member_campaign_ids' => $memberCampaignIds->all(),
+            'member_parent_campaign_ids' => $memberParentIds->all(),
+        ];
     }
 
     private function escapeCsvValue(?string $value): string
@@ -329,7 +425,7 @@ class SamplingPlanController extends Controller
 
     private function authorizeSamplingManagement(): void
     {
-        if (! auth()->user()->can('manage_sampling') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator'])) {
+        if (! auth()->user()->can('manage_sampling') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor'])) {
             abort(403);
         }
     }

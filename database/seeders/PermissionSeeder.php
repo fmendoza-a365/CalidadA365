@@ -190,6 +190,9 @@ class PermissionSeeder extends Seeder
                 'export_evaluation_audit',
                 'view_work_queue',
                 'view_sampling',
+                'manage_sampling',
+                'view_staffing',
+                'manage_staffing',
             ]);
         }
 

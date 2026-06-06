@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 
 @Composable
@@ -38,6 +39,13 @@ fun DashboardScreen(
     // Clear navigation stack when switching tabs to avoid leaks or confusing back behaviors
     LaunchedEffect(activeTab) {
         navStack.clear()
+    }
+
+    LaunchedEffect(token) {
+        while (!token.isNullOrBlank()) {
+            delay(15_000)
+            onRefresh()
+        }
     }
 
     if (navStack.isNotEmpty()) {

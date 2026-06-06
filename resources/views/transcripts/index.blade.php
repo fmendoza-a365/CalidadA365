@@ -1,6 +1,12 @@
 <x-app-layout>
     <x-slot name="header">Transcripciones</x-slot>
 
+    @php
+        $shouldAutoRefreshTranscripts = $interactions->getCollection()->contains(
+            fn ($interaction) => $interaction->isTranscribing() || ($interaction->isAudio() && ! $interaction->evaluation)
+        );
+    @endphp
+
     <div class="card">
         <!-- Toolbar -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-gray-100 dark:border-gray-800">
@@ -300,4 +306,8 @@
             </div>
         @endif
     </div>
+
+    @if($shouldAutoRefreshTranscripts)
+        @include('partials.auto-refresh')
+    @endif
 </x-app-layout>

@@ -187,7 +187,9 @@
                                 <div class="md:col-span-2" x-data="{
                                     parentCampaignId: '{{ old('parent_campaign_id') }}',
                                     campaignId: '{{ old('campaign_id') }}',
+                                    staffingBatchId: '{{ old('staffing_batch_id') }}',
                                     subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                                    staffingBatches: @js($staffingBatchOptions),
                                     get availableSubcampaigns() {
                                         return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
                                     },
@@ -196,8 +198,27 @@
                                             return this.parentCampaignId;
                                         }
                                         return this.campaignId;
+                                    },
+                                    get availableStaffingBatches() {
+                                        const campaignId = Number(this.resolvedCampaignId || 0);
+                                        const parentId = Number(this.parentCampaignId || 0);
+
+                                        if (campaignId) {
+                                            return this.staffingBatches.filter((batch) => batch.campaign_id === campaignId || batch.member_campaign_ids.includes(campaignId));
+                                        }
+
+                                        if (parentId) {
+                                            return this.staffingBatches.filter((batch) => batch.parent_campaign_id === parentId || batch.member_parent_campaign_ids.includes(parentId));
+                                        }
+
+                                        return this.staffingBatches;
+                                    },
+                                    syncStaffingSelection() {
+                                        if (this.staffingBatchId && ! this.availableStaffingBatches.some((batch) => String(batch.id) === String(this.staffingBatchId))) {
+                                            this.staffingBatchId = '';
+                                        }
                                     }
-                                }">
+                                }" x-effect="syncStaffingSelection()">
                                     <input type="hidden" name="campaign_id" :value="resolvedCampaignId">
                                     <label class="form-label">Campaña / Subcampaña</label>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -219,19 +240,20 @@
                                         </div>
                                     </div>
                                     @error('campaign_id')<p class="form-error">{{ $message }}</p>@enderror
-                                </div>
 
-                                <div>
+                                    <div class="mt-4">
                                     <label class="form-label">Dotación</label>
-                                    <select name="staffing_batch_id" class="form-select" required>
+                                    <select name="staffing_batch_id" x-model="staffingBatchId" class="form-select" required>
                                         <option value="">Selecciona una dotación cargada</option>
-                                        @foreach($staffingBatches as $batch)
-                                            <option value="{{ $batch->id }}" @selected((string) old('staffing_batch_id') === (string) $batch->id)>
-                                                {{ $batch->name }} · {{ $batch->campaign?->displayName() ?? 'Todas' }} · {{ $batch->active_members_count }} activos
-                                            </option>
-                                        @endforeach
+                                        <template x-for="batch in availableStaffingBatches" :key="batch.id">
+                                            <option :value="batch.id" x-text="batch.label"></option>
+                                        </template>
                                     </select>
+                                    <p x-show="parentCampaignId && availableStaffingBatches.length === 0" x-cloak class="mt-1 text-xs text-amber-600 dark:text-amber-300">
+                                        No hay dotaciones activas asociadas a la campaña o subcampaña seleccionada.
+                                    </p>
                                     @error('staffing_batch_id')<p class="form-error">{{ $message }}</p>@enderror
+                                    </div>
                                 </div>
 
                                 <div class="md:col-span-2">
