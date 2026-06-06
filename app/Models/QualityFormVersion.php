@@ -15,11 +15,16 @@ class QualityFormVersion extends Model
         'is_active',
         'published_at',
         'published_by',
+        'gemini_cache_id',
+        'gemini_cache_expires_at',
+        'gemini_cache_hash',
+        'gemini_cache_token_count',
     ];
 
     protected $casts = [
         'published_at' => 'datetime',
         'is_active' => 'boolean',
+        'gemini_cache_expires_at' => 'datetime',
     ];
 
     public function form(): BelongsTo

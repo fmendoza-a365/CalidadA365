@@ -68,6 +68,10 @@ class Evaluation extends Model
         'ai_raw_response',
         'ai_summary',
         'ai_feedback',
+        'feedback_audio_path',
+        'feedback_audio_disk',
+        'feedback_audio_generated_at',
+        'feedback_audio_status',
     ];
 
     protected $casts = [
@@ -78,6 +82,7 @@ class Evaluation extends Model
         'ai_processed_at' => 'datetime',
         'ai_settings_snapshot' => 'array',
         'ai_feedback' => 'array',
+        'feedback_audio_generated_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'review_claimed_at' => 'datetime',
         'review_claim_expires_at' => 'datetime',

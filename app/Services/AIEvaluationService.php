@@ -15,14 +15,23 @@ use Illuminate\Support\Facades\Log;
 
 class AIEvaluationService
 {
+    protected const EVALUATION_SYSTEM_INSTRUCTION = 'Eres un analista de calidad de atención al cliente. Evalúa solo con la evidencia disponible, los criterios configurados y el contexto operativo. No inventes hechos, intenciones ni datos no presentes.';
+
+    protected const JSON_SYSTEM_INSTRUCTION = 'Responde únicamente con JSON válido. No incluyas markdown, bloques de código ni explicaciones fuera del objeto JSON.';
+
     protected string $provider;
 
     protected array $config;
 
-    public function __construct()
+    protected array $lastAiProviderMetadata = [];
+
+    protected ?GeminiContextCacheService $geminiContextCache = null;
+
+    public function __construct(?GeminiContextCacheService $geminiContextCache = null)
     {
         $this->provider = AiSettings::provider();
         $this->config = AiSettings::providerConfig($this->provider);
+        $this->geminiContextCache = $geminiContextCache;
     }
 
     /**
@@ -163,17 +172,18 @@ class AIEvaluationService
             return null;
         }
 
-        // Preparar el prompt para la IA
-        $prompt = $this->buildEvaluationPrompt($interaction, $formVersion);
+        $promptParts = $this->buildEvaluationPromptParts($interaction, $formVersion);
+        $prompt = $promptParts['full'];
 
         try {
             // Llamar al proveedor de IA configurado
             $rawResponseContent = null;
             $parsedResponse = null;
+            $this->lastAiProviderMetadata = [];
 
             match ($this->provider) {
                 'openai' => $parsedResponse = $this->callOpenAI($prompt, $rawResponseContent),
-                'gemini' => $parsedResponse = $this->callGemini($prompt, $rawResponseContent),
+                'gemini' => $parsedResponse = $this->callGemini($prompt, $rawResponseContent, $formVersion, $promptParts['static'], $promptParts['dynamic']),
                 'claude' => $parsedResponse = $this->callClaude($prompt, $rawResponseContent),
                 default => $parsedResponse = $this->simulateAIResponse($prompt, $rawResponseContent),
             };
@@ -185,7 +195,7 @@ class AIEvaluationService
             }
 
             // Procesar la respuesta
-            $evaluation = $this->processAIResponse($interaction, $formVersion, $parsedResponse, $prompt, $rawResponseContent ?? 'No raw content available', $existingEvaluation);
+            $evaluation = $this->processAIResponse($interaction, $formVersion, $parsedResponse, $prompt, $rawResponseContent ?? 'No raw content available', $existingEvaluation, $this->lastAiProviderMetadata);
 
             return $evaluation;
         } catch (TransientAiProviderException|PermanentAiProviderException $e) {
@@ -199,75 +209,42 @@ class AIEvaluationService
     }
 
     /**
-     * Obtiene ejemplos "Golden Records" para few-shot learning
-     */
-    protected function getGoldenExamples(QualityFormVersion $formVersion): string
-    {
-        // Obtener la evaluación 'gold' más reciente para este formulario
-        $golden = Evaluation::where('form_version_id', $formVersion->id)
-            ->where('is_gold', true)
-            ->with(['interaction', 'items'])
-            ->latest()
-            ->first();
-
-        if (! $golden || ! $golden->interaction) {
-            return '';
-        }
-
-        // Construir la estructura JSON esperada
-        $items = [];
-        foreach ($golden->items as $item) {
-            $items[] = [
-                'id' => $item->subattribute_id,
-                'status' => $item->status,
-                'evidence_quote' => $item->evidence_quote ?? '',
-                'confidence' => $item->confidence ?? 1.0,
-                'notes' => $item->ai_notes ?? '',
-            ];
-        }
-
-        $expectedJson = json_encode([
-            'items' => $items,
-            'feedback' => $golden->ai_feedback ?: $golden->structuredAiFeedbackForPrompt(),
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
-        return <<<EXAMPLE
-## EJEMPLO DE REFERENCIA (GOLDEN RECORD)
-Usa esta evaluación previa CORRECTA como guía de estilo y criterio:
-
-**Transcripción del Ejemplo:**
-{$golden->interaction->transcript_text}
-
-**Evaluación Correcta:**
-{$expectedJson}
-
-EXAMPLE;
-    }
-
-    /**
      * Construye el prompt para la evaluación
      */
     protected function buildEvaluationPrompt(Interaction $interaction, QualityFormVersion $formVersion): string
+    {
+        return $this->buildEvaluationPromptParts($interaction, $formVersion)['full'];
+    }
+
+    /**
+     * @return array{static: string, dynamic: string, full: string}
+     */
+    protected function buildEvaluationPromptParts(Interaction $interaction, QualityFormVersion $formVersion): array
     {
         $formVersion->loadMissing('form');
 
         $criteria = [];
         foreach ($formVersion->formAttributes as $attribute) {
             foreach ($attribute->subAttributes as $subAttribute) {
-                $criteria[] = [
+                $criterion = [
                     'id' => $subAttribute->id,
-                    'attribute' => $attribute->name,
-                    'name' => $subAttribute->name,
-                    'concept' => $subAttribute->concept ?? 'Sin descripción',
-                    'weight' => ($attribute->weight * $subAttribute->weight_percent) / 100,
-                    'is_critical' => $subAttribute->is_critical,
+                    'a' => $attribute->name,
+                    'n' => $subAttribute->name,
+                    'w' => round(($attribute->weight * $subAttribute->weight_percent) / 100, 4),
+                    'mp' => (bool) $subAttribute->is_critical,
                 ];
+
+                $description = trim((string) ($subAttribute->concept ?? ''));
+                if ($description !== '' && mb_strtolower($description) !== 'sin descripción') {
+                    $criterion['d'] = $description;
+                }
+
+                $criteria[] = $criterion;
             }
         }
 
-        $criteriaJson = json_encode($criteria, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $criteriaJson = $this->compactJson($criteria);
 
-        $goldenExamples = $this->getGoldenExamples($formVersion);
         $operationalContext = $formVersion->form?->operationalContextForPrompt() ?: '';
         $operationalContextBlock = $operationalContext
             ? <<<CONTEXT
@@ -288,32 +265,33 @@ CONTEXT
         $audioContextBlock = $audioContext
             ? <<<AUDIO
 ## SEÑALES DE AUDIO Y EMOCIÓN
-Usa estas señales como apoyo para evaluar criterios relacionados con empatía, manejo emocional, interrupciones, claridad, ritmo y experiencia del cliente. No reemplazan la evidencia textual: si una señal acústica contradice la transcripción, explica la duda en notas y baja la confianza.
+Usa estas señales como apoyo para evaluar criterios relacionados con empatía, manejo emocional, interrupciones, claridad, ritmo y experiencia del cliente. Leyenda compacta: dur=duración, sent=sentimiento (o=global,sum=resumen), ac=acústica (ar=asesor_wpm,cr=cliente_wpm,pace=ritmo,int=interrupciones), sig=señales de calidad (emp=empatía,obj=objeciones,cx=riesgo_cliente,sum=resumen), seg=segmentos emocionales. No reemplazan la evidencia textual.
 
 {$audioContext}
 
 AUDIO
             : '';
 
-        return <<<PROMPT
-Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar la siguiente transcripción de una llamada telefónica.
+        $systemInstruction = self::EVALUATION_SYSTEM_INSTRUCTION;
 
-## TRANSCRIPCIÓN
-{$interaction->transcript_text}
-
-{$audioContextBlock}
+        $staticPrompt = <<<PROMPT
+## ROL E INSTRUCCIONES DEL EVALUADOR
+{$systemInstruction}
+Versión de prompt: {$this->promptVersion()}.
 
 ## CRITERIOS DE EVALUACIÓN
+Leyenda compacta: id=ID del subatributo, a=atributo/categoría, n=criterio, d=descripción, w=peso, mp=mala práctica crítica.
 {$criteriaJson}
 
 {$operationalContextBlock}
 
-{$goldenExamples}
-
 ## CALIBRACIÓN Y CRITERIOS
-- **Sé JUSTO y OBJETIVO:** Evalúa basándote en el *contexto* de la conversación, no solo en palabras clave exactas (a menos que el criterio lo exija explícitamente).
-- **Flexibilidad:** Permite variaciones naturales en el habla si se cumple la intención comunicativa del criterio.
-- **Evidencia:** Si marcas algo como "non_compliant", DEBES tener una evidencia clara en la transcripción. Ante la duda razonable, favorece al agente o marca "not_found" si no aplica.
+- No infieras hechos, intenciones, precios, validaciones, promesas o gestiones que no aparezcan en la transcripción, señales de audio o contexto operativo.
+- Si un criterio exige frase, cláusula, precio, restricción o validación exacta, marca "non_compliant" cuando no haya evidencia explícita suficiente.
+- Si un criterio evalúa intención comunicativa, empatía, escucha activa o claridad, permite equivalencias semánticas razonables solo cuando el criterio lo permita.
+- Si no existe evidencia para evaluar un criterio porque no aplica al caso, usa "not_found".
+- Para "non_compliant", entrega una cita textual o explica en notes que la omisión explícita es la evidencia.
+- Ante conflicto entre contexto operativo y lo dicho por el asesor, usa el contexto operativo como fuente de verdad.
 
 ## INSTRUCCIONES ESTRICTAS
 1. Determinar si el agente CUMPLE o NO CUMPLE cada criterio.
@@ -324,11 +302,11 @@ Eres un experto analista de calidad de atención al cliente. Tu tarea es evaluar
 REGLA CRÍTICA DE IDIOMA: Absolutamente TODO el texto generado por ti (feedback, notes, evidence_quote) DEBE estar estrictamente en ESPAÑOL. Está prohibido responder en inglés. (Las claves del JSON como 'status' y 'confidence' sí deben mantenerse como se definen en el formato).
 
 Adicionalmente, genera un objeto "feedback" CONSTRUCTIVO y ESTRUCTURADO con 5 campos separados:
-- performanceSummary: resumen del desempeño.
-- productKnowledge: precisión, dominio del tema, oferta, condiciones, beneficios, descuentos, requisitos y restricciones.
-- emotionalHandlingAndEmpathy: tono, empatía, manejo de objeciones, control emocional, escucha activa y trato.
-- strengths: fortalezas detectadas.
-- improvementOpportunities: recomendaciones concretas de mejora.
+- performanceSummary: resumen del desempeño, máximo 250 caracteres.
+- productKnowledge: precisión, dominio del tema, oferta, condiciones, beneficios, descuentos, requisitos y restricciones, máximo 200 caracteres.
+- emotionalHandlingAndEmpathy: tono, empatía, manejo de objeciones, control emocional, escucha activa y trato, máximo 200 caracteres.
+- strengths: hasta 3 fortalezas breves separadas por punto y coma, máximo 180 caracteres.
+- improvementOpportunities: hasta 3 acciones concretas separadas por punto y coma, máximo 220 caracteres.
 
 REGLAS CRÍTICAS DEL JSON:
 - No uses Markdown, bullets, emojis ni encabezados dentro de feedback o notes.
@@ -358,6 +336,19 @@ Responde ÚNICAMENTE con el siguiente JSON estructurado:
     }
 }
 PROMPT;
+
+        $dynamicPrompt = <<<PROMPT
+{$audioContextBlock}
+
+## TRANSCRIPCIÓN
+{$interaction->transcript_text}
+PROMPT;
+
+        return [
+            'static' => trim($staticPrompt),
+            'dynamic' => trim($dynamicPrompt),
+            'full' => trim($staticPrompt)."\n\n".trim($dynamicPrompt),
+        ];
     }
 
     protected function audioContextForPrompt(Interaction $interaction): string
@@ -368,12 +359,49 @@ PROMPT;
 
         $metadata = $interaction->metadata ?? [];
         $payload = array_filter([
-            'duration_seconds' => $interaction->audio_duration,
-            'sentiment' => $metadata['sentiment'] ?? null,
-            'acoustic_analysis' => $metadata['acoustic_analysis'] ?? null,
-            'quality_signals' => $metadata['quality_signals'] ?? null,
-            'emotion_segments' => collect($metadata['sentiment_segments'] ?? $metadata['emotion_segments'] ?? [])
+            'dur' => $interaction->audio_duration,
+            'sent' => $this->compactKnownKeys($metadata['sentiment'] ?? null, [
+                'overall' => 'o',
+                'summary' => 'sum',
+                'score' => 'score',
+                'confidence' => 'conf',
+            ]),
+            'ac' => $this->compactKnownKeys($metadata['acoustic_analysis'] ?? null, [
+                'agent_speech_rate_wpm' => 'ar',
+                'client_speech_rate_wpm' => 'cr',
+                'overall_pace' => 'pace',
+                'interruptions' => 'int',
+                'silence_ratio' => 'sil',
+                'overlap_count' => 'ov',
+                'average_volume' => 'vol',
+                'noise_level' => 'noise',
+                'agent_talk_ratio' => 'atr',
+                'client_talk_ratio' => 'ctr',
+            ]),
+            'sig' => $this->compactKnownKeys($metadata['quality_signals'] ?? null, [
+                'empathy' => 'emp',
+                'objection_handling' => 'obj',
+                'customer_experience_risk' => 'cx',
+                'summary' => 'sum',
+                'compliance_risk' => 'comp',
+                'sentiment_risk' => 'sent',
+                'clarity' => 'clar',
+            ]),
+            'seg' => collect($metadata['sentiment_segments'] ?? $metadata['emotion_segments'] ?? [])
                 ->filter(fn ($segment): bool => is_array($segment))
+                ->map(fn (array $segment): array => array_filter([
+                    'i' => $segment['index'] ?? null,
+                    't' => $segment['start'] ?? null,
+                    'sp' => $segment['speaker'] ?? null,
+                    's' => $segment['sentiment'] ?? null,
+                    'e' => $segment['emotion'] ?? null,
+                    'score' => $segment['score'] ?? null,
+                    'tone' => $segment['tone'] ?? null,
+                    'pace' => $segment['pace'] ?? null,
+                    'vol' => $segment['volume'] ?? null,
+                    'clar' => $segment['clarity'] ?? null,
+                    'ev' => $segment['evidence'] ?? null,
+                ], fn ($value): bool => $value !== null && $value !== ''))
                 ->take(12)
                 ->values()
                 ->all(),
@@ -383,7 +411,33 @@ PROMPT;
             return '';
         }
 
-        return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        return $this->compactJson($payload);
+    }
+
+    protected function compactKnownKeys(mixed $value, array $keyMap): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        $compact = [];
+        foreach ($value as $key => $item) {
+            $compact[$keyMap[$key] ?? $key] = is_array($item)
+                ? $this->compactKnownKeys($item, $keyMap)
+                : $item;
+        }
+
+        return array_filter($compact, fn ($item): bool => $item !== null && $item !== '');
+    }
+
+    protected function compactJson(array $payload): string
+    {
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
+    }
+
+    protected function promptVersion(): string
+    {
+        return AiSettings::PROMPT_VERSION;
     }
 
     /**
@@ -404,7 +458,7 @@ PROMPT;
             ->post('https://api.openai.com/v1/chat/completions', [
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad. Responde ÚNICAMENTE en formato JSON válido. NO incluyas explicaciones ni texto fuera del objeto JSON.'],
+                    ['role' => 'system', 'content' => self::JSON_SYSTEM_INSTRUCTION],
                     ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['openai_temperature'],
@@ -426,7 +480,13 @@ PROMPT;
     /**
      * Llama a la API de Google Gemini
      */
-    protected function callGemini(string $prompt, ?string &$rawResponseContent = null): ?array
+    protected function callGemini(
+        string $prompt,
+        ?string &$rawResponseContent = null,
+        ?QualityFormVersion $formVersion = null,
+        ?string $staticPrompt = null,
+        ?string $dynamicPrompt = null
+    ): ?array
     {
         $apiKey = $this->config['api_key'] ?? null;
 
@@ -439,33 +499,33 @@ PROMPT;
         $model = $this->config['model'] ?? AiSettings::DEFAULTS['gemini_model'];
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
-        // Extract system instructions from the prompt for better determinism
-        // Let's pass a strong generic system string to systemInstruction,
-        // and keep the variable data (transcript, criteria) in the user part.
-        $systemInstruction = 'Eres un experto analista de calidad de atención al cliente. Tu misión es evaluar las transcripciones con ESTRICTO APEGO a los criterios proporcionados. DEBES responder ÚNICAMENTE con JSON válido, sin bloques de código markdown, sin explicaciones adicionales. Asegúrate de escapar correctamente comillas internas y saltos de línea.';
+        $cacheResult = [
+            'cache_id' => null,
+            'token_count' => null,
+            'status' => 'disabled',
+            'hash' => null,
+        ];
+        $cacheId = null;
+        $requestText = $prompt;
 
-        $response = Http::timeout(120)->post($url, [
-            'systemInstruction' => [
-                'parts' => [
-                    ['text' => $systemInstruction],
-                ],
-            ],
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $prompt],
-                    ],
-                ],
-            ],
-            'generationConfig' => [
-                'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['gemini_temperature'],
-                'topP' => 0.1,
-                'topK' => 1,
-                'maxOutputTokens' => 65536,
-                'responseMimeType' => 'application/json',
-            ],
-        ]);
+        if ($formVersion && $staticPrompt && $dynamicPrompt) {
+            $cacheResult = $this->geminiContextCache()->cacheFor($formVersion, $staticPrompt, $model, $apiKey, self::JSON_SYSTEM_INSTRUCTION);
+            $cacheId = $cacheResult['cache_id'] ?? null;
+            $requestText = $cacheId ? $dynamicPrompt : $prompt;
+        }
+
+        $response = Http::timeout(120)->post($url, $this->geminiPayload($requestText, $cacheId));
+
+        if ($response->failed()) {
+            $message = $response->json('error.message', $response->body());
+
+            if ($cacheId && $formVersion && $this->geminiContextCache()->isInvalidCacheError($response->status(), (string) $message)) {
+                $this->geminiContextCache()->clear($formVersion);
+                $cacheResult['status'] = 'invalid_retry_full';
+                $cacheId = null;
+                $response = Http::timeout(120)->post($url, $this->geminiPayload($prompt, null));
+            }
+        }
 
         if ($response->failed()) {
             Log::error('Error en API Gemini: '.$response->body());
@@ -476,8 +536,64 @@ PROMPT;
 
         $rawResponseData = $response->json();
         $rawResponseContent = $rawResponseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        $this->lastAiProviderMetadata = $this->geminiUsageMetadata($rawResponseData, $cacheResult, (bool) $cacheId);
 
         return $this->parseJsonResponse($rawResponseContent);
+    }
+
+    protected function geminiPayload(string $text, ?string $cacheId = null): array
+    {
+        $payload = [
+            'systemInstruction' => [
+                'parts' => [
+                    ['text' => self::JSON_SYSTEM_INSTRUCTION],
+                ],
+            ],
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => $text],
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['gemini_temperature'],
+                'topP' => 0.1,
+                'topK' => 1,
+                'maxOutputTokens' => 65536,
+                'responseMimeType' => 'application/json',
+            ],
+        ];
+
+        if ($cacheId) {
+            $payload['cachedContent'] = $cacheId;
+        }
+
+        return $payload;
+    }
+
+    protected function geminiUsageMetadata(array $response, array $cacheResult, bool $cacheUsed): array
+    {
+        $usage = $response['usageMetadata'] ?? $response['usage_metadata'] ?? [];
+
+        return array_filter([
+            'gemini_cache_used' => $cacheUsed,
+            'gemini_cache_status' => $cacheResult['status'] ?? null,
+            'gemini_cache_id' => isset($cacheResult['cache_id']) && $cacheResult['cache_id']
+                ? substr(hash('sha256', (string) $cacheResult['cache_id']), 0, 12)
+                : null,
+            'gemini_cache_token_count' => $cacheResult['token_count'] ?? null,
+            'gemini_cached_content_token_count' => $usage['cachedContentTokenCount'] ?? $usage['cached_content_token_count'] ?? null,
+            'prompt_token_count' => $usage['promptTokenCount'] ?? $usage['prompt_token_count'] ?? null,
+            'candidates_token_count' => $usage['candidatesTokenCount'] ?? $usage['candidates_token_count'] ?? null,
+            'total_token_count' => $usage['totalTokenCount'] ?? $usage['total_token_count'] ?? null,
+        ], fn ($value): bool => $value !== null);
+    }
+
+    protected function geminiContextCache(): GeminiContextCacheService
+    {
+        return $this->geminiContextCache ??= app(GeminiContextCacheService::class);
     }
 
     /**
@@ -503,7 +619,7 @@ PROMPT;
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
                 'temperature' => $this->config['temperature'] ?? AiSettings::DEFAULTS['claude_temperature'],
                 'max_tokens' => $this->config['max_tokens'] ?? AiSettings::DEFAULTS['claude_max_tokens'],
-                'system' => 'Eres un experto analista de calidad. Responde ÚNICAMENTE en formato JSON válido. NO incluyas explicaciones fuera del JSON. Asegúrate de que todas las comillas internas en el JSON estén correctamente escapadas.',
+                'system' => self::JSON_SYSTEM_INSTRUCTION,
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
                 ],
@@ -739,7 +855,15 @@ PROMPT;
     /**
      * Procesa la respuesta de la IA y crea la evaluación
      */
-    protected function processAIResponse(Interaction $interaction, QualityFormVersion $formVersion, array $response, string $prompt, string $rawResponse, ?Evaluation $existingEvaluation = null): Evaluation
+    protected function processAIResponse(
+        Interaction $interaction,
+        QualityFormVersion $formVersion,
+        array $response,
+        string $prompt,
+        string $rawResponse,
+        ?Evaluation $existingEvaluation = null,
+        array $providerMetadata = []
+    ): Evaluation
     {
         $structuredFeedback = $this->normalizeStructuredFeedback($response);
 
@@ -847,13 +971,15 @@ PROMPT;
             'percentage_score' => round($percentageScore, 2),
         ]);
 
-        $evaluation->recordAuditEvent('ai_evaluated', null, [
+        $auditMetadata = array_merge([
             'provider' => $this->provider,
             'model' => $this->getModelName(),
             'items_count' => count($response['items'] ?? []),
             'has_critical_failure' => $hasCriticalFailure,
             'percentage_score' => round($percentageScore, 2),
-        ], $fromStatus, Evaluation::STATUS_PENDING_MONITOR_REVIEW);
+        ], $providerMetadata);
+
+        $evaluation->recordAuditEvent('ai_evaluated', null, $auditMetadata, $fromStatus, Evaluation::STATUS_PENDING_MONITOR_REVIEW);
 
         return $evaluation;
     }

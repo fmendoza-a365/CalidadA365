@@ -8,7 +8,7 @@ class AiSettings
 {
     public const PROVIDERS = ['simulated', 'openai', 'gemini', 'claude'];
 
-    public const PROMPT_VERSION = 'quality-evaluation-v1';
+    public const PROMPT_VERSION = 'quality-evaluation-v2';
 
     public const DEFAULTS = [
         'provider' => 'simulated',

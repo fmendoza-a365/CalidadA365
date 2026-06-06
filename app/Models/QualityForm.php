@@ -69,6 +69,31 @@ class QualityForm extends Model
             return '';
         }
 
-        return Str::limit(implode("\n\n", $parts), $limit, "\n\n[Contexto operativo truncado por longitud]");
+        return Str::limit($this->normalizePromptText(implode("\n\n", $parts)), $limit, "\n\n[Contexto operativo truncado por longitud]");
+    }
+
+    private function normalizePromptText(string $text): string
+    {
+        $lines = collect(preg_split('/\R/u', $text) ?: [])
+            ->map(fn (string $line): string => trim(preg_replace('/[ \t]+/u', ' ', $line) ?? $line));
+
+        $normalized = [];
+        $blankCount = 0;
+
+        foreach ($lines as $line) {
+            if ($line === '') {
+                $blankCount++;
+                if ($blankCount <= 1) {
+                    $normalized[] = '';
+                }
+
+                continue;
+            }
+
+            $blankCount = 0;
+            $normalized[] = $line;
+        }
+
+        return trim(implode("\n", $normalized));
     }
 }

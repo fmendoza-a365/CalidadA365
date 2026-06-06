@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateFeedbackAudioJob;
 use App\Jobs\ScoreTranscriptJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Services\EvaluationCalibrationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class EvaluationController extends Controller
 {
@@ -154,7 +156,11 @@ class EvaluationController extends Controller
             $evaluation->update(['agent_viewed_at' => now()]);
         }
 
-        return view('evaluations.show', compact('evaluation', 'calibrationComparison'));
+        $feedbackAudioUrl = $evaluation->feedback_audio_status === 'ready' && $evaluation->feedback_audio_path
+            ? route('evaluations.feedback-audio', $evaluation)
+            : null;
+
+        return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl'));
     }
 
     public function publish(Request $request, Evaluation $evaluation)
@@ -192,8 +198,35 @@ class EvaluationController extends Controller
             $evaluation->agent->notify(new \App\Notifications\EvaluationCompleted($evaluation));
         }
 
+        if (config('ai.feedback_tts.enabled')) {
+            $evaluation->update(['feedback_audio_status' => 'pending']);
+            GenerateFeedbackAudioJob::dispatch($evaluation->id);
+        }
+
         return redirect()->route('evaluations.show', $evaluation)
             ->with('success', 'Evaluación aprobada y publicada al asesor.');
+    }
+
+    public function feedbackAudio(Evaluation $evaluation)
+    {
+        $this->authorize('view', $evaluation);
+
+        if ($evaluation->feedback_audio_status !== 'ready' || ! $evaluation->feedback_audio_path) {
+            abort(404);
+        }
+
+        $disk = $evaluation->feedback_audio_disk ?: config('ai.feedback_tts.audio_disk', config('filesystems.default'));
+        $storage = Storage::disk($disk);
+
+        if (! $storage->exists($evaluation->feedback_audio_path)) {
+            abort(404);
+        }
+
+        return response($storage->get($evaluation->feedback_audio_path), 200, [
+            'Content-Type' => 'audio/mpeg',
+            'Content-Disposition' => 'inline; filename="feedback-evaluacion-'.$evaluation->id.'.mp3"',
+            'Cache-Control' => 'private, max-age=300',
+        ]);
     }
 
     public function reanalyze(Evaluation $evaluation)

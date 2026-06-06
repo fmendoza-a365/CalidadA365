@@ -43,6 +43,8 @@ class EvaluationAuditEvent extends Model
             'manual_created' => 'Evaluación manual creada',
             'gold_marked' => 'Marcada como Golden Record',
             'gold_unmarked' => 'Desmarcada como Golden Record',
+            'feedback_audio_generated' => 'Audio de feedback generado',
+            'feedback_audio_failed' => 'Audio de feedback falló',
             'agent_accepted' => 'Aceptada por asesor',
             'agent_disputed' => 'Disputada por asesor',
             'dispute_supervisor_reviewed' => 'Revisada por supervisor',

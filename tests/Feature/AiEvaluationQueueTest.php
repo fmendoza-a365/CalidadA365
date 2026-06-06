@@ -138,9 +138,65 @@ class AiEvaluationQueueTest extends TestCase
         $prompt = $service->promptForTest($interaction->fresh(), $version->fresh());
 
         $this->assertStringContainsString('SEÑALES DE AUDIO Y EMOCIÓN', $prompt);
-        $this->assertStringContainsString('agent_speech_rate_wpm', $prompt);
-        $this->assertStringContainsString('customer_experience_risk', $prompt);
+        $this->assertStringContainsString('"ac":{"ar":138,"cr":170,"pace":"variable","int":1}', $prompt);
+        $this->assertStringContainsString('"sig":{"emp":"riesgo","obj":"riesgo","cx":"alto","sum":"Tensión alta requiere validar empatía."}', $prompt);
         $this->assertStringContainsString('Tensión alta requiere validar empatía.', $prompt);
+        $this->assertStringNotContainsString('agent_speech_rate_wpm', $prompt);
+        $this->assertStringNotContainsString('customer_experience_risk', $prompt);
+    }
+
+    public function test_evaluation_prompt_removes_golden_records_and_uses_compact_static_context(): void
+    {
+        [, $interaction, $version] = $this->scorableInteraction();
+
+        $gold = Evaluation::create([
+            'interaction_id' => $interaction->id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $interaction->campaign_id,
+            'agent_id' => $interaction->agent_id,
+            'type' => 'ai',
+            'total_score' => 100,
+            'max_possible_score' => 100,
+            'percentage_score' => 100,
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'is_gold' => true,
+            'ai_summary' => 'GOLDEN RECORD QUE NO DEBE ENTRAR AL PROMPT',
+        ]);
+        $gold->items()->create([
+            'subattribute_id' => $version->formAttributes()->first()->subAttributes()->first()->id,
+            'status' => 'compliant',
+            'score' => 1,
+            'max_score' => 1,
+            'weighted_score' => 100,
+            'confidence' => 1,
+            'evidence_quote' => 'Golden evidence',
+            'ai_notes' => 'Golden notes',
+        ]);
+
+        $version->formAttributes()->first()->subAttributes()->create([
+            'name' => 'Evita placeholders',
+            'weight_percent' => 0,
+            'concept' => 'Sin descripción',
+            'sort_order' => 2,
+        ]);
+
+        $service = new class extends AIEvaluationService {
+            public function promptForTest(Interaction $interaction, QualityFormVersion $version): string
+            {
+                return $this->buildEvaluationPrompt($interaction, $version);
+            }
+        };
+
+        $prompt = $service->promptForTest($interaction->fresh(), $version->fresh());
+
+        $this->assertStringNotContainsString('GOLDEN RECORD', $prompt);
+        $this->assertStringNotContainsString('Golden evidence', $prompt);
+        $this->assertStringNotContainsString('Sin descripción', $prompt);
+        $this->assertStringContainsString('No infieras hechos', $prompt);
+        $this->assertStringContainsString('máximo 250 caracteres', $prompt);
+        $this->assertStringContainsString('## CONTEXTO OPERATIVO', $prompt);
+        $this->assertStringContainsString('"id":', $prompt);
+        $this->assertMatchesRegularExpression('/\[\{"id":\d+,"a":"Saludo","n":"Saluda al cliente"/', $prompt);
     }
 
     private function scorableInteraction(): array
@@ -152,12 +208,26 @@ class AiEvaluationQueueTest extends TestCase
         $form = QualityForm::create([
             'campaign_id' => $campaign->id,
             'name' => 'Quality Form',
+            'operational_context_markdown' => "Producto A cuesta 10.\n\n\nDebe validarse identidad.",
             'created_by' => $admin->id,
         ]);
         $version = QualityFormVersion::create([
             'quality_form_id' => $form->id,
             'version_number' => 1,
             'status' => 'published',
+        ]);
+        $attribute = QualityAttribute::create([
+            'form_version_id' => $version->id,
+            'name' => 'Saludo',
+            'weight' => 100,
+            'sort_order' => 1,
+        ]);
+        QualitySubAttribute::create([
+            'attribute_id' => $attribute->id,
+            'name' => 'Saluda al cliente',
+            'weight_percent' => 100,
+            'concept' => 'Valida si el agente saluda.',
+            'sort_order' => 1,
         ]);
         $campaign->update(['active_form_version_id' => $version->id]);
         $interaction = Interaction::create([

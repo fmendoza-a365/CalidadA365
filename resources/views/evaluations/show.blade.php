@@ -301,6 +301,19 @@
                         $sections = $evaluation->structuredAiFeedback();
                     @endphp
 
+                    @if($feedbackAudioUrl)
+                        <div class="mb-4 rounded-xl border border-indigo-100 bg-white p-4 dark:border-indigo-500/30 dark:bg-gray-800">
+                            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Feedback por voz</div>
+                            <audio controls src="{{ $feedbackAudioUrl }}" class="w-full">
+                                Tu navegador no soporta el reproductor de audio.
+                            </audio>
+                        </div>
+                    @elseif($evaluation->feedback_audio_status === 'processing' || $evaluation->feedback_audio_status === 'pending')
+                        <div class="mb-4 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                            El audio de feedback se está generando.
+                        </div>
+                    @endif
+
                     <div class="space-y-3">
                         @foreach($sections as $index => $section)
                             <div x-data="{ open: {{ $index === 0 ? 'true' : 'false' }} }" 

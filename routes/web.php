@@ -129,6 +129,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('evaluations.close');
     Route::post('evaluations/{evaluation}/reopen', [EvaluationController::class, 'reopen'])
         ->name('evaluations.reopen');
+    Route::get('evaluations/{evaluation}/feedback-audio', [EvaluationController::class, 'feedbackAudio'])
+        ->name('evaluations.feedback-audio');
     Route::get('evaluations/manual/{interaction}/create', [\App\Http\Controllers\ManualEvaluationController::class, 'create'])
         ->name('evaluations.create_manual');
     Route::post('evaluations/manual/{interaction}', [\App\Http\Controllers\ManualEvaluationController::class, 'store'])
