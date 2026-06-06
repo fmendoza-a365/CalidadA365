@@ -7,6 +7,8 @@ use App\Jobs\ScoreTranscriptJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Services\EvaluationCalibrationService;
+use App\Support\TranscriptConversationParser;
+use App\Support\TranscriptAudioTimeline;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -113,8 +115,12 @@ class EvaluationController extends Controller
         ];
     }
 
-    public function show(Evaluation $evaluation, EvaluationCalibrationService $calibrationService)
-    {
+    public function show(
+        Evaluation $evaluation,
+        EvaluationCalibrationService $calibrationService,
+        TranscriptConversationParser $conversationParser,
+        TranscriptAudioTimeline $audioTimelineBuilder
+    ) {
         $this->authorize('view', $evaluation);
 
         if ($evaluation->type === 'ai') {
@@ -165,7 +171,44 @@ class EvaluationController extends Controller
             ? route('transcripts.audio', $evaluation->interaction)
             : null;
 
-        return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl', 'interactionAudioUrl'));
+        $audioTimeline = null;
+        if ($evaluation->interaction?->isAudio() && $evaluation->interaction->transcript_text) {
+            $conversationTurns = $conversationParser->parse($evaluation->interaction->transcript_text);
+            $audioTimeline = $audioTimelineBuilder->build(
+                $conversationTurns,
+                $evaluation->interaction->audio_duration,
+                $this->audioMetadata($evaluation->interaction, $conversationParser)
+            );
+        }
+
+        return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl', 'interactionAudioUrl', 'audioTimeline'));
+    }
+
+    private function audioMetadata(\App\Models\Interaction $interaction, TranscriptConversationParser $conversationParser): array
+    {
+        $metadata = $interaction->metadata ?? [];
+
+        if (! empty($metadata['sentiment'])) {
+            return $metadata;
+        }
+
+        $parsed = $conversationParser->extractStructuredPayload($interaction->transcript_text);
+
+        if (is_array($parsed) && isset($parsed['sentiment'])) {
+            $metadata['sentiment'] = $parsed['sentiment'];
+        }
+
+        if (is_array($parsed) && isset($parsed['sentiment_segments']) && is_array($parsed['sentiment_segments'])) {
+            $metadata['sentiment_segments'] = $parsed['sentiment_segments'];
+        }
+
+        foreach (['acoustic_analysis', 'quality_signals'] as $key) {
+            if (is_array($parsed) && isset($parsed[$key]) && is_array($parsed[$key])) {
+                $metadata[$key] = $parsed[$key];
+            }
+        }
+
+        return $metadata;
     }
 
     public function publish(Request $request, Evaluation $evaluation)
@@ -212,7 +255,7 @@ class EvaluationController extends Controller
             ->with('success', 'Evaluación aprobada y publicada al asesor.');
     }
 
-    public function feedbackAudio(Evaluation $evaluation)
+    public function feedbackAudio(Request $request, Evaluation $evaluation)
     {
         $this->authorize('view', $evaluation);
 
@@ -220,18 +263,176 @@ class EvaluationController extends Controller
             abort(404);
         }
 
-        $disk = $evaluation->feedback_audio_disk ?: config('ai.feedback_tts.audio_disk', config('filesystems.default'));
-        $storage = Storage::disk($disk);
+        $diskName = $evaluation->feedback_audio_disk ?: config('ai.feedback_tts.audio_disk', config('filesystems.default'));
+        $disk = Storage::disk($diskName);
 
-        if (! $storage->exists($evaluation->feedback_audio_path)) {
+        if (! $disk->exists($evaluation->feedback_audio_path)) {
             abort(404);
         }
 
-        return response($storage->get($evaluation->feedback_audio_path), 200, [
-            'Content-Type' => 'audio/mpeg',
-            'Content-Disposition' => 'inline; filename="feedback-evaluacion-'.$evaluation->id.'.mp3"',
+        $mime = 'audio/mpeg';
+        $size = (int) $disk->size($evaluation->feedback_audio_path);
+        $fileName = 'feedback-evaluacion-'.$evaluation->id.'.mp3';
+
+        if ($size <= 0) {
+            return response('', 200, [
+                'Content-Type' => $mime,
+                'Content-Length' => '0',
+                'Accept-Ranges' => 'bytes',
+                'Content-Disposition' => 'inline; filename="'.addslashes($fileName).'"',
+            ]);
+        }
+
+        $range = $this->audioRange($request->headers->get('Range'), $size);
+
+        if (! $range['satisfiable']) {
+            return response('', 416, [
+                'Content-Range' => "bytes */{$size}",
+                'Accept-Ranges' => 'bytes',
+            ]);
+        }
+
+        $start = $range['start'];
+        $end = $range['end'];
+        $length = ($end - $start) + 1;
+        $stream = $this->audioStream($disk, $evaluation->feedback_audio_path, $start);
+
+        if ($stream === false) {
+            abort(404, 'Audio file not found.');
+        }
+
+        $headers = [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) $length,
+            'Accept-Ranges' => 'bytes',
+            'Content-Disposition' => 'inline; filename="'.addslashes($fileName).'"',
             'Cache-Control' => 'private, max-age=300',
-        ]);
+        ];
+
+        if ($range['partial']) {
+            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+        }
+
+        return response()->stream(function () use ($stream, $length) {
+            $remaining = $length;
+
+            while ($remaining > 0 && ! feof($stream)) {
+                $chunk = fread($stream, min(8192, $remaining));
+
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+
+                echo $chunk;
+                $remaining -= strlen($chunk);
+
+                if (function_exists('flush')) {
+                    flush();
+                }
+            }
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, $range['partial'] ? 206 : 200, $headers);
+    }
+
+    /**
+     * @return array{satisfiable: bool, partial: bool, start: int, end: int}
+     */
+    private function audioRange(?string $header, int $size): array
+    {
+        $default = [
+            'satisfiable' => true,
+            'partial' => false,
+            'start' => 0,
+            'end' => max(0, $size - 1),
+        ];
+
+        if (! $header || ! str_starts_with($header, 'bytes=')) {
+            return $default;
+        }
+
+        $range = trim(explode(',', substr($header, 6), 2)[0] ?? '');
+
+        if (! preg_match('/^(\d*)-(\d*)$/', $range, $matches)) {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        $startRaw = $matches[1];
+        $endRaw = $matches[2];
+
+        if ($startRaw === '' && $endRaw === '') {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        if ($startRaw === '') {
+            $suffixLength = (int) $endRaw;
+
+            if ($suffixLength <= 0) {
+                return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+            }
+
+            $start = max(0, $size - $suffixLength);
+            $end = $size - 1;
+        } else {
+            $start = (int) $startRaw;
+            $end = $endRaw !== '' ? (int) $endRaw : $size - 1;
+        }
+
+        if ($start >= $size || $end < $start) {
+            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
+        }
+
+        return [
+            'satisfiable' => true,
+            'partial' => true,
+            'start' => $start,
+            'end' => min($end, $size - 1),
+        ];
+    }
+
+    private function audioStream($disk, string $filePath, int $start)
+    {
+        if (method_exists($disk, 'path')) {
+            $absolutePath = $disk->path($filePath);
+
+            if (is_file($absolutePath)) {
+                $stream = fopen($absolutePath, 'rb');
+
+                if (is_resource($stream)) {
+                    fseek($stream, $start);
+
+                    return $stream;
+                }
+            }
+        }
+
+        $stream = $disk->readStream($filePath);
+
+        if (is_resource($stream)) {
+            $meta = stream_get_meta_data($stream);
+
+            if (($meta['seekable'] ?? false) === true) {
+                fseek($stream, $start);
+
+                return $stream;
+            }
+
+            fclose($stream);
+        }
+
+        $memory = fopen('php://temp', 'r+b');
+
+        if (! is_resource($memory)) {
+            return false;
+        }
+
+        fwrite($memory, $disk->get($filePath));
+        rewind($memory);
+        fseek($memory, $start);
+
+        return $memory;
     }
 
     public function reanalyze(Evaluation $evaluation)

@@ -179,15 +179,15 @@ class FeedbackAudioTest extends TestCase
             ->get(route('evaluations.feedback-audio', $evaluation))
             ->assertForbidden();
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->get(route('evaluations.feedback-audio', $evaluation))
-            ->assertOk()
-            ->assertContent('route-audio');
+            ->assertOk();
+        $this->assertSame('route-audio', $response->streamedContent());
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->get(route('evaluations.feedback-audio', $evaluation))
-            ->assertOk()
-            ->assertContent('route-audio');
+            ->assertOk();
+        $this->assertSame('route-audio', $response->streamedContent());
     }
 
     private function evaluation(string $status): array

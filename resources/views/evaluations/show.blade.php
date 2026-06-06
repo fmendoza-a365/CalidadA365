@@ -154,6 +154,7 @@
                 'subtitle' => 'Grabación original cargada para esta evaluación.',
                 'fileName' => $evaluation->interaction?->file_name,
                 'durationLabel' => null,
+                'bars' => $audioTimeline['bars'] ?? null,
             ])
         @endif
 

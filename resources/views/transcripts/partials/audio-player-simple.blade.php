@@ -11,6 +11,20 @@
         duration: 0,
         currentTime: 0,
         speed: '1',
+        bars: {{ json_encode($bars ?? null) }} || [],
+        init() {
+            if (this.bars.length === 0) {
+                const count = 75;
+                for (let i = 0; i < count; i++) {
+                    const height = 15 + Math.abs(Math.sin(i * 0.15) * 45) + Math.abs(Math.cos(i * 0.35) * 20);
+                    this.bars.push({
+                        index: i,
+                        height: Math.round(Math.min(90, height)),
+                        color: '#34d399'
+                    });
+                }
+            }
+        },
         get progress() {
             return this.duration > 0 ? Math.min(100, (this.currentTime / this.duration) * 100) : 0;
         },
@@ -18,9 +32,13 @@
             return this.format(this.currentTime);
         },
         get durationLabel() {
-            return this.duration > 0 ? this.format(this.duration) : '{{ $initialDurationLabel }}';
+            const hasNative = this.duration > 0 && Number.isFinite(this.duration);
+            return hasNative ? this.format(this.duration) : '{{ $initialDurationLabel }}';
         },
         format(value) {
+            if (!Number.isFinite(value) || isNaN(value)) {
+                return '00:00';
+            }
             const seconds = Math.max(0, Math.floor(Number(value) || 0));
             const hours = Math.floor(seconds / 3600);
             const minutes = Math.floor((seconds % 3600) / 60);
@@ -50,8 +68,11 @@
 
             if (!audio) return;
 
-            audio.currentTime = Math.max(0, Math.min(seconds, this.duration || audio.duration || 0));
-            this.currentTime = audio.currentTime;
+            const target = Math.max(0, Math.min(seconds, this.duration || audio.duration || 0));
+            if (Number.isFinite(target)) {
+                audio.currentTime = target;
+                this.currentTime = target;
+            }
         },
         seekFromBar(event) {
             const bar = event.currentTarget;
@@ -68,11 +89,20 @@
             audio.playbackRate = Number(value) || 1;
         },
         onLoadedMetadata() {
-            this.duration = this.$refs.audio.duration || 0;
+            const nativeDuration = this.$refs.audio.duration;
+            if (Number.isFinite(nativeDuration)) {
+                this.duration = nativeDuration;
+            }
             this.setSpeed(this.speed);
         },
         onTimeUpdate() {
             this.currentTime = this.$refs.audio.currentTime || 0;
+            if (this.duration === 0 || !Number.isFinite(this.duration)) {
+                const nativeDuration = this.$refs.audio.duration;
+                if (Number.isFinite(nativeDuration)) {
+                    this.duration = nativeDuration;
+                }
+            }
         },
         onEnded() {
             this.playing = false;
@@ -154,17 +184,24 @@
                 </div>
             </div>
 
-            <button type="button" class="block w-full cursor-pointer rounded-xl border border-white/10 bg-black/25 p-3 text-left"
+            <button type="button" class="block w-full cursor-pointer rounded-xl border border-white/10 bg-black/25 p-4 text-left"
                 @click="seekFromBar($event)">
-                <div class="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <div class="mb-3 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <span>Línea de tiempo</span>
                     <span class="font-mono normal-case tracking-normal text-gray-300">
                         <span x-text="currentLabel">00:00</span> / <span x-text="durationLabel">{{ $initialDurationLabel }}</span>
                     </span>
                 </div>
-                <span class="block h-3 overflow-hidden rounded-full bg-white/10">
-                    <span class="block h-full rounded-full bg-emerald-400 transition-all" :style="`width: ${progress}%;`"></span>
-                </span>
+                <div class="relative h-12 flex items-center gap-[3px] overflow-hidden">
+                    <template x-for="bar in bars" :key="bar.index">
+                        <span class="flex h-full flex-1 items-center justify-center rounded-sm">
+                            <span class="block min-h-[4px] w-full rounded-full transition-all duration-100"
+                                :style="`height: ${bar.height}%; background-color: ${(duration > 0 && currentTime >= (duration * (bar.index / bars.length))) ? (bar.color || '#34d399') : '#4b5563'};`"
+                                :class="(duration > 0 && currentTime >= (duration * (bar.index / bars.length))) ? 'opacity-100' : 'opacity-50'">
+                            </span>
+                        </span>
+                    </template>
+                </div>
             </button>
         </div>
     </div>
