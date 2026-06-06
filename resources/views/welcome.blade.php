@@ -113,7 +113,7 @@
             </div>
 
             <!-- Interactive Animated Logo (Limpio y Elegante en el Centro) -->
-            <div class="logo-shell-hero my-8" id="logoStageHero">
+            <div class="logo-shell-hero my-4" id="logoStageHero">
                 <div class="logo-wrap-hero">
                     <svg class="w-full h-auto qa-logo" viewBox="0 0 1562 699" role="img" aria-label="QA365 Logo Animado">
                         <g transform="translate(0,699) scale(0.1,-0.1)">
@@ -131,7 +131,7 @@
             </div>
 
             <!-- Subtitle/Description (debajo del logo) -->
-            <p class="text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-10 mt-2 leading-relaxed font-medium">
+            <p class="text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-6 mt-2 leading-relaxed font-medium">
                 Evalúa el 100% de tus llamadas automáticamente. Detecta oportunidades de mejora y eleva la calidad de
                 servicio con nuestra plataforma de QA inteligente.
             </p>
@@ -164,7 +164,7 @@
             </div>
 
             <!-- Stats -->
-            <div class="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div class="mt-12 grid grid-cols-2 md:grid-cols-4 gap-8">
                 <div class="text-center">
                     <div class="text-4xl font-bold text-gray-900 dark:text-white">100%</div>
                     <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Cobertura de Llamadas</div>
@@ -456,8 +456,8 @@
         .logo-shell-hero {
             position: relative;
             margin-inline: auto;
-            width: 70%;
-            max-width: 800px; /* Centrado y ampliado para el Hero en escritorio */
+            width: 55%;
+            max-width: 580px; /* Centrado y optimizado para liberar espacio vertical */
             aspect-ratio: 1562 / 699;
             z-index: 10;
             overflow: visible;
@@ -466,7 +466,7 @@
 
         @media (max-width: 640px) {
             .logo-shell-hero {
-                width: 85%;
+                width: 75%;
             }
         }
 
