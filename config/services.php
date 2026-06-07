@@ -39,6 +39,12 @@ return [
         'token' => trim(env('TELEGRAM_BOT_TOKEN', 'YOUR BOT TOKEN HERE'), '"\'')
     ],
 
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH'),
+        'service_account_json' => env('FCM_SERVICE_ACCOUNT_JSON'),
+    ],
+
     'ffprobe' => [
         'path' => env('FFPROBE_PATH'),
     ],

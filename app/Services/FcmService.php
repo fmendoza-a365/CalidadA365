@@ -11,32 +11,62 @@ class FcmService
 {
     public static function projectId(): string
     {
-        return env('FCM_PROJECT_ID') ?: Setting::get('fcm.project_id', '');
+        return config('services.fcm.project_id') ?: env('FCM_PROJECT_ID') ?: Setting::get('fcm.project_id', '');
+    }
+
+    public static function serviceAccountPath(): string
+    {
+        return config('services.fcm.service_account_path') ?: env('FCM_SERVICE_ACCOUNT_PATH', '');
     }
 
     public static function serviceAccountJson(): string
     {
-        return env('FCM_SERVICE_ACCOUNT_JSON') ?: Setting::get('fcm.service_account_json', '');
+        return config('services.fcm.service_account_json') ?: env('FCM_SERVICE_ACCOUNT_JSON') ?: Setting::get('fcm.service_account_json', '');
     }
 
-    public static function getAccessToken(): ?string
+    public static function serviceAccountData(): ?array
     {
+        $path = self::serviceAccountPath();
+        if ($path && file_exists($path) && is_readable($path)) {
+            $json = file_get_contents($path);
+            $data = json_decode($json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+                return $data;
+            }
+            Log::error('FcmService: Invalid JSON in FCM service account path: ' . $path);
+        }
+
         $serviceAccountJson = self::serviceAccountJson();
         if (empty($serviceAccountJson)) {
             return null;
         }
 
+        $data = json_decode($serviceAccountJson, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            Log::error('FcmService: Invalid service account JSON configuration.');
+            return null;
+        }
+
+        return $data;
+    }
+
+    public static function getAccessToken(): ?string
+    {
+        $serviceAccountData = self::serviceAccountData();
+        if (empty($serviceAccountData)) {
+            return null;
+        }
+
         // Cache the access token to avoid calling Google API on every notification (tokens are valid for 1 hour)
-        return Cache::remember('fcm_access_token', 3000, function () use ($serviceAccountJson) {
+        return Cache::remember('fcm_access_token', 3000, function () use ($serviceAccountData) {
             try {
-                $data = json_decode($serviceAccountJson, true);
-                if (!$data || !isset($data['private_key'], $data['client_email'])) {
+                if (!isset($serviceAccountData['private_key'], $serviceAccountData['client_email'])) {
                     Log::error('FcmService: Invalid service account JSON configuration.');
                     return null;
                 }
 
-                $privateKey = $data['private_key'];
-                $clientEmail = $data['client_email'];
+                $privateKey = $serviceAccountData['private_key'];
+                $clientEmail = $serviceAccountData['client_email'];
 
                 $header = json_encode(['alg' => 'RS256', 'typ' => 'JWT']);
                 $now = time();
