@@ -42,6 +42,37 @@ fun DetailScreen(
     onNavigate: (String, JSONObject) -> Unit,
     onBack: () -> Unit
 ) {
+    var evaluationState by remember(data) { mutableStateOf(data) }
+    var isLoadingEvaluation by remember(data) {
+        mutableStateOf(type == "evaluation" && (!data.has("score") || data.optDouble("score", -1.0) == -1.0))
+    }
+
+    val reloadEvaluation: () -> Unit = {
+        if (type == "evaluation" && token != null) {
+            val evalId = data.optInt("id", -1)
+            if (evalId > 0) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    try {
+                        isLoadingEvaluation = true
+                        val res = Api.request(serverUrl, "/api/mobile/evaluations/$evalId", "GET", null, token)
+                        val fullEval = res.optJSONObject("evaluation")
+                        if (fullEval != null) {
+                            evaluationState = fullEval
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("DetailScreen", "Error reloading evaluation: ${e.message}")
+                    } finally {
+                        isLoadingEvaluation = false
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(data) {
+        reloadEvaluation()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -70,20 +101,26 @@ fun DetailScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            when (type) {
-                "evaluation" -> EvaluationDetail(data, token, serverUrl, isAgent)
-                "transcript" -> TranscriptDetail(data, token)
-                "campaign" -> CampaignDetail(data)
-                "transcript_list" -> TranscriptsModule(data, onNavigate)
-                "evaluation_list" -> EvaluationsModule(data, onNavigate)
-                "campaign_list" -> CampaignsModule(data, onNavigate)
-                "feedback_list" -> FeedbackListModule(data, onNavigate)
-                "quality_form_list" -> QualityFormsModule(data, onNavigate)
-                "insight_list" -> InsightsModule(data, onNavigate)
-                "quality_form" -> QualityFormDetail(data)
-                "insight" -> InsightDetail(data)
-                else -> Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("Detalle no soportado.")
+            if (isLoadingEvaluation) {
+                Box(modifier = Modifier.fillMaxSize().padding(64.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(strokeWidth = 3.dp)
+                }
+            } else {
+                when (type) {
+                    "evaluation" -> EvaluationDetail(evaluationState, token, serverUrl, isAgent, onRefresh = { reloadEvaluation() })
+                    "transcript" -> TranscriptDetail(data, token)
+                    "campaign" -> CampaignDetail(data)
+                    "transcript_list" -> TranscriptsModule(data, onNavigate)
+                    "evaluation_list" -> EvaluationsModule(data, onNavigate)
+                    "campaign_list" -> CampaignsModule(data, onNavigate)
+                    "feedback_list" -> FeedbackListModule(data, onNavigate)
+                    "quality_form_list" -> QualityFormsModule(data, onNavigate)
+                    "insight_list" -> InsightsModule(data, onNavigate)
+                    "quality_form" -> QualityFormDetail(data)
+                    "insight" -> InsightDetail(data)
+                    else -> Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("Detalle no soportado.")
+                    }
                 }
             }
         }
@@ -111,7 +148,13 @@ fun getDetailTitle(type: String): String {
 // EVALUATION DETAIL — Premium evaluation view
 // ─────────────────────────────────────────────────────────────────────
 @Composable
-fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, isAgent: Boolean) {
+fun EvaluationDetail(
+    evaluation: JSONObject,
+    token: String?,
+    serverUrl: String,
+    isAgent: Boolean,
+    onRefresh: () -> Unit
+) {
     val score = evaluation.optDouble("score", -1.0)
     var isSubmitting by remember { mutableStateOf(false) }
     var comment by remember { mutableStateOf("") }
@@ -301,6 +344,50 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
             }
         }
 
+        // Observaciones del Monitor
+        val reviewNotes = evaluation.optString("review_notes", "")
+        if (reviewNotes.isNotEmpty() && reviewNotes != "null") {
+            Spacer(modifier = Modifier.height(20.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RateReview,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Observaciones del Monitor",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = reviewNotes,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        lineHeight = 22.sp
+                    )
+                }
+            }
+        }
+
         // Criteria Items Accordion List
         val items = evaluation.optJSONArray("items")
         if (items != null && items.length() > 0) {
@@ -341,7 +428,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
         if (hasResponded) {
             Spacer(modifier = Modifier.height(20.dp))
             SectionHeaderIcon(
-                icon = if (response.optString("type") == "accept") Icons.Default.CheckCircle else Icons.Default.Warning,
+                icon = if (response.optString("type") == "accept" || response.optString("type") == "reviewed" || response.optString("type") == "commitment") Icons.Default.CheckCircle else Icons.Default.Warning,
                 title = "Respuesta del Asesor"
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -363,7 +450,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Revise los criterios detallados y registre su conformidad o discrepancia. Este registro se sincronizará con la plataforma web.",
+                        text = "Revise los criterios detallados y registre su confirmación de lectura o compromiso operativo. También puede disputar si es necesario.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         lineHeight = 18.sp
@@ -372,7 +459,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                     OutlinedTextField(
                         value = comment,
                         onValueChange = { comment = it },
-                        label = { Text("Comentarios o justificación de disputa") },
+                        label = { Text("Comentarios, compromisos o motivo de disputa") },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         shape = RoundedCornerShape(8.dp),
@@ -384,10 +471,94 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                         )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Confirmar Lectura (Teal)
+                        Button(
+                            onClick = {
+                                val finalComment = if (comment.isBlank()) "Lectura confirmada." else comment
+                                isSubmitting = true
+                                coroutineScope.launch {
+                                    try {
+                                        val body = JSONObject().apply {
+                                            put("response_type", "reviewed")
+                                            put("commitment_comment", finalComment)
+                                        }
+                                        Api.request(serverUrl, "/api/mobile/evaluations/${evaluation.optInt("id")}/respond", "POST", body, token)
+                                        feedbackMessage = null
+                                        showSuccess = true
+                                        onRefresh()
+                                    } catch (e: Exception) {
+                                        feedbackMessage = e.message ?: "Error al confirmar lectura"
+                                    } finally {
+                                        isSubmitting = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            enabled = !isSubmitting,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488))
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Confirmar Lectura", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+
+                        // Registrar Compromiso (Green/Emerald)
+                        Button(
+                            onClick = {
+                                if (comment.isBlank()) {
+                                    feedbackMessage = "Por favor escriba su compromiso antes de registrarlo."
+                                    return@Button
+                                }
+                                isSubmitting = true
+                                coroutineScope.launch {
+                                    try {
+                                        val body = JSONObject().apply {
+                                            put("response_type", "commitment")
+                                            put("commitment_comment", comment)
+                                        }
+                                        Api.request(serverUrl, "/api/mobile/evaluations/${evaluation.optInt("id")}/respond", "POST", body, token)
+                                        feedbackMessage = null
+                                        showSuccess = true
+                                        onRefresh()
+                                    } catch (e: Exception) {
+                                        feedbackMessage = e.message ?: "Error al registrar compromiso"
+                                    } finally {
+                                        isSubmitting = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            enabled = !isSubmitting,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Handshake, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Registrar Compromiso", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Aceptar (Conformidad tradicional)
                         Button(
                             onClick = {
                                 if (comment.isBlank()) {
@@ -404,8 +575,9 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                                         Api.request(serverUrl, "/api/mobile/evaluations/${evaluation.optInt("id")}/respond", "POST", body, token)
                                         feedbackMessage = null
                                         showSuccess = true
+                                        onRefresh()
                                     } catch (e: Exception) {
-                                        feedbackMessage = e.message ?: "Error al registrar respuesta"
+                                        feedbackMessage = e.message ?: "Error al registrar conformidad"
                                     } finally {
                                         isSubmitting = false
                                     }
@@ -417,18 +589,15 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669))
                         ) {
                             if (isSubmitting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                             } else {
                                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Aceptar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
-                        
+
+                        // Disputar
                         OutlinedButton(
                             onClick = {
                                 if (comment.isBlank()) {
@@ -445,6 +614,7 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                                         Api.request(serverUrl, "/api/mobile/evaluations/${evaluation.optInt("id")}/respond", "POST", body, token)
                                         feedbackMessage = null
                                         showSuccess = true
+                                        onRefresh()
                                     } catch (e: Exception) {
                                         feedbackMessage = e.message ?: "Error al registrar disputa"
                                     } finally {
@@ -459,10 +629,11 @@ fun EvaluationDetail(evaluation: JSONObject, token: String?, serverUrl: String, 
                             border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
                         ) {
                             Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Disputar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Disputar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
+
                     if (feedbackMessage != null) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
@@ -534,6 +705,8 @@ fun StatusChip(label: String, status: String) {
     val chipColor = when (status) {
         "published_to_agent" -> Color(0xFF3B82F6) // Blue
         "agent_accepted" -> Color(0xFF059669)     // Green
+        "agent_reviewed" -> Color(0xFF0D9488)     // Teal
+        "commitment_registered" -> Color(0xFF10B981) // Emerald Green
         "agent_disputed" -> Color(0xFFEF4444)     // Red
         "dispute_resolved" -> Color(0xFF7C3AED)   // Purple
         "closed" -> Color.Gray
@@ -824,8 +997,23 @@ fun FeedbackIndicatorsCard(indicators: JSONObject) {
 
 @Composable
 fun AgentResponseCard(response: JSONObject) {
-    val isAccept = response.optString("type") == "accept"
-    val bgColor = if (isAccept) Color(0xFF059669) else Color(0xFFEF4444)
+    val type = response.optString("type")
+    val bgColor = when (type) {
+        "accept", "reviewed", "commitment" -> Color(0xFF059669) // Greenish
+        else -> Color(0xFFEF4444) // Dispute / Red
+    }
+
+    val titleText = when (type) {
+        "accept" -> "Conformidad registrada por el asesor"
+        "reviewed" -> "Lectura confirmada por el asesor"
+        "commitment" -> "Compromiso registrado por el asesor"
+        else -> "Discrepancia registrada por el asesor"
+    }
+
+    val iconVector = when (type) {
+        "accept", "reviewed", "commitment" -> Icons.Default.CheckCircle
+        else -> Icons.Default.Warning
+    }
 
     Card(
         modifier = Modifier
@@ -841,22 +1029,22 @@ fun AgentResponseCard(response: JSONObject) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    imageVector = if (isAccept) Icons.Default.CheckCircle else Icons.Default.Warning,
+                    imageVector = iconVector,
                     contentDescription = null,
                     tint = bgColor,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
-                    text = if (isAccept) "Conformidad registrada por el asesor" else "Discrepancia registrada por el asesor",
+                    text = titleText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = bgColor
                 )
             }
-            val commentText = if (isAccept)
-                response.optString("commitment_comment", "")
-            else
+            val commentText = if (type == "dispute")
                 response.optString("dispute_reason", "")
+            else
+                response.optString("commitment_comment", "")
 
             if (commentText.isNotEmpty() && commentText != "null") {
                 Spacer(modifier = Modifier.height(10.dp))

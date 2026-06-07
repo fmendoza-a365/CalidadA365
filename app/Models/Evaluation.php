@@ -28,6 +28,10 @@ class Evaluation extends Model
 
     public const STATUS_CLOSED = 'closed';
 
+    public const STATUS_AGENT_REVIEWED = 'agent_reviewed';
+
+    public const STATUS_COMMITMENT_REGISTERED = 'commitment_registered';
+
     protected $fillable = [
         'interaction_id',
         'form_version_id',
@@ -334,6 +338,8 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED,
             self::STATUS_DISPUTE_RESOLVED,
             self::STATUS_CLOSED,
+            self::STATUS_AGENT_REVIEWED,
+            self::STATUS_COMMITMENT_REGISTERED,
         ]);
     }
 
@@ -435,6 +441,8 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED,
             self::STATUS_DISPUTE_RESOLVED,
             self::STATUS_CLOSED,
+            self::STATUS_AGENT_REVIEWED,
+            self::STATUS_COMMITMENT_REGISTERED,
         ], true);
     }
 
@@ -527,6 +535,8 @@ class Evaluation extends Model
             self::STATUS_AGENT_DISPUTED => 'Disputada por asesor',
             self::STATUS_DISPUTE_RESOLVED => 'Disputa resuelta',
             self::STATUS_CLOSED => 'Cerrada',
+            self::STATUS_AGENT_REVIEWED => 'Revisada por el asesor',
+            self::STATUS_COMMITMENT_REGISTERED => 'Compromiso registrado',
         ][$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
 }

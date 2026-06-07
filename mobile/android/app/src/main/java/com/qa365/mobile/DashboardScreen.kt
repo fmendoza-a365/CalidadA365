@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,6 +21,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 @Composable
@@ -28,6 +32,8 @@ fun DashboardScreen(
     token: String?,
     serverUrl: String,
     themeMode: String,
+    pendingEvaluationId: String? = null,
+    onClearPendingEvaluation: () -> Unit = {},
     onThemeChanged: (String) -> Unit,
     onTabSelected: (String) -> Unit,
     onLogout: () -> Unit,
@@ -35,16 +41,65 @@ fun DashboardScreen(
 ) {
     // Premium navigation stack using mutableStateListOf
     val navStack = remember { mutableStateListOf<Pair<String, JSONObject>>() }
+    val coroutineScope = rememberCoroutineScope()
+
+    var notificationsList by remember { mutableStateOf<JSONArray?>(null) }
+    var unreadCount by remember { mutableStateOf(0) }
+    var isLoadingNotifications by remember { mutableStateOf(false) }
+
+    val loadNotifications: () -> Unit = {
+        if (token != null) {
+            coroutineScope.launch {
+                try {
+                    isLoadingNotifications = true
+                    val res = Api.request(serverUrl, "/api/mobile/notifications", "GET", null, token)
+                    notificationsList = res.optJSONArray("data")
+                    unreadCount = res.optJSONObject("meta")?.optInt("unread_count", 0) ?: 0
+                } catch (e: Exception) {
+                    android.util.Log.e("DashboardScreen", "Error loading notifications: ${e.message}")
+                } finally {
+                    isLoadingNotifications = false
+                }
+            }
+        }
+    }
 
     // Clear navigation stack when switching tabs to avoid leaks or confusing back behaviors
     LaunchedEffect(activeTab) {
         navStack.clear()
+        if (activeTab == "notifications") {
+            loadNotifications()
+        }
+    }
+
+    // Handle incoming deep link evaluations
+    LaunchedEffect(pendingEvaluationId) {
+        if (pendingEvaluationId != null) {
+            val placeholder = JSONObject().apply {
+                put("id", pendingEvaluationId.toIntOrNull() ?: -1)
+            }
+            navStack.add(Pair("evaluation", placeholder))
+            onClearPendingEvaluation()
+        }
     }
 
     LaunchedEffect(token) {
         while (!token.isNullOrBlank()) {
             delay(15_000)
             onRefresh()
+        }
+    }
+
+    // Poll for notifications count every 30s to update the badge
+    LaunchedEffect(token) {
+        while (!token.isNullOrBlank()) {
+            try {
+                val res = Api.request(serverUrl, "/api/mobile/notifications?per_page=1", "GET", null, token)
+                unreadCount = res.optJSONObject("meta")?.optInt("unread_count", 0) ?: 0
+            } catch (e: Exception) {
+                // ignore
+            }
+            delay(30_000)
         }
     }
 
@@ -63,6 +118,10 @@ fun DashboardScreen(
             },
             onBack = {
                 navStack.removeLast()
+                onRefresh()
+                if (activeTab == "notifications") {
+                    loadNotifications()
+                }
             }
         )
         return
@@ -70,7 +129,7 @@ fun DashboardScreen(
 
     Scaffold(
         bottomBar = {
-            MobileBottomNav(activeTab = activeTab, onTabSelected = onTabSelected)
+            MobileBottomNav(activeTab = activeTab, unreadCount = unreadCount, onTabSelected = onTabSelected)
         }
     ) { padding ->
         Column(
@@ -91,7 +150,15 @@ fun DashboardScreen(
                     "dashboard" -> MainDashboardModule(data, onNavigate)
                     "transcripts" -> TranscriptsModule(data, onNavigate)
                     "evaluations" -> EvaluationsModule(data, onNavigate)
-                    "campaigns" -> CampaignsModule(data, onNavigate)
+                    "notifications" -> NotificationsModule(
+                        notificationsList = notificationsList,
+                        isLoading = isLoadingNotifications,
+                        unreadCount = unreadCount,
+                        token = token,
+                        serverUrl = serverUrl,
+                        onNavigate = onNavigate,
+                        onReload = loadNotifications
+                    )
                     "more" -> ProfileModule(data, themeMode, onThemeChanged, onLogout, onRefresh)
                     else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Módulo en construcción: $activeTab")
@@ -105,12 +172,12 @@ fun DashboardScreen(
 data class NavItem(val id: String, val label: String, val icon: ImageVector)
 
 @Composable
-private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) {
+private fun MobileBottomNav(activeTab: String, unreadCount: Int, onTabSelected: (String) -> Unit) {
     val items = listOf(
         NavItem("dashboard", "Inicio", Icons.Default.Home),
         NavItem("transcripts", "Audio", Icons.Default.Audiotrack),
         NavItem("evaluations", "Evals", Icons.Default.Assessment),
-        NavItem("campaigns", "Camp.", Icons.Default.Campaign),
+        NavItem("notifications", "Notif.", Icons.Default.Notifications),
         NavItem("more", "Perfil", Icons.Default.Person)
     )
 
@@ -154,12 +221,30 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.label,
-                            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
-                            modifier = Modifier.size(if (selected) 22.dp else 20.dp)
-                        )
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f),
+                                modifier = Modifier.size(if (selected) 22.dp else 20.dp)
+                            )
+                            if (item.id == "notifications" && unreadCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = 6.dp, y = (-4).dp)
+                                        .size(16.dp)
+                                        .background(Color(0xFFEF4444), shape = CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             text = item.label,
@@ -169,6 +254,206 @@ private fun MobileBottomNav(activeTab: String, onTabSelected: (String) -> Unit) 
                             maxLines = 1,
                             overflow = TextOverflow.Clip
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NotificationsModule(
+    notificationsList: JSONArray?,
+    isLoading: Boolean,
+    unreadCount: Int,
+    token: String?,
+    serverUrl: String,
+    onNavigate: (String, JSONObject) -> Unit,
+    onReload: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Notificaciones",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            
+            if (unreadCount > 0) {
+                TextButton(
+                    onClick = {
+                        if (token != null) {
+                            coroutineScope.launch {
+                                try {
+                                    Api.request(serverUrl, "/api/mobile/notifications/read-all", "POST", null, token)
+                                    onReload()
+                                } catch (e: Exception) {
+                                    // ignore
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Marcar todo leído", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading && notificationsList == null) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(strokeWidth = 2.dp)
+            }
+        } else if (notificationsList == null || notificationsList.length() == 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No tienes notificaciones",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(notificationsList.length()) { index ->
+                    val notification = notificationsList.optJSONObject(index) ?: return@items
+                    val id = notification.optString("id")
+                    val isUnread = notification.optString("read_at", "null") == "null"
+                    val nData = notification.optJSONObject("data") ?: JSONObject()
+                    val title = nData.optString("title", "Notificación")
+                    val body = nData.optString("body", "")
+                    val dateStr = notification.optString("created_at", "").take(16).replace("T", " ")
+                    val evalId = nData.optInt("evaluation_id", -1)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (token != null) {
+                                    coroutineScope.launch {
+                                        try {
+                                            if (isUnread) {
+                                                Api.request(serverUrl, "/api/mobile/notifications/$id/read", "POST", null, token)
+                                            }
+                                            if (evalId > 0) {
+                                                onNavigate("evaluation", JSONObject().put("id", evalId))
+                                            } else {
+                                                onReload()
+                                            }
+                                        } catch (e: Exception) {
+                                            // Fallback navigation in case of error
+                                            if (evalId > 0) {
+                                                onNavigate("evaluation", JSONObject().put("id", evalId))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (evalId > 0) {
+                                        onNavigate("evaluation", JSONObject().put("id", evalId))
+                                    }
+                                }
+                            }
+                            .border(
+                                width = 1.dp,
+                                color = if (isUnread) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isUnread) MaterialTheme.colorScheme.primary.copy(alpha = 0.03f) else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left Icon
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(
+                                        color = if (isUnread) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Assessment,
+                                    contentDescription = null,
+                                    tint = if (isUnread) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Details
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isUnread) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    if (isUnread) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = body,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    lineHeight = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = dateStr,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
                     }
                 }
             }

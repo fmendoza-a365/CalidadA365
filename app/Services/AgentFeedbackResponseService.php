@@ -53,12 +53,52 @@ class AgentFeedbackResponseService
             return $response;
         }
 
-        $evaluation->update(['status' => Evaluation::STATUS_AGENT_ACCEPTED]);
+        // Determine target status
+        $targetStatus = Evaluation::STATUS_AGENT_ACCEPTED;
+        if ($data['response_type'] === 'reviewed') {
+            $targetStatus = Evaluation::STATUS_AGENT_REVIEWED;
+        } elseif ($data['response_type'] === 'commitment') {
+            $targetStatus = Evaluation::STATUS_COMMITMENT_REGISTERED;
+        }
 
-        $evaluation->recordAuditEvent('agent_accepted', $agent, [
+        $evaluation->update(['status' => $targetStatus]);
+
+        $evaluation->recordAuditEvent($data['response_type'] === 'accept' ? 'agent_accepted' : $data['response_type'], $agent, [
             'agent_response_id' => $response->id,
             'commitment_present' => filled($data['commitment_comment'] ?? null),
-        ], $fromStatus, Evaluation::STATUS_AGENT_ACCEPTED);
+        ], $fromStatus, $targetStatus);
+
+        // Notify hierarchy for reviewed/commitment/accept
+        $notificationType = $data['response_type'] === 'commitment' ? 'commitment' : 'reviewed';
+        $notification = new \App\Notifications\EvaluationReviewed($evaluation, $agent, $notificationType);
+
+        // 1. Notify the Monitor (Evaluator) who performed the evaluation
+        if ($evaluation->evaluator) {
+            $evaluation->evaluator->notify($notification);
+        }
+
+        // 2. Notify the Supervisor associated (via CampaignUserAssignment or Interaction)
+        $supervisor = $evaluation->interaction?->supervisor;
+        if (!$supervisor) {
+            $supervisor = \App\Models\CampaignUserAssignment::where('agent_id', $agent->id)
+                ->where('campaign_id', $evaluation->campaign_id)
+                ->where('is_active', true)
+                ->first()?->supervisor;
+        }
+        if ($supervisor) {
+            $supervisor->notify($notification);
+        }
+
+        // 3. Notify QA Coordinators / Campaign Managers associated with this campaign
+        $campaign = $evaluation->campaign;
+        if ($campaign) {
+            $managers = $campaign->managers()->get();
+            foreach ($managers as $manager) {
+                if ($manager->hasAnyRole(['qa_coordinator', 'qa_manager'])) {
+                    $manager->notify($notification);
+                }
+            }
+        }
 
         return $response;
     }

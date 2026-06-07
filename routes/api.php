@@ -14,9 +14,17 @@ Route::prefix('mobile')->group(function () {
         Route::get('summary', [MobileDashboardController::class, 'summary']);
         Route::get('alerts', [MobileDashboardController::class, 'alerts']);
         Route::get('evaluations', [MobileDashboardController::class, 'evaluations']);
+        Route::get('evaluations/{evaluation}', [MobileDashboardController::class, 'showEvaluation']);
         Route::post('evaluations/{evaluation}/viewed', [MobileDashboardController::class, 'markEvaluationViewed']);
         Route::post('evaluations/{evaluation}/respond', [MobileDashboardController::class, 'respondEvaluation']);
         Route::get('evaluations/{evaluation}/feedback-audio', [MobileDashboardController::class, 'feedbackAudio']);
         Route::get('transcripts/{interaction}/audio', [MobileDashboardController::class, 'transcriptAudio']);
+
+        // Devices and Push Notifications
+        Route::post('devices/register', [MobileDashboardController::class, 'registerDevice']);
+        Route::post('devices/unregister', [MobileDashboardController::class, 'unregisterDevice']);
+        Route::get('notifications', [MobileDashboardController::class, 'notifications']);
+        Route::post('notifications/{id}/read', [MobileDashboardController::class, 'markNotificationRead']);
+        Route::post('notifications/read-all', [MobileDashboardController::class, 'markAllNotificationsRead']);
     });
 });

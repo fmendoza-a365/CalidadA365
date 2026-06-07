@@ -18,13 +18,34 @@ class EvaluationCompleted extends Notification
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
+        $channels = ['database', \App\Channels\FcmChannel::class];
 
         if ($notifiable->telegram_chat_id) {
             $channels[] = 'telegram';
         }
 
         return $channels;
+    }
+
+    /**
+     * Get the FCM representation of the notification.
+     */
+    public function toFcm(object $notifiable): array
+    {
+        $this->evaluation->loadMissing('campaign.parent');
+        $campaignName = $this->evaluation->campaign?->displayName() ?? 'N/A';
+
+        return [
+            'title' => 'Nueva evaluación disponible',
+            'body' => 'Tienes una nueva evaluación de calidad pendiente de revisión.',
+            'data' => [
+                'type' => 'new_evaluation',
+                'evaluation_id' => $this->evaluation->id,
+                'campaign' => $campaignName,
+                'score' => $this->evaluation->percentage_score,
+                'deep_link' => "qa365://evaluations/{$this->evaluation->id}",
+            ],
+        ];
     }
 
     /**

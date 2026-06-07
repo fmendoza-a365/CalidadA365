@@ -166,6 +166,15 @@ class MobileDashboardController extends Controller
         ]);
     }
 
+    public function showEvaluation(Request $request, Evaluation $evaluation): JsonResponse
+    {
+        $this->authorize('view', $evaluation);
+
+        return response()->json([
+            'evaluation' => $this->evaluationPayload($evaluation->loadMissing(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
+        ]);
+    }
+
     public function markEvaluationViewed(Request $request, Evaluation $evaluation): JsonResponse
     {
         $this->authorize('view', $evaluation);
@@ -190,8 +199,8 @@ class MobileDashboardController extends Controller
         }
 
         $validated = $request->validate([
-            'response_type' => ['required', 'in:accept,dispute'],
-            'commitment_comment' => ['required_if:response_type,accept', 'nullable', 'string', 'max:5000'],
+            'response_type' => ['required', 'in:accept,dispute,reviewed,commitment'],
+            'commitment_comment' => ['required_if:response_type,accept,reviewed,commitment', 'nullable', 'string', 'max:5000'],
             'dispute_reason' => ['required_if:response_type,dispute', 'nullable', 'string', 'max:5000'],
             'disputed_items' => ['nullable', 'array'],
         ]);
@@ -201,6 +210,87 @@ class MobileDashboardController extends Controller
         return response()->json([
             'message' => 'Respuesta registrada.',
             'evaluation' => $this->evaluationPayload($evaluation->fresh(['agentResponse', 'agent', 'campaign.parent', 'interaction', 'evaluator', 'items.subAttribute.attribute'])),
+        ]);
+    }
+
+    public function registerDevice(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fcm_token' => ['required', 'string'],
+            'device_id' => ['nullable', 'string'],
+            'platform' => ['nullable', 'string', 'in:android,ios'],
+        ]);
+
+        $user = $request->user();
+
+        \App\Models\MobileDevice::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'device_id' => $validated['device_id'] ?? $validated['fcm_token'],
+            ],
+            [
+                'fcm_token' => $validated['fcm_token'],
+                'platform' => $validated['platform'] ?? 'android',
+            ]
+        );
+
+        return response()->json(['message' => 'Dispositivo registrado.']);
+    }
+
+    public function unregisterDevice(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'fcm_token' => ['required', 'string'],
+        ]);
+
+        \App\Models\MobileDevice::where('fcm_token', $validated['fcm_token'])->delete();
+
+        return response()->json(['message' => 'Dispositivo desregistrado.']);
+    }
+
+    public function notifications(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $perPage = min(max((int) $request->query('per_page', 20), 1), 50);
+
+        $notifications = $user->notifications()->paginate($perPage);
+
+        return response()->json([
+            'data' => $notifications->getCollection()->map(fn ($n) => [
+                'id' => $n->id,
+                'type' => $n->type,
+                'data' => $n->data,
+                'read_at' => $n->read_at?->toIso8601String(),
+                'created_at' => $n->created_at?->toIso8601String(),
+            ])->values(),
+            'meta' => [
+                'current_page' => $notifications->currentPage(),
+                'per_page' => $notifications->perPage(),
+                'total' => $notifications->total(),
+                'last_page' => $notifications->lastPage(),
+                'unread_count' => $user->unreadNotifications()->count(),
+            ],
+        ]);
+    }
+
+    public function markNotificationRead(Request $request, string $id): JsonResponse
+    {
+        $notification = $request->user()->notifications()->findOrFail($id);
+        $notification->markAsRead();
+
+        return response()->json([
+            'message' => 'Notificacion marcada como leida.',
+            'unread_count' => $request->user()->unreadNotifications()->count(),
+        ]);
+    }
+
+    public function markAllNotificationsRead(Request $request): JsonResponse
+    {
+        $request->user()->unreadNotifications->markAsRead();
+
+        return response()->json([
+            'message' => 'Todas las notificaciones marcadas como leidas.',
+            'unread_count' => 0,
         ]);
     }
 
@@ -698,6 +788,7 @@ class MobileDashboardController extends Controller
                     : null,
             ],
             'summary' => $evaluation->ai_summary,
+            'review_notes' => $evaluation->review_notes,
             'action_url' => url('/evaluations/'.$evaluation->id),
             'items' => $evaluation->items->map(fn ($item) => [
                 'id' => $item->id,
