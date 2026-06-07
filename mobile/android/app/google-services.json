@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1234567890",
-    "project_id": "qa365-mobile-dummy",
-    "storage_bucket": "qa365-mobile-dummy.appspot.com"
+    "project_number": "27707843991",
+    "project_id": "qa365-ace27",
+    "storage_bucket": "qa365-ace27.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1234567890:android:4b54e7d890bf23ea",
+        "mobilesdk_app_id": "1:27707843991:android:a63e3802bf84e4a3dcd0d2",
         "android_client_info": {
           "package_name": "com.qa365.mobile"
         }
@@ -15,16 +15,12 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDummyKeyPlaceholderForCompilationOnly"
+          "current_key": "AIzaSyAU4n6ObEqXTjHMQgeftAWATFp71t0K6VI"
         }
       ],
       "services": {
         "appinvite_service": {
-          "status": 1,
           "other_platform_oauth_client": []
-        },
-        "ads_service": {
-          "status": 1
         }
       }
     }
