@@ -202,15 +202,15 @@
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->uploadedBy->full_name ?? '—' }}
                             </td>
-                            <td class="text-center" x-data="{ id: {{ $interaction->id }} }">
-                                <span x-show="!statuses[id] && {{ $interaction->isTranscribing() ? 'true' : 'false' }}" class="badge badge-info">Transcribiendo</span>
-                                <span x-show="!statuses[id] && {{ $interaction->isTranscriptionFailed() ? 'true' : 'false' }}" class="badge badge-danger">Error STT</span>
-                                <span x-show="!statuses[id] && {{ $interaction->evaluation ? 'true' : 'false' }}" class="badge badge-success">Evaluada</span>
-                                <span x-show="!statuses[id] && {{ !$interaction->isTranscribing() && !$interaction->isTranscriptionFailed() && !$interaction->evaluation ? 'true' : 'false' }}" class="badge badge-warning">Pendiente</span>
-                                <span x-show="statuses[id]?.is_transcribing" class="badge badge-info">Transcribiendo</span>
-                                <span x-show="statuses[id]?.is_failed" class="badge badge-danger">Error STT</span>
-                                <span x-show="statuses[id]?.has_evaluation" class="badge badge-success">Evaluada</span>
-                                <span x-show="statuses[id] && !statuses[id]?.is_transcribing && !statuses[id]?.is_failed && !statuses[id]?.has_evaluation" class="badge badge-warning">Pendiente</span>
+                            <td class="text-center" x-data="{
+                                id: {{ $interaction->id }},
+                                current: '{{ $interaction->isTranscribing() ? 'transcribing' : ($interaction->isTranscriptionFailed() ? 'failed' : ($interaction->evaluation ? 'evaluated' : 'pending')) }}',
+                                get status() { return statuses[this.id]?.is_transcribing ? 'transcribing' : statuses[this.id]?.is_failed ? 'failed' : statuses[this.id]?.has_evaluation ? 'evaluated' : statuses[this.id] ? 'pending' : this.current; }
+                            }">
+                                <span x-show="status === 'transcribing'" class="badge badge-info">Transcribiendo</span>
+                                <span x-show="status === 'failed'" class="badge badge-danger">Error STT</span>
+                                <span x-show="status === 'evaluated'" class="badge badge-success">Evaluada</span>
+                                <span x-show="status === 'pending'" class="badge badge-warning">Pendiente</span>
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
