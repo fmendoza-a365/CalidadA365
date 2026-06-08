@@ -347,12 +347,12 @@ Leyenda compacta: id=ID del subatributo, a=atributo/categoría, n=criterio, d=de
 
 REGLA CRÍTICA DE IDIOMA: Absolutamente TODO el texto generado por ti (feedback, notes, evidence_quote) DEBE estar estrictamente en ESPAÑOL. Está prohibido responder en inglés. (Las claves del JSON como 'status' y 'confidence' sí deben mantenerse como se definen en el formato).
 
-Adicionalmente, genera un objeto "feedback" CONSTRUCTIVO y ESTRUCTURADO con 5 campos separados:
-- performanceSummary: resumen del desempeño, máximo 250 caracteres.
-- productKnowledge: precisión, dominio del tema, oferta, condiciones, beneficios, descuentos, requisitos y restricciones, máximo 200 caracteres.
-- emotionalHandlingAndEmpathy: tono, empatía, manejo de objeciones, control emocional, escucha activa y trato, máximo 200 caracteres.
-- strengths: hasta 3 fortalezas breves separadas por punto y coma, máximo 180 caracteres.
-- improvementOpportunities: hasta 3 acciones concretas separadas por punto y coma, máximo 220 caracteres.
+Adicionalmente, genera un objeto "feedback" CONSTRUCTIVO y ACCIONABLE con 5 campos. Cada campo debe mencionar criterios específicos de la ficha y citar evidencia de la transcripción cuando sea posible:
+- performanceSummary: resumen del desempeño mencionando los 2-3 criterios más relevantes (cumplidos o fallidos) con referencia a la evidencia. Máximo 400 caracteres.
+- productKnowledge: análisis de precisión y dominio del producto/servicio, mencionando si hubo errores o aciertos específicos. Máximo 300 caracteres.
+- emotionalHandlingAndEmpathy: análisis de tono, empatía y manejo emocional con ejemplos concretos de la llamada. Máximo 300 caracteres.
+- strengths: las 2-3 fortalezas más destacadas, mencionando el criterio específico y la evidencia. Máximo 250 caracteres.
+- improvementOpportunities: los 2-3 errores más importantes, cada uno con: nombre del criterio fallido, qué pasó, qué debió hacerse. Separar cada error con punto y coma. Máximo 400 caracteres.
 
 REGLAS CRÍTICAS DEL JSON:
 - No uses Markdown, bullets, emojis ni encabezados dentro de feedback o notes.
@@ -374,11 +374,11 @@ Responde ÚNICAMENTE con el siguiente JSON estructurado:
         }
     ],
     "feedback": {
-        "performanceSummary": "Síntesis breve del desempeño de la llamada.",
-        "productKnowledge": "Análisis de precisión, dominio del producto, condiciones y beneficios.",
-        "emotionalHandlingAndEmpathy": "Análisis de tono, empatía, escucha activa y manejo de objeciones.",
-        "strengths": "Puntos positivos concretos detectados en la gestión.",
-        "improvementOpportunities": "Recomendaciones accionables para mejorar la gestión."
+        "performanceSummary": "El asesor cumplió el saludo y la despedida, pero falló en empatía cuando el cliente reclamó por facturación y no ofreció una solución concreta.",
+        "productKnowledge": "Explicó correctamente el plan vigente, pero confundió las condiciones del descuento promocional mencionando un precio que no corresponde.",
+        "emotionalHandlingAndEmpathy": "Mantuvo tono profesional, pero no validó la molestia del cliente cuando dijo 'estoy molesto por los cargos'. Debió decir 'entiendo su molestia'.",
+        "strengths": "Saludo corporativo correcto mencionando nombre y empresa; buena escucha activa al repetir los datos del cliente para confirmar.",
+        "improvementOpportunities": "Empatía: no validó la molestia del cliente al reclamar, debió reconocer la emoción antes de explicar; Cierre: no confirmó si el cliente quedó satisfecho, debió preguntar '¿hay algo más en que le pueda ayudar?'; Objeción: no manejo la objeción de precio, debió resaltar el valor del servicio."
     }
 }
 PROMPT;

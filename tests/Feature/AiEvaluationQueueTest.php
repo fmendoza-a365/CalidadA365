@@ -193,7 +193,7 @@ class AiEvaluationQueueTest extends TestCase
         $this->assertStringNotContainsString('Golden evidence', $prompt);
         $this->assertStringNotContainsString('Sin descripción', $prompt);
         $this->assertStringContainsString('No infieras hechos', $prompt);
-        $this->assertStringContainsString('máximo 250 caracteres', $prompt);
+        $this->assertStringContainsString('Máximo 400 caracteres', $prompt);
         $this->assertStringContainsString('## CONTEXTO OPERATIVO', $prompt);
         $this->assertStringContainsString('"id":', $prompt);
         $this->assertMatchesRegularExpression('/\[\{"id":\d+,"a":"Saludo","n":"Saluda al cliente"/', $prompt);

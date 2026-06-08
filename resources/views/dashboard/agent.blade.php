@@ -108,37 +108,89 @@
                     </div>
 
                     <div
-                        class="bg-gray-50 dark:bg-[#010A13] border border-gray-100 dark:border-[#3C3C41] rounded-lg p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                        class="bg-gray-50 dark:bg-[#010A13] border border-gray-100 dark:border-[#3C3C41] rounded-lg p-4 relative overflow-hidden">
                         <div
                             class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-[#C8AA6E]/10 dark:from-[#C8AA6E]/20 to-transparent rounded-bl-full pointer-events-none">
                         </div>
 
-                        <div
-                            class="mb-2 filter drop-shadow-[0_0_8px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
-                            {!! $league['icon'] !!}</div>
-                        <h3
-                            class="{{ $league['color'] }} font-black text-2xl uppercase tracking-wider filter drop-shadow-sm dark:drop-shadow-md">
-                            {{ $league['name'] }}</h3>
-
-                        <div class="mt-3 flex items-center justify-between w-full px-2">
-                            <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Efectividad</p>
-                                <p class="text-sm font-bold text-gray-900 dark:text-gray-200">
-                                    {{ number_format($stats['average_score'], 1) }}%</p>
+                        {{-- League Icon & Name --}}
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="filter drop-shadow-[0_0_8px_rgba(0,0,0,0.1)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">
+                                {!! $league['icon'] !!}
                             </div>
-                            <div class="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
-                            <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Total Evals</p>
-                                <p class="text-sm font-bold text-gray-900 dark:text-gray-200">
-                                    {{ $stats['total_evaluations'] }}</p>
-                            </div>
-                            <div class="h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
-                            <div class="text-center">
-                                <p class="text-[10px] text-gray-500 uppercase tracking-wide">Críticas</p>
-                                <p class="text-sm font-bold text-rose-600 dark:text-rose-400">{{ $stats['mp_count'] }}
+                            <div>
+                                <h3 class="{{ $league['color'] }} font-black text-lg uppercase tracking-wider">
+                                    {{ $league['name'] }}
+                                </h3>
+                                @php
+                                    $nextThreshold = $stats['average_score'] >= 90 ? 100 : ($stats['average_score'] >= 80 ? 90 : ($stats['average_score'] >= 70 ? 80 : 70));
+                                    $prevThreshold = $stats['average_score'] >= 90 ? 90 : ($stats['average_score'] >= 80 ? 80 : ($stats['average_score'] >= 70 ? 70 : 0));
+                                    $progress = $nextThreshold > $prevThreshold ? min(100, round((($stats['average_score'] - $prevThreshold) / ($nextThreshold - $prevThreshold)) * 100)) : 100;
+                                @endphp
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400">
+                                    @if($stats['average_score'] >= 90)
+                                        Nivel máximo alcanzado
+                                    @else
+                                        {{ number_format($nextThreshold - $stats['average_score'], 1) }}% para el siguiente nivel
+                                    @endif
                                 </p>
                             </div>
                         </div>
+
+                        {{-- Progress Bar to Next League --}}
+                        @if($stats['average_score'] < 90)
+                            <div class="mb-4">
+                                <div class="flex items-center justify-between text-[9px] text-gray-500 mb-1">
+                                    <span>{{ $league['name'] }}</span>
+                                    <span>{{ $stats['average_score'] >= 80 ? 'Q1 - Diamante' : ($stats['average_score'] >= 70 ? 'Q2 - Oro' : 'Q3 - Plata') }}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                                    <div class="h-full rounded-full transition-all duration-500 {{ $stats['average_score'] >= 80 ? 'bg-cyan-500' : ($stats['average_score'] >= 70 ? 'bg-amber-500' : 'bg-slate-400') }}"
+                                        style="width: {{ $progress }}%"></div>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Stats Grid --}}
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-white dark:bg-gray-800/50 rounded-lg p-2.5 text-center border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-[9px] text-gray-500 uppercase tracking-wide mb-0.5">Efectividad</p>
+                                <p class="text-base font-bold text-gray-900 dark:text-gray-100">
+                                    {{ number_format($stats['average_score'], 1) }}%
+                                </p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800/50 rounded-lg p-2.5 text-center border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-[9px] text-gray-500 uppercase tracking-wide mb-0.5">Sin Críticas</p>
+                                <p class="text-base font-bold text-gray-900 dark:text-gray-100">
+                                    {{ number_format($stats['average_score_no_mp'], 1) }}%
+                                </p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800/50 rounded-lg p-2.5 text-center border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-[9px] text-gray-500 uppercase tracking-wide mb-0.5">Evaluaciones</p>
+                                <p class="text-base font-bold text-gray-900 dark:text-gray-100">
+                                    {{ $stats['total_evaluations'] }}
+                                </p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800/50 rounded-lg p-2.5 text-center border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-[9px] text-gray-500 uppercase tracking-wide mb-0.5">Feedback</p>
+                                <p class="text-base font-bold {{ $stats['feedback_percentage'] >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100' }}">
+                                    {{ number_format($stats['feedback_percentage'], 0) }}%
+                                </p>
+                            </div>
+                        </div>
+
+                        {{-- Critical Failures --}}
+                        @if($stats['mp_count'] > 0)
+                            <div class="mt-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/50 rounded-lg p-2.5 flex items-center gap-2">
+                                <svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <div>
+                                    <p class="text-xs font-semibold text-rose-700 dark:text-rose-300">{{ $stats['mp_count'] }} falla(s) crítica(s)</p>
+                                    <p class="text-[10px] text-rose-600 dark:text-rose-400">{{ $stats['mp_percentage'] }}% de las evaluaciones</p>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
