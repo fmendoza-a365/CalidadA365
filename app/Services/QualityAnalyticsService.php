@@ -9,72 +9,92 @@ use App\Models\User;
 use App\Models\Campaign;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class QualityAnalyticsService
 {
+    protected int $cacheTtl = 300; // 5 minutes
+
+    protected function cacheKey(string $method, array $filters = []): string
+    {
+        return 'analytics.'.$method.'.'.md5(json_encode($filters));
+    }
+
+    public function applyFiltersPublic($query, array $filters): void
+    {
+        $this->applyFilters($query, $filters);
+    }
+
+    public function withGroupedInsightsPublic(array $rows, string $type, string $valueKey, string $countKey): array
+    {
+        return $this->withGroupedInsights($rows, $type, $valueKey, $countKey);
+    }
+
     /**
      * Tab 1: Dashboard Calidad - Overview Stats
      */
     public function getOverviewStats(array $filters = []): array
     {
-        // Query 1: Main aggregates (count + avg in one query)
-        $mainStats = Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->selectRaw('COUNT(*) as total, AVG(percentage_score) as avg_score')
-            ->first();
+        return Cache::remember($this->cacheKey('overview', $filters), $this->cacheTtl, function () use ($filters) {
+            // Query 1: Main aggregates (count + avg in one query)
+            $mainStats = Evaluation::query()
+                ->tap(fn($q) => $this->applyFilters($q, $filters))
+                ->selectRaw('COUNT(*) as total, AVG(percentage_score) as avg_score')
+                ->first();
 
-        $totalEvaluations = (int) ($mainStats->total ?? 0);
-        $averageScore = (float) ($mainStats->avg_score ?? 0);
+            $totalEvaluations = (int) ($mainStats->total ?? 0);
+            $averageScore = (float) ($mainStats->avg_score ?? 0);
 
-        // Query 2: Critical failures (requires evaluation_items join)
-        $evalsWithMP = $this->getEvalsWithCriticalFailures($filters);
-        $mpCount = $evalsWithMP->count();
-        $mpPercentage = $totalEvaluations > 0 ? round(($mpCount / $totalEvaluations) * 100, 1) : 0;
+            // Query 2: Critical failures (requires evaluation_items join)
+            $evalsWithMP = $this->getEvalsWithCriticalFailures($filters);
+            $mpCount = $evalsWithMP->count();
+            $mpPercentage = $totalEvaluations > 0 ? round(($mpCount / $totalEvaluations) * 100, 1) : 0;
 
-        // Query 3: Average score excluding critical failures
-        $averageScoreNoMP = 0.0;
-        if ($totalEvaluations > 0) {
-            $queryNoMP = Evaluation::query();
-            $this->applyFilters($queryNoMP, $filters);
-            if ($evalsWithMP->isNotEmpty()) {
-                $queryNoMP->whereNotIn('id', $evalsWithMP);
+            // Query 3: Average score excluding critical failures
+            $averageScoreNoMP = 0.0;
+            if ($totalEvaluations > 0) {
+                $queryNoMP = Evaluation::query();
+                $this->applyFilters($queryNoMP, $filters);
+                if ($evalsWithMP->isNotEmpty()) {
+                    $queryNoMP->whereNotIn('id', $evalsWithMP);
+                }
+                $averageScoreNoMP = (float) ($queryNoMP->avg('percentage_score') ?? 0);
             }
-            $averageScoreNoMP = (float) ($queryNoMP->avg('percentage_score') ?? 0);
-        }
 
-        // Query 4: Consolidated aggregates (agents, monitors, feedback in one query)
-        $extraStats = Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->selectRaw('
-                COUNT(DISTINCT agent_id) as active_agents,
-                COUNT(DISTINCT evaluator_id) as active_monitors,
-                SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as feedback_done
-            ')
-            ->first();
+            // Query 4: Consolidated aggregates (agents, monitors, feedback in one query)
+            $extraStats = Evaluation::query()
+                ->tap(fn($q) => $this->applyFilters($q, $filters))
+                ->selectRaw('
+                    COUNT(DISTINCT agent_id) as active_agents,
+                    COUNT(DISTINCT evaluator_id) as active_monitors,
+                    SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as feedback_done
+                ')
+                ->first();
 
-        $activeAgents = (int) ($extraStats->active_agents ?? 0);
-        $activeMonitors = (int) ($extraStats->active_monitors ?? 0);
-        $feedbackDone = (int) ($extraStats->feedback_done ?? 0);
-        $feedbackPct = $totalEvaluations > 0 ? round(($feedbackDone / $totalEvaluations) * 100, 1) : 0;
+            $activeAgents = (int) ($extraStats->active_agents ?? 0);
+            $activeMonitors = (int) ($extraStats->active_monitors ?? 0);
+            $feedbackDone = (int) ($extraStats->feedback_done ?? 0);
+            $feedbackPct = $totalEvaluations > 0 ? round(($feedbackDone / $totalEvaluations) * 100, 1) : 0;
 
-        // Evaluaciones por agente/monitor promedio
-        $evalsPerAgent = $activeAgents > 0 ? round($totalEvaluations / $activeAgents, 1) : 0;
-        $evalsPerMonitor = $activeMonitors > 0 ? round($totalEvaluations / $activeMonitors, 1) : 0;
+            // Evaluaciones por agente/monitor promedio
+            $evalsPerAgent = $activeAgents > 0 ? round($totalEvaluations / $activeAgents, 1) : 0;
+            $evalsPerMonitor = $activeMonitors > 0 ? round($totalEvaluations / $activeMonitors, 1) : 0;
 
-        return [
-            'total_evaluations' => $totalEvaluations,
-            'average_score' => round($averageScore, 2),
-            'average_score_no_mp' => round($averageScoreNoMP, 2),
-            'mp_count' => $mpCount,
-            'mp_percentage' => $mpPercentage,
-            'active_agents' => $activeAgents,
-            'active_monitors' => $activeMonitors,
-            'feedback_done' => $feedbackDone,
-            'feedback_percentage' => $feedbackPct,
-            'evals_per_agent' => $evalsPerAgent,
-            'evals_per_monitor' => $evalsPerMonitor,
-        ];
+            return [
+                'total_evaluations' => $totalEvaluations,
+                'average_score' => round($averageScore, 2),
+                'average_score_no_mp' => round($averageScoreNoMP, 2),
+                'mp_count' => $mpCount,
+                'mp_percentage' => $mpPercentage,
+                'active_agents' => $activeAgents,
+                'active_monitors' => $activeMonitors,
+                'feedback_done' => $feedbackDone,
+                'feedback_percentage' => $feedbackPct,
+                'evals_per_agent' => $evalsPerAgent,
+                'evals_per_monitor' => $evalsPerMonitor,
+            ];
+        });
     }
 
     /**
@@ -225,22 +245,24 @@ class QualityAnalyticsService
      */
     public function getTopDefects(array $filters = [], int $limit = 10): array
     {
-        $rows = EvaluationItem::whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
-            ->where('status', 'non_compliant')
-            ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
-            ->select('quality_subattributes.name as label', DB::raw('COUNT(*) as count'), 'quality_subattributes.is_critical')
-            ->groupBy('quality_subattributes.id', 'quality_subattributes.name', 'quality_subattributes.is_critical')
-            ->orderByDesc('count')
-            ->limit($limit)
-            ->get()
-            ->map(fn($item) => [
-                'label' => $item->label,
-                'count' => (int) $item->count,
-                'is_critical' => (bool) $item->is_critical,
-            ])
-            ->toArray();
+        return Cache::remember($this->cacheKey('topDefects', array_merge($filters, ['limit' => $limit])), $this->cacheTtl, function () use ($filters, $limit) {
+            $rows = EvaluationItem::whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
+                ->where('status', 'non_compliant')
+                ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
+                ->select('quality_subattributes.name as label', DB::raw('COUNT(*) as count'), 'quality_subattributes.is_critical')
+                ->groupBy('quality_subattributes.id', 'quality_subattributes.name', 'quality_subattributes.is_critical')
+                ->orderByDesc('count')
+                ->limit($limit)
+                ->get()
+                ->map(fn($item) => [
+                    'label' => $item->label,
+                    'count' => (int) $item->count,
+                    'is_critical' => (bool) $item->is_critical,
+                ])
+                ->toArray();
 
-        return $this->withGroupedInsights($rows, 'defect', 'percentage', 'count');
+            return $this->withGroupedInsights($rows, 'defect', 'percentage', 'count');
+        });
     }
 
     /**
