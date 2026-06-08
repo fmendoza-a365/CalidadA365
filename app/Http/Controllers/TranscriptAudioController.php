@@ -12,20 +12,11 @@ class TranscriptAudioController extends Controller
 
     public function download(Interaction $interaction)
     {
-        $user = auth()->user();
-        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
-            abort(403, 'No tiene permiso para descargar esta transcripción.');
-        }
-
         return Storage::disk($this->privateDisk())->download($interaction->file_path, $interaction->file_name);
     }
 
     public function audio(Request $request, Interaction $interaction)
     {
-        $user = auth()->user();
-        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
-            abort(403, 'No tiene permiso para escuchar esta transcripción.');
-        }
 
         if (! $interaction->isAudio()) {
             abort(404, 'This interaction does not have an audio file.');

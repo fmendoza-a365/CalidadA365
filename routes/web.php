@@ -107,9 +107,11 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::middleware('permission:view_transcripts')->group(function () {
         Route::get('transcripts/{interaction}', [TranscriptController::class, 'show'])->name('transcripts.show');
-        Route::get('transcripts/{interaction}/download', [\App\Http\Controllers\TranscriptAudioController::class, 'download'])->name('transcripts.download');
-        Route::get('transcripts/{interaction}/audio', [\App\Http\Controllers\TranscriptAudioController::class, 'audio'])->name('transcripts.audio');
     });
+
+    // Audio routes: accessible to all authenticated users (agents need to hear audio in evaluations)
+    Route::get('transcripts/{interaction}/download', [\App\Http\Controllers\TranscriptAudioController::class, 'download'])->name('transcripts.download');
+    Route::get('transcripts/{interaction}/audio', [\App\Http\Controllers\TranscriptAudioController::class, 'audio'])->name('transcripts.audio');
     Route::middleware('permission:edit_transcripts')->group(function () {
         Route::get('transcripts/{interaction}/edit', [TranscriptController::class, 'edit'])->name('transcripts.edit');
         Route::put('transcripts/{interaction}', [TranscriptController::class, 'update'])->name('transcripts.update');

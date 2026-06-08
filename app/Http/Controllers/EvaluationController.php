@@ -175,7 +175,7 @@ class EvaluationController extends Controller
             ? route('evaluations.feedback-audio', $evaluation)
             : null;
 
-        $interactionAudioUrl = $evaluation->interaction?->isAudio() && auth()->user()->can('view_transcripts')
+        $interactionAudioUrl = $evaluation->interaction?->isAudio()
             ? route('transcripts.audio', $evaluation->interaction)
             : null;
 
