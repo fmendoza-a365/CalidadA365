@@ -12,6 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class TranscribeAudioJob implements ShouldQueue
@@ -63,13 +64,41 @@ class TranscribeAudioJob implements ShouldQueue
             return;
         }
 
-        $metadata = $interaction->metadata ?? [];
-        $metadata['transcription_started_at'] = now()->toIso8601String();
+        // Idempotency lock: prevent two workers from processing the same interaction
+        $lock = Cache::lock("transcribe:{$this->interactionId}", 600);
 
-        $interaction->update([
-            'transcription_status' => 'processing',
-            'metadata' => $metadata,
-        ]);
+        if (! $lock->get()) {
+            Log::info("TranscribeAudioJob: Interaction {$this->interactionId} is already being processed by another worker");
+            $this->release(30);
+
+            return;
+        }
+
+        try {
+            $interaction->refresh();
+
+            if ($interaction->transcription_status === 'completed') {
+                Log::info("TranscribeAudioJob: Interaction {$this->interactionId} already transcribed (after lock)");
+
+                return;
+            }
+
+            $metadata = $interaction->metadata ?? [];
+            $metadata['transcription_started_at'] = now()->toIso8601String();
+
+            $interaction->update([
+                'transcription_status' => 'processing',
+                'metadata' => $metadata,
+            ]);
+
+            $this->doTranscribe($interaction, $transcriptionService);
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    private function doTranscribe(Interaction $interaction, AudioTranscriptionService $transcriptionService): void
+    {
 
         try {
             $result = $transcriptionService->transcribe($interaction->file_path);

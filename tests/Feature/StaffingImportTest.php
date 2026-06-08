@@ -14,11 +14,12 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class StaffingImportTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, CreatesUsersWithRoles;
 
     public function test_admin_can_import_staffing_and_sync_assignments(): void
     {
@@ -296,16 +297,6 @@ class StaffingImportTest extends TestCase
             'quartile' => 'Q3',
             'status' => StaffingMember::STATUS_ACTIVE,
         ]);
-    }
-
-    private function userWithRole(string $role, array $attributes = []): User
-    {
-        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-
-        $user = User::factory()->create($attributes);
-        $user->assignRole($role);
-
-        return $user;
     }
 
     private function excelFile(array $rows): UploadedFile

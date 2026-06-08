@@ -7,6 +7,9 @@
 .env.backup
 .env.production
 qa365-pry-*.json
+*firebase-adminsdk*.json
+*service-account*.json
+*.service-account.json
 /yarn.lock
 .phpunit.result.cache
 Homestead.json

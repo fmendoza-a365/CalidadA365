@@ -930,6 +930,7 @@ PROMPT;
                 'compliant' => 1,
                 'non_compliant' => 0,
                 'not_found' => 0.5,
+                'not_applicable' => 1,
                 default => 0,
             };
 

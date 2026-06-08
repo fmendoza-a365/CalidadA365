@@ -75,6 +75,11 @@ class PermissionSeeder extends Seeder
             // Insights
             'view_insights',
             'generate_insights',
+
+            // Disputes & Agent Responses
+            'respond_evaluations',
+            'review_disputes',
+            'resolve_disputes',
         ];
 
         foreach ($permissions as $permission) {
@@ -119,6 +124,8 @@ class PermissionSeeder extends Seeder
                 'view_monitor_dashboard',
                 'view_coordinator_dashboard',
                 'view_ai_performance',
+                'review_disputes',
+                'resolve_disputes',
             ]);
         }
 
@@ -131,7 +138,7 @@ class PermissionSeeder extends Seeder
         // Assign Agent Permissions
         $agentRole = \Spatie\Permission\Models\Role::where('name', 'agent')->first();
         if ($agentRole) {
-            $agentRole->givePermissionTo(['view_own_evaluations', 'view_agent_dashboard']);
+            $agentRole->givePermissionTo(['view_own_evaluations', 'view_agent_dashboard', 'respond_evaluations']);
         }
 
         // Assign Manager Permissions (Sees ALL data for their campaigns)
@@ -154,6 +161,9 @@ class PermissionSeeder extends Seeder
                 'view_work_queue',
                 'view_sampling',
                 'view_staffing',
+                'manage_evaluation_lifecycle',
+                'review_disputes',
+                'resolve_disputes',
             ]);
         }
 
@@ -171,6 +181,7 @@ class PermissionSeeder extends Seeder
                 'view_work_queue',
                 'view_sampling',
                 'view_staffing',
+                'review_disputes',
             ]);
         }
 
@@ -193,6 +204,8 @@ class PermissionSeeder extends Seeder
                 'manage_sampling',
                 'view_staffing',
                 'manage_staffing',
+                'manage_evaluation_lifecycle',
+                'review_disputes',
             ]);
         }
 
@@ -221,6 +234,8 @@ class PermissionSeeder extends Seeder
                 'manage_sampling',
                 'view_staffing',
                 'manage_staffing',
+                'review_disputes',
+                'resolve_disputes',
             ]);
         }
     }

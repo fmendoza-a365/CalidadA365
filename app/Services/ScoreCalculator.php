@@ -22,10 +22,11 @@ class ScoreCalculator
         $effectiveWeight = ($subAttribute->attribute->weight * $subAttribute->weight_percent) / 100;
         
         // Determinar el score base según el status
+        // not_found = 0.5 (benefit of the doubt: criterion not observed, not a failure)
         $baseScore = match($status) {
             'compliant' => 1.0,
             'non_compliant' => 0.0,
-            'not_found' => 0.0,
+            'not_found' => 0.5,
             'not_applicable' => 1.0, // N/A no penaliza
             default => 0.0,
         };

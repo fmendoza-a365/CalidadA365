@@ -11,11 +11,12 @@ use App\Models\User;
 use App\Services\RandomSamplingPlannerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class RandomSamplingPlannerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, CreatesUsersWithRoles;
 
     public function test_planner_generates_weekly_orders_by_quartile(): void
     {
@@ -132,16 +133,6 @@ class RandomSamplingPlannerTest extends TestCase
         $this->assertSame($interaction->id, $order->interaction_id);
         $this->assertSame('SN-QA-001', $order->call_identifier);
         $this->assertDatabaseCount('sampling_order_audit_events', 2);
-    }
-
-    private function userWithRole(string $role, array $attributes = []): User
-    {
-        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-
-        $user = User::factory()->create($attributes);
-        $user->assignRole($role);
-
-        return $user;
     }
 
     private function staffCsv(): string

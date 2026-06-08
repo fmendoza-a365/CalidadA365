@@ -18,43 +18,48 @@ class QualityAnalyticsService
      */
     public function getOverviewStats(array $filters = []): array
     {
-        $query = Evaluation::query();
-        $this->applyFilters($query, $filters);
+        // Query 1: Main aggregates (count + avg in one query)
+        $mainStats = Evaluation::query()
+            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->selectRaw('COUNT(*) as total, AVG(percentage_score) as avg_score')
+            ->first();
 
-        $totalEvaluations = $query->count();
-        $averageScore = (float) ($query->avg('percentage_score') ?? 0);
+        $totalEvaluations = (int) ($mainStats->total ?? 0);
+        $averageScore = (float) ($mainStats->avg_score ?? 0);
 
-        // Nota sin MP%: Average score of evaluations that have NO critical failures
+        // Query 2: Critical failures (requires evaluation_items join)
         $evalsWithMP = $this->getEvalsWithCriticalFailures($filters);
-        $queryNoMP = Evaluation::query();
-        $this->applyFilters($queryNoMP, $filters);
-        if ($evalsWithMP->isNotEmpty()) {
-            $queryNoMP->whereNotIn('id', $evalsWithMP);
-        }
-        $averageScoreNoMP = (float) ($queryNoMP->avg('percentage_score') ?? 0);
-
-        // # Malas Prácticas
         $mpCount = $evalsWithMP->count();
         $mpPercentage = $totalEvaluations > 0 ? round(($mpCount / $totalEvaluations) * 100, 1) : 0;
 
-        // Agentes activos (distintos evaluados)
-        $activeAgents = Evaluation::query()->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->distinct('agent_id')->count('agent_id');
+        // Query 3: Average score excluding critical failures
+        $averageScoreNoMP = 0.0;
+        if ($totalEvaluations > 0) {
+            $queryNoMP = Evaluation::query();
+            $this->applyFilters($queryNoMP, $filters);
+            if ($evalsWithMP->isNotEmpty()) {
+                $queryNoMP->whereNotIn('id', $evalsWithMP);
+            }
+            $averageScoreNoMP = (float) ($queryNoMP->avg('percentage_score') ?? 0);
+        }
 
-        // Monitores activos (distintos evaluadores)
-        $activeMonitors = Evaluation::query()->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->whereNotNull('evaluator_id')
-            ->distinct('evaluator_id')->count('evaluator_id');
+        // Query 4: Consolidated aggregates (agents, monitors, feedback in one query)
+        $extraStats = Evaluation::query()
+            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->selectRaw('
+                COUNT(DISTINCT agent_id) as active_agents,
+                COUNT(DISTINCT evaluator_id) as active_monitors,
+                SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as feedback_done
+            ')
+            ->first();
 
-        // Feedback realizado
-        $feedbackDone = Evaluation::query()->tap(fn($q) => $this->applyFilters($q, $filters))
-            ->whereNotNull('agent_viewed_at')->count();
+        $activeAgents = (int) ($extraStats->active_agents ?? 0);
+        $activeMonitors = (int) ($extraStats->active_monitors ?? 0);
+        $feedbackDone = (int) ($extraStats->feedback_done ?? 0);
         $feedbackPct = $totalEvaluations > 0 ? round(($feedbackDone / $totalEvaluations) * 100, 1) : 0;
 
-        // Evaluaciones por agente promedio
+        // Evaluaciones por agente/monitor promedio
         $evalsPerAgent = $activeAgents > 0 ? round($totalEvaluations / $activeAgents, 1) : 0;
-
-        // Evaluaciones por monitor promedio
         $evalsPerMonitor = $activeMonitors > 0 ? round($totalEvaluations / $activeMonitors, 1) : 0;
 
         return [

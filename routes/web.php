@@ -31,17 +31,25 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/work-queue', [EvaluationWorkQueueController::class, 'index'])->name('work-queue.index');
 
     // Muestreo aleatorio QA
-    Route::get('/sampling', [SamplingPlanController::class, 'index'])->name('sampling.index');
-    Route::post('/sampling', [SamplingPlanController::class, 'store'])->name('sampling.store');
-    Route::get('/sampling/{samplingPlan}', [SamplingPlanController::class, 'show'])->name('sampling.show');
-    Route::post('/sampling/orders/{samplingOrder}', [SamplingPlanController::class, 'updateOrder'])->name('sampling.orders.update');
-    Route::get('/sampling/{samplingPlan}/orders.csv', [SamplingPlanController::class, 'exportOrders'])->name('sampling.orders.export');
-    Route::get('/sampling/{samplingPlan}/audit.csv', [SamplingPlanController::class, 'exportAudit'])->name('sampling.audit.export');
+    Route::middleware('permission:view_sampling')->group(function () {
+        Route::get('/sampling', [SamplingPlanController::class, 'index'])->name('sampling.index');
+        Route::get('/sampling/{samplingPlan}', [SamplingPlanController::class, 'show'])->name('sampling.show');
+        Route::get('/sampling/{samplingPlan}/orders.csv', [SamplingPlanController::class, 'exportOrders'])->name('sampling.orders.export');
+        Route::get('/sampling/{samplingPlan}/audit.csv', [SamplingPlanController::class, 'exportAudit'])->name('sampling.audit.export');
+    });
+    Route::middleware('permission:manage_sampling')->group(function () {
+        Route::post('/sampling', [SamplingPlanController::class, 'store'])->name('sampling.store');
+        Route::post('/sampling/orders/{samplingOrder}', [SamplingPlanController::class, 'updateOrder'])->name('sampling.orders.update');
+    });
 
     // Dotación para muestreo QA
-    Route::post('/sampling/staffing', [StaffingController::class, 'store'])->name('sampling.staffing.store');
-    Route::get('/sampling/staffing/template.csv', [StaffingController::class, 'template'])->name('sampling.staffing.template');
-    Route::get('/sampling/staffing/template.xlsx', [StaffingController::class, 'templateExcel'])->name('sampling.staffing.template.excel');
+    Route::middleware('permission:view_staffing')->group(function () {
+        Route::get('/sampling/staffing/template.csv', [StaffingController::class, 'template'])->name('sampling.staffing.template');
+        Route::get('/sampling/staffing/template.xlsx', [StaffingController::class, 'templateExcel'])->name('sampling.staffing.template.excel');
+    });
+    Route::middleware('permission:manage_staffing')->group(function () {
+        Route::post('/sampling/staffing', [StaffingController::class, 'store'])->name('sampling.staffing.store');
+    });
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -118,17 +126,19 @@ Route::middleware(['auth'])->group(function () {
             ->name('transcripts.evaluate');
     });
 
-    // Evaluaciones
-    Route::post('evaluations/{evaluation}/toggle-gold', [EvaluationController::class, 'toggleGold'])
-        ->name('evaluations.toggle-gold');
-    Route::post('evaluations/{evaluation}/publish', [EvaluationController::class, 'publish'])
-        ->name('evaluations.publish');
-    Route::post('evaluations/{evaluation}/reanalyze', [EvaluationController::class, 'reanalyze'])
-        ->name('evaluations.reanalyze');
-    Route::post('evaluations/{evaluation}/close', [EvaluationController::class, 'close'])
-        ->name('evaluations.close');
-    Route::post('evaluations/{evaluation}/reopen', [EvaluationController::class, 'reopen'])
-        ->name('evaluations.reopen');
+    // Evaluaciones (requiere permiso de ciclo de vida)
+    Route::middleware('permission:manage_evaluation_lifecycle')->group(function () {
+        Route::post('evaluations/{evaluation}/toggle-gold', [EvaluationController::class, 'toggleGold'])
+            ->name('evaluations.toggle-gold');
+        Route::post('evaluations/{evaluation}/publish', [EvaluationController::class, 'publish'])
+            ->name('evaluations.publish');
+        Route::post('evaluations/{evaluation}/reanalyze', [EvaluationController::class, 'reanalyze'])
+            ->name('evaluations.reanalyze');
+        Route::post('evaluations/{evaluation}/close', [EvaluationController::class, 'close'])
+            ->name('evaluations.close');
+        Route::post('evaluations/{evaluation}/reopen', [EvaluationController::class, 'reopen'])
+            ->name('evaluations.reopen');
+    });
     Route::get('evaluations/{evaluation}/feedback-audio', [EvaluationController::class, 'feedbackAudio'])
         ->name('evaluations.feedback-audio');
     Route::get('evaluations/manual/{interaction}/create', [\App\Http\Controllers\ManualEvaluationController::class, 'create'])
@@ -136,25 +146,35 @@ Route::middleware(['auth'])->group(function () {
     Route::post('evaluations/manual/{interaction}', [\App\Http\Controllers\ManualEvaluationController::class, 'store'])
         ->name('evaluations.store_manual');
     Route::resource('evaluations', EvaluationController::class)->only(['index', 'show']);
+
+    // Exportaciones
     Route::get('exports/evaluations.csv', [ExportController::class, 'evaluations'])
+        ->middleware('permission:export_evaluations')
         ->name('exports.evaluations');
     Route::get('exports/calibration.csv', [ExportController::class, 'calibration'])
+        ->middleware('permission:export_calibration')
         ->name('exports.calibration');
     Route::get('evaluations/{evaluation}/audit.csv', [ExportController::class, 'audit'])
+        ->middleware('permission:export_evaluation_audit')
         ->name('exports.evaluation-audit');
 
     // Respuestas de asesores
     Route::post('evaluations/{evaluation}/respond', [AgentResponseController::class, 'store'])
+        ->middleware('permission:respond_evaluations')
         ->name('evaluations.respond');
 
     // Resolución de disputas
     Route::post('disputes/{dispute}/supervisor-review', [AgentResponseController::class, 'supervisorReview'])
+        ->middleware('permission:review_disputes')
         ->name('disputes.supervisor-review');
     Route::post('disputes/{dispute}/qa-review', [AgentResponseController::class, 'qaReview'])
+        ->middleware('permission:review_disputes')
         ->name('disputes.qa-review');
     Route::post('disputes/{dispute}/coordinator-review', [AgentResponseController::class, 'coordinatorReview'])
+        ->middleware('permission:review_disputes')
         ->name('disputes.coordinator-review');
     Route::post('disputes/{dispute}/resolve', [AgentResponseController::class, 'resolve'])
+        ->middleware('permission:resolve_disputes')
         ->name('disputes.resolve');
 
     // Fichas de Calidad

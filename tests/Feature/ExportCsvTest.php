@@ -10,11 +10,12 @@ use App\Models\QualityFormVersion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class ExportCsvTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, CreatesUsersWithRoles;
 
     public function test_internal_user_can_export_evaluations_csv(): void
     {
@@ -79,15 +80,5 @@ class ExportCsvTest extends TestCase
         ]);
 
         return [$admin, $agent];
-    }
-
-    private function userWithRole(string $role): User
-    {
-        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-
-        $user = User::factory()->create();
-        $user->assignRole($role);
-
-        return $user;
     }
 }

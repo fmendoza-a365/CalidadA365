@@ -12,11 +12,12 @@ use App\Models\QualitySubAttribute;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class EvaluationAuditTrailTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, CreatesUsersWithRoles;
 
     public function test_publishing_evaluation_records_audit_event(): void
     {
@@ -432,13 +433,4 @@ class EvaluationAuditTrailTest extends TestCase
         return [$admin, $agent, $supervisor, $version, $interaction, $subAttribute];
     }
 
-    private function userWithRole(string $role): User
-    {
-        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-
-        $user = User::factory()->create();
-        $user->assignRole($role);
-
-        return $user;
-    }
 }

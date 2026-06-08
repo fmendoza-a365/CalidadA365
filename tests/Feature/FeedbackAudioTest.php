@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class FeedbackAudioTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, CreatesUsersWithRoles;
 
     public function test_publish_dispatches_feedback_audio_job_only_when_tts_is_enabled(): void
     {
@@ -238,15 +239,5 @@ class FeedbackAudioTest extends TestCase
         ]);
 
         return [$admin, $agent, $evaluation];
-    }
-
-    private function userWithRole(string $role): User
-    {
-        Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-
-        $user = User::factory()->create();
-        $user->assignRole($role);
-
-        return $user;
     }
 }

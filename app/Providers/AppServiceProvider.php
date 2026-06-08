@@ -3,9 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,5 +33,9 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        // Eager-load roles and permissions once per request to avoid N+1
+        // queries in Blade templates (sidebar checks hasRole/can 13+ times).
+        Auth::user()?->loadMissing('roles', 'permissions');
     }
 }

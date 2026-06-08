@@ -42,33 +42,42 @@ class GeminiContextCacheService
 
         $lock = Cache::lock("gemini_cache_lock:{$formVersion->id}", 45);
 
-        if (! $lock->get()) {
-            sleep(3);
-            $formVersion->refresh();
+        // block(3) waits up to 3s for the lock instead of hard sleep.
+        // Returns true immediately if lock is available, or waits up to 3s.
+        if ($lock->block(3)) {
+            // Lock acquired — we are the cache creator for this form version.
+            try {
+                $formVersion->refresh();
 
+                if ($this->hasUsableCache($formVersion, $hash)) {
+                    return [
+                        'cache_id' => $formVersion->gemini_cache_id,
+                        'token_count' => $formVersion->gemini_cache_token_count,
+                        'status' => 'hit_after_refresh',
+                        'hash' => $hash,
+                    ];
+                }
+
+                return $this->createCache($formVersion, $staticContext, $model, $apiKey, $hash, $tokenCount);
+            } finally {
+                $lock->release();
+            }
+        }
+
+        // Lock timeout — another worker held it past 3s. Check if they created the cache.
+        $formVersion->refresh();
+
+        if ($this->hasUsableCache($formVersion, $hash)) {
             return [
-                'cache_id' => $this->hasUsableCache($formVersion, $hash) ? $formVersion->gemini_cache_id : null,
-                'token_count' => $formVersion->gemini_cache_token_count ?: $tokenCount,
-                'status' => $this->hasUsableCache($formVersion, $hash) ? 'hit_after_wait' : 'lock_miss',
+                'cache_id' => $formVersion->gemini_cache_id,
+                'token_count' => $formVersion->gemini_cache_token_count,
+                'status' => 'hit_after_wait',
                 'hash' => $hash,
             ];
         }
 
-        try {
-            $formVersion->refresh();
-            if ($this->hasUsableCache($formVersion, $hash)) {
-                return [
-                    'cache_id' => $formVersion->gemini_cache_id,
-                    'token_count' => $formVersion->gemini_cache_token_count,
-                    'status' => 'hit_after_refresh',
-                    'hash' => $hash,
-                ];
-            }
-
-            return $this->createCache($formVersion, $staticContext, $model, $apiKey, $hash, $tokenCount);
-        } finally {
-            optional($lock)->release();
-        }
+        // No cache found after waiting — try to create it ourselves.
+        return $this->createCache($formVersion, $staticContext, $model, $apiKey, $hash, $tokenCount);
     }
 
     public function clear(QualityFormVersion $formVersion): void
