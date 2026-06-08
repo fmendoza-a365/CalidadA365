@@ -148,31 +148,6 @@ class TranscriptController extends Controller
         return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions', 'uploaders'));
     }
 
-    public function statuses(Request $request)
-    {
-        $ids = $request->input('ids', []);
-
-        if (empty($ids)) {
-            return response()->json([]);
-        }
-
-        $user = auth()->user();
-
-        $statuses = Interaction::forUser($user)
-            ->whereIn('id', $ids)
-            ->get()
-            ->mapWithKeys(fn (Interaction $interaction) => [
-                $interaction->id => [
-                    'status' => $interaction->status,
-                    'has_evaluation' => $interaction->evaluation()->exists(),
-                    'is_transcribing' => $interaction->isTranscribing(),
-                    'is_failed' => $interaction->isTranscriptionFailed(),
-                ],
-            ]);
-
-        return response()->json($statuses);
-    }
-
     public function create()
     {
         $user = auth()->user();

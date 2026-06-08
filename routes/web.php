@@ -100,7 +100,6 @@ Route::middleware(['auth'])->group(function () {
     // Transcripciones
     Route::middleware('permission:view_transcripts')->group(function () {
         Route::get('transcripts', [TranscriptController::class, 'index'])->name('transcripts.index');
-        Route::post('transcripts/statuses', [TranscriptController::class, 'statuses'])->name('transcripts.statuses');
     });
     Route::middleware('permission:create_transcripts')->group(function () {
         Route::get('transcripts/create', [TranscriptController::class, 'create'])->name('transcripts.create');
