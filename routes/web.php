@@ -107,8 +107,8 @@ Route::middleware(['auth'])->group(function () {
     });
     Route::middleware('permission:view_transcripts')->group(function () {
         Route::get('transcripts/{interaction}', [TranscriptController::class, 'show'])->name('transcripts.show');
-        Route::get('transcripts/{interaction}/download', [TranscriptController::class, 'download'])->name('transcripts.download');
-        Route::get('transcripts/{interaction}/audio', [TranscriptController::class, 'audio'])->name('transcripts.audio');
+        Route::get('transcripts/{interaction}/download', [\App\Http\Controllers\TranscriptAudioController::class, 'download'])->name('transcripts.download');
+        Route::get('transcripts/{interaction}/audio', [\App\Http\Controllers\TranscriptAudioController::class, 'audio'])->name('transcripts.audio');
     });
     Route::middleware('permission:edit_transcripts')->group(function () {
         Route::get('transcripts/{interaction}/edit', [TranscriptController::class, 'edit'])->name('transcripts.edit');

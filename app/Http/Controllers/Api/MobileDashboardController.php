@@ -294,13 +294,13 @@ class MobileDashboardController extends Controller
         ]);
     }
 
-    public function transcriptAudio(Request $request, Interaction $interaction, TranscriptController $transcripts): Response
+    public function transcriptAudio(Request $request, Interaction $interaction, \App\Http\Controllers\TranscriptAudioController $audioController): Response
     {
         if (! Interaction::query()->forUser($request->user())->whereKey($interaction->id)->exists()) {
             abort(403, 'No tiene permiso para escuchar esta transcripcion.');
         }
 
-        return $transcripts->audio($request, $interaction);
+        return $audioController->audio($request, $interaction);
     }
 
     public function feedbackAudio(Request $request, Evaluation $evaluation): Response

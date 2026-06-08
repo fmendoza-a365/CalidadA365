@@ -20,7 +20,8 @@ use Illuminate\Support\Str;
 
 class TranscriptController extends Controller
 {
-    private const CHANNEL_OPTIONS = [
+    use Concerns\StreamsAudio;
+    public const CHANNEL_OPTIONS = [
         'call' => 'Llamada',
         'whatsapp' => 'WhatsApp',
         'chat' => 'Chat',
@@ -29,13 +30,13 @@ class TranscriptController extends Controller
         'other' => 'Otro',
     ];
 
-    private const DIRECTION_OPTIONS = [
+    public const DIRECTION_OPTIONS = [
         'inbound' => 'Inbound',
         'outbound' => 'Outbound',
         'internal' => 'Interna',
     ];
 
-    private const OUTCOME_OPTIONS = [
+    public const OUTCOME_OPTIONS = [
         'resolved' => 'Resuelto',
         'unresolved' => 'No resuelto',
         'escalated' => 'Escalado',
@@ -43,7 +44,7 @@ class TranscriptController extends Controller
         'follow_up' => 'Seguimiento',
     ];
 
-    private const PRIORITY_OPTIONS = [
+    public const PRIORITY_OPTIONS = [
         'normal' => 'Normal',
         'high' => 'Alta',
         'critical' => 'Crítica',
@@ -51,14 +52,14 @@ class TranscriptController extends Controller
         'risk' => 'Riesgo',
     ];
 
-    private const LANGUAGE_OPTIONS = [
+    public const LANGUAGE_OPTIONS = [
         'es' => 'Español',
         'en' => 'Inglés',
         'pt' => 'Portugués',
         'other' => 'Otro',
     ];
 
-    private const DIARIZATION_OPTIONS = [
+    public const DIARIZATION_OPTIONS = [
         'auto' => 'Automática',
         'single_channel' => 'Canal único mezclado',
         'separate_channels' => 'Canales separados',
@@ -97,7 +98,7 @@ class TranscriptController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Interaction::with(['campaign.parent', 'agent', 'supervisor'])
+        $query = Interaction::with(['campaign.parent', 'agent', 'supervisor', 'uploadedBy'])
             ->forUser($user);
 
         if ($request->campaign_id) {
@@ -118,6 +119,10 @@ class TranscriptController extends Controller
             $query->where('priority', $request->priority);
         }
 
+        if ($request->uploaded_by) {
+            $query->where('uploaded_by', $request->uploaded_by);
+        }
+
         $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
             $query->where(function ($query) use ($search) {
@@ -136,8 +141,11 @@ class TranscriptController extends Controller
         $interactions = $query->latest('occurred_at')->paginate(20);
         $campaigns = Campaign::active()->forUser($user)->orderedForSelect()->get();
         $formOptions = $this->formOptions();
+        $uploaders = User::whereIn('id', Interaction::forUser($user)->select('uploaded_by')->distinct())
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
-        return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions'));
+        return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions', 'uploaders'));
     }
 
     public function create()
@@ -221,7 +229,7 @@ class TranscriptController extends Controller
             $agents = collect([$user]);
             $assignmentsQuery->where('agent_id', $user->id);
         } else {
-            $agents = User::role('agent')->orderBy('name')->get();
+            $agents = User::role('agent')->orderBy('name')->limit(500)->get();
         }
 
         $assignments = $assignmentsQuery->get();
@@ -453,205 +461,6 @@ class TranscriptController extends Controller
         return view('transcripts.show', compact('interaction', 'conversationTurns', 'audioTimeline', 'formOptions'));
     }
 
-    public function download(Interaction $interaction)
-    {
-        $user = auth()->user();
-        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
-            abort(403, 'No tiene permiso para descargar esta transcripción.');
-        }
-
-        return Storage::disk($this->privateDisk())->download($interaction->file_path, $interaction->file_name);
-    }
-
-    public function audio(Request $request, Interaction $interaction)
-    {
-        $user = auth()->user();
-        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
-            abort(403, 'No tiene permiso para escuchar esta transcripción.');
-        }
-
-        if (! $interaction->isAudio()) {
-            abort(404, 'This interaction does not have an audio file.');
-        }
-
-        $disk = Storage::disk($this->privateDisk());
-
-        if (! $disk->exists($interaction->file_path)) {
-            abort(404, 'Audio file not found.');
-        }
-
-        $mimeTypes = [
-            'mp3' => 'audio/mpeg',
-            'wav' => 'audio/wav',
-            'ogg' => 'audio/ogg',
-            'm4a' => 'audio/mp4',
-            'webm' => 'audio/webm',
-        ];
-
-        $extension = strtolower(pathinfo($interaction->file_name, PATHINFO_EXTENSION));
-        $mime = $mimeTypes[$extension] ?? 'audio/mpeg';
-        $size = (int) $disk->size($interaction->file_path);
-
-        if ($size <= 0) {
-            return response('', 200, [
-                'Content-Type' => $mime,
-                'Content-Length' => '0',
-                'Accept-Ranges' => 'bytes',
-                'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
-            ]);
-        }
-
-        $range = $this->audioRange($request->headers->get('Range'), $size);
-
-        if (! $range['satisfiable']) {
-            return response('', 416, [
-                'Content-Range' => "bytes */{$size}",
-                'Accept-Ranges' => 'bytes',
-            ]);
-        }
-
-        $start = $range['start'];
-        $end = $range['end'];
-        $length = ($end - $start) + 1;
-        $stream = $this->audioStream($disk, $interaction->file_path, $start);
-
-        if ($stream === false) {
-            abort(404, 'Audio file not found.');
-        }
-
-        $headers = [
-            'Content-Type' => $mime,
-            'Content-Length' => (string) $length,
-            'Accept-Ranges' => 'bytes',
-            'Content-Disposition' => 'inline; filename="'.addslashes($interaction->file_name).'"',
-        ];
-
-        if ($range['partial']) {
-            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
-        }
-
-        return response()->stream(function () use ($stream, $length) {
-            $remaining = $length;
-
-            while ($remaining > 0 && ! feof($stream)) {
-                $chunk = fread($stream, min(8192, $remaining));
-
-                if ($chunk === false || $chunk === '') {
-                    break;
-                }
-
-                echo $chunk;
-                $remaining -= strlen($chunk);
-
-                if (function_exists('flush')) {
-                    flush();
-                }
-            }
-
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-        }, $range['partial'] ? 206 : 200, $headers);
-    }
-
-    /**
-     * @return array{satisfiable: bool, partial: bool, start: int, end: int}
-     */
-    private function audioRange(?string $header, int $size): array
-    {
-        $default = [
-            'satisfiable' => true,
-            'partial' => false,
-            'start' => 0,
-            'end' => max(0, $size - 1),
-        ];
-
-        if (! $header || ! str_starts_with($header, 'bytes=')) {
-            return $default;
-        }
-
-        $range = trim(explode(',', substr($header, 6), 2)[0] ?? '');
-
-        if (! preg_match('/^(\d*)-(\d*)$/', $range, $matches)) {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        $startRaw = $matches[1];
-        $endRaw = $matches[2];
-
-        if ($startRaw === '' && $endRaw === '') {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        if ($startRaw === '') {
-            $suffixLength = (int) $endRaw;
-
-            if ($suffixLength <= 0) {
-                return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-            }
-
-            $start = max(0, $size - $suffixLength);
-            $end = $size - 1;
-        } else {
-            $start = (int) $startRaw;
-            $end = $endRaw !== '' ? (int) $endRaw : $size - 1;
-        }
-
-        if ($start >= $size || $end < $start) {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        return [
-            'satisfiable' => true,
-            'partial' => true,
-            'start' => $start,
-            'end' => min($end, $size - 1),
-        ];
-    }
-
-    private function audioStream($disk, string $filePath, int $start)
-    {
-        if (method_exists($disk, 'path')) {
-            $absolutePath = $disk->path($filePath);
-
-            if (is_file($absolutePath)) {
-                $stream = fopen($absolutePath, 'rb');
-
-                if (is_resource($stream)) {
-                    fseek($stream, $start);
-
-                    return $stream;
-                }
-            }
-        }
-
-        $stream = $disk->readStream($filePath);
-
-        if (is_resource($stream)) {
-            $meta = stream_get_meta_data($stream);
-
-            if (($meta['seekable'] ?? false) === true) {
-                fseek($stream, $start);
-
-                return $stream;
-            }
-
-            fclose($stream);
-        }
-
-        $memory = fopen('php://temp', 'r+b');
-
-        if (! is_resource($memory)) {
-            return false;
-        }
-
-        fwrite($memory, $disk->get($filePath));
-        rewind($memory);
-        fseek($memory, $start);
-
-        return $memory;
-    }
-
     public function evaluate(Interaction $interaction)
     {
         $user = auth()->user();
@@ -723,7 +532,7 @@ class TranscriptController extends Controller
         } elseif ($user->hasRole('agent')) {
             $agents = collect([$user]);
         } else {
-            $agents = User::role('agent')->orderBy('name')->get();
+            $agents = User::role('agent')->orderBy('name')->limit(500)->get();
         }
 
         $formOptions = $this->formOptions();
@@ -731,35 +540,10 @@ class TranscriptController extends Controller
         return view('transcripts.edit', compact('interaction', 'campaigns', 'agents', 'formOptions'));
     }
 
-    public function update(Request $request, Interaction $interaction)
+    public function update(\App\Http\Requests\UpdateTranscriptRequest $request, Interaction $interaction)
     {
         $user = auth()->user();
-        if (! Interaction::forUser($user)->where('id', $interaction->id)->exists()) {
-            abort(403, 'No tiene permiso para actualizar esta transcripción.');
-        }
-
-        $validated = $request->validate([
-            'campaign_id' => 'required|exists:campaigns,id',
-            'agent_id' => 'required|exists:users,id',
-            'occurred_at' => 'required|date',
-            'call_sn' => 'nullable|string|max:100',
-            'external_id' => 'nullable|string|max:120',
-            'channel' => 'nullable|in:'.implode(',', array_keys(self::CHANNEL_OPTIONS)),
-            'direction' => 'nullable|in:'.implode(',', array_keys(self::DIRECTION_OPTIONS)),
-            'language' => 'nullable|in:'.implode(',', array_keys(self::LANGUAGE_OPTIONS)),
-            'contact_reason' => 'nullable|string|max:160',
-            'outcome' => 'nullable|in:'.implode(',', array_keys(self::OUTCOME_OPTIONS)),
-            'customer_reference' => 'nullable|string|max:120',
-            'queue_name' => 'nullable|string|max:120',
-            'product_name' => 'nullable|string|max:120',
-            'priority' => 'nullable|in:'.implode(',', array_keys(self::PRIORITY_OPTIONS)),
-            'tags' => 'nullable|string|max:500',
-            'diarization_mode' => 'nullable|in:'.implode(',', array_keys(self::DIARIZATION_OPTIONS)),
-            'analyze_emotion' => 'nullable|boolean',
-            'detect_critical_compliance' => 'nullable|boolean',
-            'ai_context' => 'nullable|string|max:1000',
-            'transcript_text' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         $callSn = $this->normalizeCallSn($validated['call_sn'] ?? null);
         $metadata = $this->replaceUploadMetadata($interaction->metadata ?? [], $this->uploadMetadata($validated, $request));
@@ -831,33 +615,6 @@ class TranscriptController extends Controller
     private function privateDisk(): string
     {
         return config('filesystems.default', 'local');
-    }
-
-    private function audioMetadata(Interaction $interaction, TranscriptConversationParser $conversationParser): array
-    {
-        $metadata = $interaction->metadata ?? [];
-
-        if (! empty($metadata['sentiment'])) {
-            return $metadata;
-        }
-
-        $parsed = $conversationParser->extractStructuredPayload($interaction->transcript_text);
-
-        if (is_array($parsed) && isset($parsed['sentiment'])) {
-            $metadata['sentiment'] = $parsed['sentiment'];
-        }
-
-        if (is_array($parsed) && isset($parsed['sentiment_segments']) && is_array($parsed['sentiment_segments'])) {
-            $metadata['sentiment_segments'] = $parsed['sentiment_segments'];
-        }
-
-        foreach (['acoustic_analysis', 'quality_signals'] as $key) {
-            if (is_array($parsed) && isset($parsed[$key]) && is_array($parsed[$key])) {
-                $metadata[$key] = $parsed[$key];
-            }
-        }
-
-        return $metadata;
     }
 
     private function formOptions(): array
