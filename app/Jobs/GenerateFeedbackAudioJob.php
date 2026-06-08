@@ -57,7 +57,9 @@ class GenerateFeedbackAudioJob implements ShouldQueue
                 'message' => $exception->getMessage(),
             ]);
 
-            Log::warning("GenerateFeedbackAudioJob failed for evaluation {$this->evaluationId}: ".$exception->getMessage());
+            Log::error("GenerateFeedbackAudioJob failed for evaluation {$this->evaluationId}: ".$exception->getMessage());
+
+            throw $exception;
         }
     }
 }

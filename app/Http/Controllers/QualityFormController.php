@@ -315,7 +315,7 @@ class QualityFormController extends Controller
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error eliminando ficha: ' . $e->getMessage());
-            return back()->with('error', 'Error al eliminar la ficha: ' . $e->getMessage());
+            return back()->with('error', 'No se pudo eliminar la ficha de calidad. Intente nuevamente.');
         }
     }
 
@@ -493,7 +493,8 @@ class QualityFormController extends Controller
         } catch (\Exception $e) {
             if (is_resource($handle))
                 fclose($handle);
-            return back()->with('error', 'Error en importación: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Error importando ficha: ' . $e->getMessage());
+            return back()->with('error', 'No se pudo importar la ficha. Verifique el formato del archivo e intente nuevamente.');
         }
     }
 

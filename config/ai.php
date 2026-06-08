@@ -80,7 +80,7 @@ return [
         'access_token' => env('AI_FEEDBACK_TTS_ACCESS_TOKEN'),
         'prompt' => env('AI_FEEDBACK_TTS_PROMPT', 'Lee el feedback en español latino con tono profesional, claro y cercano.'),
         'prompt_byte_limit' => (int) env('AI_FEEDBACK_TTS_PROMPT_BYTE_LIMIT', 900),
-        'text_byte_limit' => (int) env('AI_FEEDBACK_TTS_TEXT_BYTE_LIMIT', 900),
+        'text_byte_limit' => (int) env('AI_FEEDBACK_TTS_TEXT_BYTE_LIMIT', 20000),
     ],
 
     /*

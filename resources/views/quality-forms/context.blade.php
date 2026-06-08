@@ -20,7 +20,7 @@
             <div class="card-body">
                 @if($qualityForm->operational_context_markdown)
                     <div class="operational-context-full prose prose-sm dark:prose-invert max-w-none">
-                        {!! \Illuminate\Support\Str::markdown($qualityForm->operational_context_markdown) !!}
+                        {!! \Illuminate\Support\Str::markdown($qualityForm->operational_context_markdown, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
                     </div>
                 @else
                     <p class="text-sm text-gray-500 dark:text-gray-400">Esta ficha no tiene contexto markdown configurado.</p>
