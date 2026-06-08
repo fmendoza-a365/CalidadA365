@@ -202,15 +202,16 @@
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->uploadedBy->full_name ?? '—' }}
                             </td>
-                            <td class="text-center" x-data="{
-                                id: {{ $interaction->id }},
-                                current: '{{ $interaction->isTranscribing() ? 'transcribing' : ($interaction->isTranscriptionFailed() ? 'failed' : ($interaction->evaluation ? 'evaluated' : 'pending')) }}',
-                                get status() { return statuses[this.id]?.is_transcribing ? 'transcribing' : statuses[this.id]?.is_failed ? 'failed' : statuses[this.id]?.has_evaluation ? 'evaluated' : statuses[this.id] ? 'pending' : this.current; }
-                            }">
-                                <span x-show="status === 'transcribing'" class="badge badge-info">Transcribiendo</span>
-                                <span x-show="status === 'failed'" class="badge badge-danger">Error STT</span>
-                                <span x-show="status === 'evaluated'" class="badge badge-success">Evaluada</span>
-                                <span x-show="status === 'pending'" class="badge badge-warning">Pendiente</span>
+                            <td class="text-center">
+                                @if($interaction->isTranscribing())
+                                    <span class="badge badge-info">Transcribiendo</span>
+                                @elseif($interaction->isTranscriptionFailed())
+                                    <span class="badge badge-danger">Error STT</span>
+                                @elseif($interaction->evaluation)
+                                    <span class="badge badge-success">Evaluada</span>
+                                @else
+                                    <span class="badge badge-warning">Pendiente</span>
+                                @endif
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
@@ -335,15 +336,13 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('transcriptPoller', (ids) => ({
-                statuses: {},
-
                 init() {
                     if (ids.length === 0 || typeof window.Echo === 'undefined') return;
 
                     window.Echo.private('interactions')
                         .listen('.interaction.status-changed', (e) => {
                             if (ids.includes(e.id)) {
-                                this.statuses = { ...this.statuses, [e.id]: e };
+                                window.location.reload();
                             }
                         });
                 },
