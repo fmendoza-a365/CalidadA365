@@ -8,90 +8,111 @@
     @endphp
 
     <div class="card">
-        <!-- Toolbar -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border-b border-gray-100 dark:border-gray-800">
-            <div class="flex items-center gap-2">
-                <h3 class="font-semibold text-gray-900 dark:text-white">Listado de Transcripciones</h3>
-                <span class="badge badge-neutral">{{ $interactions->total() }}</span>
+        @php
+            $activeFilterCount = collect([request('search'), request('parent_campaign_id'), request('campaign_id'), request('status'), request('channel'), request('priority'), request('uploaded_by')])->filter()->count();
+            $parentCampaigns = $campaigns->whereNull('parent_id');
+            $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
+        @endphp
+
+        <div class="card-header">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">Listado de transcripciones</h3>
+                        @if($activeFilterCount > 0)
+                            <span class="badge badge-neutral">{{ $activeFilterCount }} filtro(s)</span>
+                        @endif
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $interactions->total() }} registros encontrados</p>
+                </div>
+                <a href="{{ route('transcripts.create') }}" class="btn-primary btn-sm w-fit">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Cargar Nueva
+                </a>
             </div>
-            
-            <div class="flex items-center gap-4">
-                 <!-- Filters (Inline for better space usage, or keep separate if too many) -->
-                @php
-                    $parentCampaigns = $campaigns->whereNull('parent_id');
-                    $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
-                @endphp
-                <form method="GET" action="{{ route('transcripts.index') }}" class="flex flex-wrap items-center gap-2" x-data="{
-                    parentCampaignId: '{{ request('parent_campaign_id') }}',
-                    campaignId: '{{ request('campaign_id') }}',
-                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
-                    get availableSubcampaigns() {
-                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
-                    }
-                }">
-                    <input type="search" name="search" value="{{ request('search') }}"
-                        class="form-input py-1 text-sm w-48" placeholder="Buscar SN, ID o motivo">
+        </div>
 
-                    <select name="parent_campaign_id" x-model="parentCampaignId" 
-                        @change="campaignId = ''; $nextTick(() => $el.form.submit())"
-                        class="form-select py-1 text-sm w-48">
-                        <option value="">Todas las campañas</option>
-                        @foreach($parentCampaigns as $pCamp)
-                            <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
-                        @endforeach
-                    </select>
+        <div class="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+            <form method="GET" action="{{ route('transcripts.index') }}" class="flex flex-wrap items-end gap-2 lg:flex-nowrap" x-data="{
+                parentCampaignId: '{{ request('parent_campaign_id') }}',
+                campaignId: '{{ request('campaign_id') }}',
+                subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                get availableSubcampaigns() {
+                    return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                }
+            }">
+                <div class="flex-1 min-w-0">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="search" name="search" id="search" value="{{ request('search') }}" class="form-input" placeholder="SN, ID o motivo">
+                </div>
 
-                    <select name="campaign_id" x-model="campaignId"
-                        @change="$el.form.submit()"
-                        :disabled="!parentCampaignId || availableSubcampaigns.length === 0"
-                        class="form-select py-1 text-sm w-48 disabled:opacity-50">
-                        <option value="">Todas las subcampañas</option>
-                        <template x-for="sub in availableSubcampaigns" :key="sub.id">
-                            <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
-                        </template>
-                    </select>
-                    
-                    <select name="status" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
-                        <option value="">Estado: Todos</option>
+                <div class="flex-1 min-w-0 flex gap-2">
+                    <div class="flex-1 min-w-0">
+                        <label for="parent_campaign_id" class="form-label">Campaña</label>
+                        <select name="parent_campaign_id" id="parent_campaign_id" x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
+                            <option value="">Todas</option>
+                            @foreach($parentCampaigns as $pCamp)
+                                <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <label for="campaign_id" class="form-label">Subcampaña</label>
+                        <select name="campaign_id" id="campaign_id" x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                            <option value="">Todas</option>
+                            <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                    <label for="status" class="form-label">Estado</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">Todos</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
                         <option value="evaluated" {{ request('status') == 'evaluated' ? 'selected' : '' }}>Evaluada</option>
                     </select>
+                </div>
 
-                    <select name="channel" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
-                        <option value="">Canal</option>
+                <div class="flex-1 min-w-0">
+                    <label for="channel" class="form-label">Canal</label>
+                    <select name="channel" id="channel" class="form-select">
+                        <option value="">Todos</option>
                         @foreach($formOptions['channels'] as $value => $label)
-                            <option value="{{ $value }}" {{ request('channel') === $value ? 'selected' : '' }}>
-                                {{ $label }}
-                            </option>
+                            <option value="{{ $value }}" {{ request('channel') === $value ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>
+                </div>
 
-                    <select name="priority" class="form-select py-1 text-sm w-32" onchange="this.form.submit()">
-                        <option value="">Prioridad</option>
+                <div class="flex-1 min-w-0">
+                    <label for="priority" class="form-label">Prioridad</label>
+                    <select name="priority" id="priority" class="form-select">
+                        <option value="">Todas</option>
                         @foreach($formOptions['priorities'] as $value => $label)
-                            <option value="{{ $value }}" {{ request('priority') === $value ? 'selected' : '' }}>
-                                {{ $label }}
-                            </option>
+                            <option value="{{ $value }}" {{ request('priority') === $value ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>
-                    
-                    @if(request('campaign_id') || request('parent_campaign_id') || request('status') || request('search') || request('channel') || request('priority'))
-                        <a href="{{ route('transcripts.index') }}" class="btn-ghost btn-sm text-gray-500" title="Limpiar filtros">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </a>
-                    @endif
-                </form>
+                </div>
 
-                <a href="{{ route('transcripts.create') }}" class="btn-primary btn-md">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                    <span class="hidden sm:inline">Cargar Nueva</span>
-                </a>
-            </div>
+                <div class="flex-1 min-w-0">
+                    <label for="uploaded_by" class="form-label">Cargado por</label>
+                    <select name="uploaded_by" id="uploaded_by" class="form-select">
+                        <option value="">Todos</option>
+                        @foreach($uploaders as $uploader)
+                            <option value="{{ $uploader->id }}" {{ request('uploaded_by') == $uploader->id ? 'selected' : '' }}>{{ $uploader->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="flex items-end gap-2 shrink-0">
+                    <button type="submit" class="btn-primary btn-md whitespace-nowrap">Filtrar</button>
+                    <a href="{{ route('transcripts.index') }}" class="btn-secondary btn-md whitespace-nowrap">Limpiar</a>
+                </div>
+            </form>
         </div>
 
         <!-- Table -->
@@ -105,6 +126,7 @@
                         <th>Subcampaña</th>
                         <th>Contexto</th>
                         <th>Fecha Llamada</th>
+                        <th>Cargado por</th>
                         <th class="text-center w-32">Estado</th>
                         <th class="text-right w-32">Acciones</th>
                     </tr>
@@ -176,6 +198,9 @@
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->occurred_at?->format('d/m/Y H:i') ?? '—' }}
+                            </td>
+                            <td class="text-gray-500 dark:text-gray-400">
+                                {{ $interaction->uploadedBy->full_name ?? '—' }}
                             </td>
                             <td class="text-center">
                                 @if($interaction->isTranscribing())

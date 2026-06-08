@@ -76,7 +76,7 @@
                                         <div>
                                             <div class="font-semibold text-gray-900 dark:text-white">{{ $provider['name'] }}</div>
                                             @if($provider['configured'] && $key !== 'simulated')
-                                                <span class="text-xs text-emerald-600 dark:text-emerald-400">✓ Configurado</span>
+                                                <span class="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Configurado</span>
                                             @elseif($key !== 'simulated')
                                                 <span class="text-xs text-amber-600 dark:text-amber-400">Sin API Key</span>
                                             @endif

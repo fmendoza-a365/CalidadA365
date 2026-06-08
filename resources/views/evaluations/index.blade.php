@@ -406,7 +406,7 @@
                                 <td>
                                     <div class="flex items-center gap-1">
                                         <svg class="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                        <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ $evaluation->evaluator?->name ?? $evaluation->reviewer?->name ?? 'Pendiente' }}</span>
+                                        <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ $evaluation->evaluator?->full_name ?? $evaluation->reviewer?->full_name ?? 'Pendiente' }}</span>
                                     </div>
                                     <div class="mt-0.5 text-[9px] text-gray-400 dark:text-gray-500">
                                         @if($evaluation->visible_to_agent_at)

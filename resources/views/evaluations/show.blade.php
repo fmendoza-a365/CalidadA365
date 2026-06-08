@@ -425,9 +425,9 @@
                                         <div class="text-right">
                                             @if($item)
                                                 @if($item->status === 'compliant')
-                                                    <span class="badge badge-success">✓ Cumple</span>
+                                                    <span class="badge badge-success inline-flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Cumple</span>
                                                 @elseif($item->status === 'non_compliant')
-                                                    <span class="badge badge-danger">✗ No Cumple</span>
+                                                    <span class="badge badge-danger inline-flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg> No Cumple</span>
                                                 @elseif($item->status === 'not_found')
                                                     <span class="badge badge-warning">? No Encontrado</span>
                                                 @else
