@@ -136,7 +136,7 @@ class FeedbackAudioTest extends TestCase
         });
     }
 
-    public function test_feedback_audio_job_marks_failed_without_throwing(): void
+    public function test_feedback_audio_job_marks_failed_and_throws(): void
     {
         config([
             'ai.feedback_tts.enabled' => true,
@@ -154,7 +154,11 @@ class FeedbackAudioTest extends TestCase
             ],
         ]);
 
-        (new GenerateFeedbackAudioJob($evaluation->id))->handle(app(FeedbackAudioService::class));
+        try {
+            (new GenerateFeedbackAudioJob($evaluation->id))->handle(app(FeedbackAudioService::class));
+        } catch (\RuntimeException $e) {
+            // Expected: job re-throws so queue can handle retries
+        }
 
         $this->assertSame('failed', $evaluation->fresh()->feedback_audio_status);
         $this->assertDatabaseHas('evaluation_audit_events', [

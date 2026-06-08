@@ -13,6 +13,7 @@ use App\Models\QualityFormVersion;
 use App\Models\QualitySubAttribute;
 use App\Models\User;
 use App\Services\AIEvaluationService;
+use App\Services\InsightReportGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -135,8 +136,8 @@ class InsightsAccessTest extends TestCase
             ]);
         }
 
-        $this->mock(AIEvaluationService::class, function ($mock) {
-            $mock->shouldReceive('generateInsightReport')
+        $this->mock(InsightReportGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')
                 ->once()
                 ->andReturnUsing(fn ($evaluations, $type, $snapshot) => [
                     'executive_summary' => 'Resumen ejecutivo generado desde evaluaciones.',
@@ -232,8 +233,8 @@ class InsightsAccessTest extends TestCase
             'updated_at' => now()->subDays(3),
         ]);
 
-        $this->mock(AIEvaluationService::class, function ($mock) {
-            $mock->shouldReceive('generateInsightReport')
+        $this->mock(InsightReportGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')
                 ->once()
                 ->andReturn([
                     'executive_summary' => 'Resumen ejecutivo para parent.',

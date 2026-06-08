@@ -47,7 +47,7 @@ trait CreatesUsersWithRoles
             'create_evaluations', 'edit_evaluations', 'manage_evaluation_lifecycle',
             'export_evaluations', 'export_calibration', 'export_evaluation_audit',
             'view_work_queue', 'view_sampling', 'manage_sampling', 'view_staffing',
-            'manage_staffing', 'view_campaigns', 'create_campaigns', 'edit_campaigns',
+            'manage_staffing', 'view_campaigns', 'create_campaigns', 'edit_campaigns', 'delete_campaigns',
             'assign_agents', 'view_quality_forms', 'create_quality_forms',
             'edit_quality_forms', 'publish_quality_forms', 'view_transcripts',
             'create_transcripts', 'edit_transcripts', 'view_monitor_dashboard',

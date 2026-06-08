@@ -2,14 +2,14 @@
 
 namespace Tests\Unit;
 
-use App\Services\AIEvaluationService;
+use App\Services\AiResponseParser;
 use Tests\TestCase;
 
 class AiJsonResponseParserTest extends TestCase
 {
     public function test_it_recovers_evaluation_items_from_malformed_provider_json(): void
     {
-        $service = new TestableAiEvaluationService;
+        $parser = new AiResponseParser;
 
         $payload = <<<'JSON'
 {
@@ -26,7 +26,7 @@ class AiJsonResponseParserTest extends TestCase
 }
 JSON;
 
-        $result = $service->parseForTest($payload);
+        $result = $parser->parse($payload);
 
         $this->assertIsArray($result);
         $this->assertSame(42, $result['items'][0]['id']);
@@ -34,15 +34,5 @@ JSON;
         $this->assertSame(0.82, $result['items'][0]['confidence']);
         $this->assertStringContainsString('no estoy conforme', $result['items'][0]['evidence_quote']);
         $this->assertStringContainsString('requiere refuerzo', $result['general_feedback']);
-    }
-}
-
-class TestableAiEvaluationService extends AIEvaluationService
-{
-    public function __construct() {}
-
-    public function parseForTest(?string $content): ?array
-    {
-        return $this->parseJsonResponse($content);
     }
 }
