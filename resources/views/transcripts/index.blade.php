@@ -336,42 +336,22 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('transcriptPoller', (ids) => ({
                 statuses: {},
-                polling: null,
 
                 init() {
-                    if (ids.length === 0) return;
-                    this.poll();
-                    this.polling = setInterval(() => this.poll(), 12000);
-                    document.addEventListener('visibilitychange', () => {
-                        if (document.visibilityState === 'visible') this.poll();
-                    });
-                },
+                    if (ids.length === 0 || typeof window.Echo === 'undefined') return;
 
-                async poll() {
-                    try {
-                        const response = await fetch('{{ route("transcripts.statuses") }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json',
-                            },
-                            body: JSON.stringify({ ids }),
+                    window.Echo.private('interactions')
+                        .listen('.interaction.status-changed', (e) => {
+                            if (ids.includes(e.id)) {
+                                this.statuses = { ...this.statuses, [e.id]: e };
+                            }
                         });
-                        if (response.ok) {
-                            const data = await response.json();
-                            this.statuses = data;
-                            const allDone = ids.every(id => {
-                                const s = data[id];
-                                return !s || s.has_evaluation || s.is_failed;
-                            });
-                            if (allDone) clearInterval(this.polling);
-                        }
-                    } catch (e) {}
                 },
 
                 destroy() {
-                    if (this.polling) clearInterval(this.polling);
+                    if (typeof window.Echo !== 'undefined') {
+                        window.Echo.leave('interactions');
+                    }
                 }
             }));
         });
