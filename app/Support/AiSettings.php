@@ -51,6 +51,29 @@ class AiSettings
         return $provider === 'simulated' || self::apiKey($provider) !== '';
     }
 
+    /**
+     * Ordered list of providers to try, starting with the preferred one.
+     * Only includes providers that have an API key configured.
+     * Always includes 'simulated' as the last fallback.
+     */
+    public static function failoverChain(?string $preferred = null): array
+    {
+        $preferred ??= self::provider();
+        $candidates = ['gemini', 'openai', 'claude'];
+
+        // Put the preferred provider first, then the rest in default order
+        $ordered = array_unique(array_merge([$preferred], $candidates));
+
+        // Filter to only configured providers, always append simulated as last resort
+        $chain = array_values(array_filter($ordered, fn($p) => self::isConfigured($p)));
+
+        if (! in_array('simulated', $chain, true)) {
+            $chain[] = 'simulated';
+        }
+
+        return $chain;
+    }
+
     public static function maskedApiKey(string $provider): ?string
     {
         $apiKey = self::apiKey($provider);

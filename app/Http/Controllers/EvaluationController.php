@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Storage;
 
 class EvaluationController extends Controller
 {
+    use Concerns\StreamsAudio;
+
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -99,19 +101,25 @@ class EvaluationController extends Controller
 
     private function indexSummary($query): array
     {
-        $evaluations = $query->get();
-        $scored = $evaluations->whereNotNull('percentage_score');
+        $base = (clone $query)->toBase();
+
+        $total = (int) (clone $base)->count();
+        $avgScore = round((float) ((clone $base)->whereNotNull('percentage_score')->avg('percentage_score') ?? 0), 1);
+        $pendingReview = (int) (clone $base)->whereIn('status', [
+            Evaluation::STATUS_PENDING_MONITOR_REVIEW,
+            Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
+        ])->count();
+        $disputed = (int) (clone $base)->where('status', Evaluation::STATUS_AGENT_DISPUTED)->count();
+        $critical = (int) (clone $base)->whereNotNull('percentage_score')->where('percentage_score', '<', 70)->count();
+        $closed = (int) (clone $base)->where('status', Evaluation::STATUS_CLOSED)->count();
 
         return [
-            'total' => $evaluations->count(),
-            'avg_score' => round((float) $scored->avg('percentage_score'), 1),
-            'pending_review' => $evaluations->whereIn('status', [
-                Evaluation::STATUS_PENDING_MONITOR_REVIEW,
-                Evaluation::STATUS_AI_REANALYSIS_REQUESTED,
-            ])->count(),
-            'disputed' => $evaluations->where('status', Evaluation::STATUS_AGENT_DISPUTED)->count(),
-            'critical' => $scored->filter(fn (Evaluation $evaluation) => (float) $evaluation->percentage_score < 70)->count(),
-            'closed' => $evaluations->where('status', Evaluation::STATUS_CLOSED)->count(),
+            'total' => $total,
+            'avg_score' => $avgScore,
+            'pending_review' => $pendingReview,
+            'disputed' => $disputed,
+            'critical' => $critical,
+            'closed' => $closed,
         ];
     }
 
@@ -182,33 +190,6 @@ class EvaluationController extends Controller
         }
 
         return view('evaluations.show', compact('evaluation', 'calibrationComparison', 'feedbackAudioUrl', 'interactionAudioUrl', 'audioTimeline'));
-    }
-
-    private function audioMetadata(\App\Models\Interaction $interaction, TranscriptConversationParser $conversationParser): array
-    {
-        $metadata = $interaction->metadata ?? [];
-
-        if (! empty($metadata['sentiment'])) {
-            return $metadata;
-        }
-
-        $parsed = $conversationParser->extractStructuredPayload($interaction->transcript_text);
-
-        if (is_array($parsed) && isset($parsed['sentiment'])) {
-            $metadata['sentiment'] = $parsed['sentiment'];
-        }
-
-        if (is_array($parsed) && isset($parsed['sentiment_segments']) && is_array($parsed['sentiment_segments'])) {
-            $metadata['sentiment_segments'] = $parsed['sentiment_segments'];
-        }
-
-        foreach (['acoustic_analysis', 'quality_signals'] as $key) {
-            if (is_array($parsed) && isset($parsed[$key]) && is_array($parsed[$key])) {
-                $metadata[$key] = $parsed[$key];
-            }
-        }
-
-        return $metadata;
     }
 
     public function publish(Request $request, Evaluation $evaluation)
@@ -335,104 +316,6 @@ class EvaluationController extends Controller
                 fclose($stream);
             }
         }, $range['partial'] ? 206 : 200, $headers);
-    }
-
-    /**
-     * @return array{satisfiable: bool, partial: bool, start: int, end: int}
-     */
-    private function audioRange(?string $header, int $size): array
-    {
-        $default = [
-            'satisfiable' => true,
-            'partial' => false,
-            'start' => 0,
-            'end' => max(0, $size - 1),
-        ];
-
-        if (! $header || ! str_starts_with($header, 'bytes=')) {
-            return $default;
-        }
-
-        $range = trim(explode(',', substr($header, 6), 2)[0] ?? '');
-
-        if (! preg_match('/^(\d*)-(\d*)$/', $range, $matches)) {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        $startRaw = $matches[1];
-        $endRaw = $matches[2];
-
-        if ($startRaw === '' && $endRaw === '') {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        if ($startRaw === '') {
-            $suffixLength = (int) $endRaw;
-
-            if ($suffixLength <= 0) {
-                return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-            }
-
-            $start = max(0, $size - $suffixLength);
-            $end = $size - 1;
-        } else {
-            $start = (int) $startRaw;
-            $end = $endRaw !== '' ? (int) $endRaw : $size - 1;
-        }
-
-        if ($start >= $size || $end < $start) {
-            return ['satisfiable' => false, 'partial' => true, 'start' => 0, 'end' => 0];
-        }
-
-        return [
-            'satisfiable' => true,
-            'partial' => true,
-            'start' => $start,
-            'end' => min($end, $size - 1),
-        ];
-    }
-
-    private function audioStream($disk, string $filePath, int $start)
-    {
-        if (method_exists($disk, 'path')) {
-            $absolutePath = $disk->path($filePath);
-
-            if (is_file($absolutePath)) {
-                $stream = fopen($absolutePath, 'rb');
-
-                if (is_resource($stream)) {
-                    fseek($stream, $start);
-
-                    return $stream;
-                }
-            }
-        }
-
-        $stream = $disk->readStream($filePath);
-
-        if (is_resource($stream)) {
-            $meta = stream_get_meta_data($stream);
-
-            if (($meta['seekable'] ?? false) === true) {
-                fseek($stream, $start);
-
-                return $stream;
-            }
-
-            fclose($stream);
-        }
-
-        $memory = fopen('php://temp', 'r+b');
-
-        if (! is_resource($memory)) {
-            return false;
-        }
-
-        fwrite($memory, $disk->get($filePath));
-        rewind($memory);
-        fseek($memory, $start);
-
-        return $memory;
     }
 
     public function reanalyze(Evaluation $evaluation)

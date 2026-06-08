@@ -7,6 +7,7 @@ use App\Models\Evaluation;
 use App\Models\EvaluationItem;
 use App\Models\InsightReport;
 use App\Services\AIEvaluationService;
+use App\Services\InsightReportGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -14,9 +15,12 @@ class InsightsController extends Controller
 {
     protected $aiService;
 
-    public function __construct(AIEvaluationService $aiService)
+    protected $insightGenerator;
+
+    public function __construct(AIEvaluationService $aiService, InsightReportGenerator $insightGenerator)
     {
         $this->aiService = $aiService;
+        $this->insightGenerator = $insightGenerator;
     }
 
     public function index(Request $request)
@@ -151,7 +155,7 @@ class InsightsController extends Controller
         }
 
         $reportSnapshot = $this->buildReportSnapshot($evaluations, $campaign, $startDate, $endDate, $validated['type']);
-        $aiResult = $this->aiService->generateInsightReport($evaluations, $validated['type'], $reportSnapshot);
+        $aiResult = $this->insightGenerator->generate($evaluations, $validated['type'], $reportSnapshot);
         $aiResult['report_snapshot'] = $reportSnapshot;
 
         $report = InsightReport::create([
