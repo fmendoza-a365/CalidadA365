@@ -131,7 +131,7 @@
                         <th class="text-right w-32">Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody x-data="transcriptPoller({{ json_encode($interactions->pluck('id')) }})">
                     @forelse($interactions as $interaction)
                         @php
                             $interactionCampaign = $interaction->campaign;
@@ -202,16 +202,15 @@
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $interaction->uploadedBy->full_name ?? '—' }}
                             </td>
-                            <td class="text-center">
-                                @if($interaction->isTranscribing())
-                                    <span class="badge badge-info">Transcribiendo</span>
-                                @elseif($interaction->isTranscriptionFailed())
-                                    <span class="badge badge-danger">Error STT</span>
-                                @elseif($interaction->evaluation)
-                                    <span class="badge badge-success">Evaluada</span>
-                                @else
-                                    <span class="badge badge-warning">Pendiente</span>
-                                @endif
+                            <td class="text-center" x-data="{ id: {{ $interaction->id }} }">
+                                <span x-show="!statuses[id] && {{ $interaction->isTranscribing() ? 'true' : 'false' }}" class="badge badge-info">Transcribiendo</span>
+                                <span x-show="!statuses[id] && {{ $interaction->isTranscriptionFailed() ? 'true' : 'false' }}" class="badge badge-danger">Error STT</span>
+                                <span x-show="!statuses[id] && {{ $interaction->evaluation ? 'true' : 'false' }}" class="badge badge-success">Evaluada</span>
+                                <span x-show="!statuses[id] && {{ !$interaction->isTranscribing() && !$interaction->isTranscriptionFailed() && !$interaction->evaluation ? 'true' : 'false' }}" class="badge badge-warning">Pendiente</span>
+                                <span x-show="statuses[id]?.is_transcribing" class="badge badge-info">Transcribiendo</span>
+                                <span x-show="statuses[id]?.is_failed" class="badge badge-danger">Error STT</span>
+                                <span x-show="statuses[id]?.has_evaluation" class="badge badge-success">Evaluada</span>
+                                <span x-show="statuses[id] && !statuses[id]?.is_transcribing && !statuses[id]?.is_failed && !statuses[id]?.has_evaluation" class="badge badge-warning">Pendiente</span>
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
@@ -333,6 +332,49 @@
     </div>
 
     @if($shouldAutoRefreshTranscripts)
-        @include('partials.auto-refresh')
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('transcriptPoller', (ids) => ({
+                statuses: {},
+                polling: null,
+
+                init() {
+                    if (ids.length === 0) return;
+                    this.poll();
+                    this.polling = setInterval(() => this.poll(), 12000);
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') this.poll();
+                    });
+                },
+
+                async poll() {
+                    try {
+                        const response = await fetch('{{ route("transcripts.statuses") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({ ids }),
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.statuses = data;
+                            const allDone = ids.every(id => {
+                                const s = data[id];
+                                return !s || s.has_evaluation || s.is_failed;
+                            });
+                            if (allDone) clearInterval(this.polling);
+                        }
+                    } catch (e) {}
+                },
+
+                destroy() {
+                    if (this.polling) clearInterval(this.polling);
+                }
+            }));
+        });
+    </script>
     @endif
 </x-app-layout>
