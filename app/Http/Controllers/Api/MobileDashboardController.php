@@ -356,31 +356,63 @@ class MobileDashboardController extends Controller
 
     private function filterOptions(User $user): array
     {
-        $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get(['id', 'name', 'parent_id']);
-        $parentCampaigns = $campaigns->whereNull('parent_id')->values();
-        $subcampaigns = $campaigns->whereNotNull('parent_id')->values();
+        // Agents only see their own data — no filter options needed
+        if ($user->hasRole('agent')) {
+            return [
+                'parent_campaigns' => [],
+                'subcampaigns' => [],
+                'supervisors' => [],
+                'agents' => [],
+            ];
+        }
 
-        $supervisors = User::query()
-            ->whereHas('roles', fn ($q) => $q->where('name', 'supervisor'))
-            ->orderBy('name')
-            ->get(['id', 'name', 'paternal_surname'])
-            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
-            ->values();
+        // Cache filter options per user for 5 minutes
+        $cacheKey = 'mobile_filters_user_'.$user->id;
 
-        $agents = User::query()
-            ->whereHas('roles', fn ($q) => $q->where('name', 'agent'))
-            ->orderBy('name')
-            ->limit(200)
-            ->get(['id', 'name', 'paternal_surname'])
-            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
-            ->values();
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($user) {
+            $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get(['id', 'name', 'parent_id']);
+            $parentCampaigns = $campaigns->whereNull('parent_id')->values();
+            $subcampaigns = $campaigns->whereNotNull('parent_id')->values();
 
-        return [
-            'parent_campaigns' => $parentCampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name])->values(),
-            'subcampaigns' => $subcampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name, 'parent_id' => $c->parent_id])->values(),
-            'supervisors' => $supervisors,
-            'agents' => $agents,
-        ];
+            $supervisors = User::query()
+                ->whereHas('roles', fn ($q) => $q->where('name', 'supervisor'))
+                ->orderBy('name')
+                ->get(['id', 'name', 'paternal_surname'])
+                ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
+                ->values();
+
+            // Supervisors only see their team agents
+            if ($user->hasRole('supervisor')) {
+                $agents = User::query()
+                    ->whereHas('agentAssignments', fn ($q) => $q->where('supervisor_id', $user->id)->where('is_active', true))
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'paternal_surname'])
+                    ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
+                    ->values();
+
+                return [
+                    'parent_campaigns' => $parentCampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name])->values(),
+                    'subcampaigns' => $subcampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name, 'parent_id' => $c->parent_id])->values(),
+                    'supervisors' => [],
+                    'agents' => $agents,
+                ];
+            }
+
+            $agents = User::query()
+                ->whereHas('roles', fn ($q) => $q->where('name', 'agent'))
+                ->orderBy('name')
+                ->limit(200)
+                ->get(['id', 'name', 'paternal_surname'])
+                ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
+                ->values();
+
+            return [
+                'parent_campaigns' => $parentCampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name])->values(),
+                'subcampaigns' => $subcampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name, 'parent_id' => $c->parent_id])->values(),
+                'supervisors' => $supervisors,
+                'agents' => $agents,
+            ];
+        });
     }
 
     private function summaryPayload(User $user): array

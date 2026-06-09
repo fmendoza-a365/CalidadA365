@@ -140,7 +140,8 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
             }
         }
 
-        // Filters
+        // Filters (only for non-agent roles)
+        if (!isAgent) {
         val filterOptions = data.optJSONObject("filter_options")
         val currentFilters = data.optJSONObject("filters")
         var showFilters by remember { mutableStateOf(false) }
@@ -294,6 +295,8 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 }
             }
         }
+
+        } // end if (!isAgent)
 
         Spacer(modifier = Modifier.height(12.dp))
 
