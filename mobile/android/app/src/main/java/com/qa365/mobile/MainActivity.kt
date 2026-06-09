@@ -72,6 +72,17 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             QA365Theme(darkTheme = isDark) {
+                // Check for FCM-triggered dashboard refresh every 2 seconds
+                androidx.compose.runtime.LaunchedEffect(token) {
+                    while (!token.isNullOrBlank()) {
+                        kotlinx.coroutines.delay(2000)
+                        if (DashboardRefreshTrigger.pending) {
+                            DashboardRefreshTrigger.pending = false
+                            loadDashboard()
+                        }
+                    }
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Evaluation;
 use App\Models\Interaction;
+use App\Observers\EvaluationObserver;
 use App\Observers\InteractionObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Interaction::observe(InteractionObserver::class);
+        Evaluation::observe(EvaluationObserver::class);
 
         RateLimiter::for('ai-provider', function () {
             $perMinute = max(1, (int) config('queue.ai.provider_per_minute', 2));

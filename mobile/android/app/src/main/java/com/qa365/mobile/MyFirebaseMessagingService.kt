@@ -16,6 +16,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+object DashboardRefreshTrigger {
+    var pending = false
+    var reason: String? = null
+    var evaluationId: String? = null
+}
+
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
@@ -49,6 +55,18 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(remoteMessage)
         Log.d("FCM_SERVICE", "Message received from: ${remoteMessage.from}")
 
+        val dataType = remoteMessage.data["type"]
+
+        // Silent dashboard refresh — no notification, just trigger data reload
+        if (dataType == "dashboard_refresh") {
+            DashboardRefreshTrigger.pending = true
+            DashboardRefreshTrigger.reason = remoteMessage.data["reason"]
+            DashboardRefreshTrigger.evaluationId = remoteMessage.data["evaluation_id"]
+            Log.d("FCM_SERVICE", "Dashboard refresh triggered: ${DashboardRefreshTrigger.reason}")
+            return
+        }
+
+        // Normal notification with deep link
         val title = remoteMessage.notification?.title ?: remoteMessage.data["title"] ?: "Nueva notificación"
         val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: ""
         val deepLink = remoteMessage.data["deep_link"] ?: "qa365://evaluations"
