@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Evaluation;
-use App\Services\AiResponseParser;
 use App\Services\AIEvaluationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -89,8 +88,29 @@ PROMPT;
 
         try {
             $response = $aiService->analyze($prompt);
-            $parser = new AiResponseParser();
-            $feedback = $parser->parse($response);
+
+            if (! is_string($response) || empty($response)) {
+                Log::warning("GenerateManualFeedbackJob: AI retornó vacío para evaluación #{$evaluation->id}");
+                return;
+            }
+
+            // Extract JSON from response (may be wrapped in markdown)
+            $jsonString = $response;
+            if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $response, $matches)) {
+                $jsonString = $matches[1];
+            }
+
+            // Try to find JSON object boundaries
+            $start = strpos($jsonString, '{');
+            $end = strrpos($jsonString, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $jsonString = substr($jsonString, $start, $end - $start + 1);
+            }
+
+            // Clean control characters
+            $jsonString = preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $jsonString);
+
+            $feedback = json_decode($jsonString, true);
 
             if (is_array($feedback) && isset($feedback['performanceSummary'])) {
                 $evaluation->update(['ai_feedback' => $feedback]);
@@ -105,10 +125,8 @@ PROMPT;
             }
 
             Log::warning("GenerateManualFeedbackJob: AI no retornó feedback válido para evaluación #{$evaluation->id}", [
-                'response_type' => gettype($response),
-                'response_preview' => substr((string) $response, 0, 500),
-                'feedback_type' => gettype($feedback),
-                'feedback_keys' => is_array($feedback) ? array_keys($feedback) : null,
+                'json_error' => json_last_error_msg(),
+                'response_preview' => substr($response, 0, 300),
             ]);
         } catch (Throwable $e) {
             Log::error("GenerateManualFeedbackJob: error para evaluación #{$evaluation->id}: " . $e->getMessage());
