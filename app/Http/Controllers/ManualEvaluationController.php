@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateFeedbackAudioJob;
 use App\Models\Evaluation;
 use App\Models\Interaction;
 use App\Models\QualityFormVersion;
@@ -183,6 +184,8 @@ class ManualEvaluationController extends Controller
                     $hasCriticalFailure
                 );
 
+                $manualFeedback = $this->buildManualFeedback($summaryItems, round($percentage, 2), $hasCriticalFailure);
+
                 $evaluation = Evaluation::create([
                     'interaction_id' => $lockedInteraction->id,
                     'form_version_id' => $formVersion->id,
@@ -200,6 +203,7 @@ class ManualEvaluationController extends Controller
                     'visible_to_agent_at' => now(),
                     'finalized_at' => now(),
                     'ai_summary' => $manualSummary,
+                    'ai_feedback' => $manualFeedback,
                 ]);
 
                 $evaluation->items()->createMany($itemsData);
@@ -212,6 +216,11 @@ class ManualEvaluationController extends Controller
                 ], null, Evaluation::STATUS_PUBLISHED_TO_AGENT);
 
                 $aiEvaluation?->releaseReviewClaim();
+
+                if (config('ai.feedback_tts.enabled')) {
+                    $evaluation->update(['feedback_audio_status' => 'pending']);
+                    GenerateFeedbackAudioJob::dispatch($evaluation->id);
+                }
 
                 return ['evaluation' => $evaluation];
             });
@@ -369,5 +378,63 @@ class ManualEvaluationController extends Controller
         }
 
         return $summary;
+    }
+
+    private function buildManualFeedback(array $summaryItems, float $percentage, bool $hasCriticalFailure): array
+    {
+        $changedItems = collect($summaryItems)->where('changed', true)->values();
+        $failedItems = collect($summaryItems)->where('manual_status', 'non_compliant')->values();
+        $passedItems = collect($summaryItems)->where('manual_status', 'compliant')->values();
+
+        // Performance Summary
+        $perfParts = [];
+        $perfParts[] = "Evaluación manual con puntaje de {$percentage}%.";
+        if ($changedItems->isNotEmpty()) {
+            $perfParts[] = "Se corrigieron {$changedItems->count()} criterio(s) respecto a la evaluación IA.";
+        }
+        if ($hasCriticalFailure) {
+            $perfParts[] = "Quedó en 0% por incumplimiento crítico.";
+        }
+        $performanceSummary = implode(' ', $perfParts);
+
+        // Product Knowledge - based on what was corrected
+        $productKnowledge = 'Evaluación realizada por monitor humano. ';
+        if ($changedItems->isNotEmpty()) {
+            $criteriaNames = $changedItems->pluck('criterion')->take(3)->implode(', ');
+            $productKnowledge .= "Criterios corregidos: {$criteriaNames}.";
+        } else {
+            $productKnowledge .= 'Sin cambios respecto a la evaluación IA.';
+        }
+
+        // Emotional Handling
+        $emotionalHandling = 'Evaluación manual del monitor. ';
+        if ($hasCriticalFailure) {
+            $emotionalHandling .= 'Se detectó falla crítica que afecta la calificación final.';
+        } else {
+            $emotionalHandling .= "Puntaje final: {$percentage}%.";
+        }
+
+        // Strengths
+        $strengths = $passedItems->isNotEmpty()
+            ? 'Criterios cumplidos: ' . $passedItems->pluck('criterion')->take(3)->implode('; ') . '.'
+            : 'No se identificaron fortalezas destacadas en esta evaluación.';
+
+        // Improvement Opportunities
+        if ($failedItems->isNotEmpty()) {
+            $improvements = $failedItems->take(3)->map(function ($item) {
+                $note = filled($item['note'] ?? null) ? " Nota del monitor: {$item['note']}." : '';
+                return "{$item['criterion']}: no cumple.{$note}";
+            })->implode('; ');
+        } else {
+            $improvements = 'Sin criterios fallidos en la corrección manual.';
+        }
+
+        return [
+            'performanceSummary' => substr($performanceSummary, 0, 400),
+            'productKnowledge' => substr($productKnowledge, 0, 300),
+            'emotionalHandlingAndEmpathy' => substr($emotionalHandling, 0, 300),
+            'strengths' => substr($strengths, 0, 250),
+            'improvementOpportunities' => substr($improvements, 0, 400),
+        ];
     }
 }
