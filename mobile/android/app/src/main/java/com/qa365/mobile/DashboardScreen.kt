@@ -37,7 +37,8 @@ fun DashboardScreen(
     onThemeChanged: (String) -> Unit,
     onTabSelected: (String) -> Unit,
     onLogout: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onFiltersChanged: (Map<String, String>) -> Unit = {}
 ) {
     // Premium navigation stack using mutableStateListOf
     val navStack = remember { mutableStateListOf<Pair<String, JSONObject>>() }
@@ -147,7 +148,7 @@ fun DashboardScreen(
                 }
 
                 when (activeTab) {
-                    "dashboard" -> MainDashboardModule(data, onNavigate)
+                    "dashboard" -> MainDashboardModule(data, onNavigate, onFiltersChanged)
                     "transcripts" -> TranscriptsModule(data, onNavigate)
                     "evaluations" -> EvaluationsModule(data, onNavigate)
                     "notifications" -> NotificationsModule(

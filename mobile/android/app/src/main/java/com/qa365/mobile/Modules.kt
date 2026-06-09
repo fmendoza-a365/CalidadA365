@@ -34,7 +34,7 @@ import org.json.JSONObject
 // DASHBOARD MODULE — Web-aligned BI Dashboard
 // ═══════════════════════════════════════════════════════════════════
 @Composable
-fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit) {
+fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit, onFiltersChanged: (Map<String, String>) -> Unit = {}) {
     val overview = data.optJSONObject("overview") ?: JSONObject()
     val summary = data.optJSONObject("summary") ?: JSONObject()
     val modules = data.optJSONObject("modules") ?: JSONObject()
@@ -140,9 +140,162 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
             }
         }
 
-        // Realtime status pill removed per request
+        // Filters
+        val filterOptions = data.optJSONObject("filter_options")
+        val currentFilters = data.optJSONObject("filters")
+        var showFilters by remember { mutableStateOf(false) }
+        var filterStartDate by remember { mutableStateOf(currentFilters?.optString("start_date", "") ?: "") }
+        var filterEndDate by remember { mutableStateOf(currentFilters?.optString("end_date", "") ?: "") }
+        var filterCampaignId by remember { mutableStateOf(currentFilters?.optString("campaign_id", "") ?: "") }
+        var filterParentCampaignId by remember { mutableStateOf(currentFilters?.optString("parent_campaign_id", "") ?: "") }
+        var filterSupervisorId by remember { mutableStateOf(currentFilters?.optString("supervisor_id", "") ?: "") }
+        var filterAgentId by remember { mutableStateOf(currentFilters?.optString("agent_id", "") ?: "") }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        val hasActiveFilters = filterStartDate.isNotEmpty() || filterEndDate.isNotEmpty() ||
+            filterCampaignId.isNotEmpty() || filterParentCampaignId.isNotEmpty() ||
+            filterSupervisorId.isNotEmpty() || filterAgentId.isNotEmpty()
+
+        // Filter toggle button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(onClick = { showFilters = !showFilters }) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Filtros",
+                        tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                if (hasActiveFilters) {
+                    TextButton(onClick = {
+                        filterStartDate = ""
+                        filterEndDate = ""
+                        filterCampaignId = ""
+                        filterParentCampaignId = ""
+                        filterSupervisorId = ""
+                        filterAgentId = ""
+                        onFiltersChanged(emptyMap())
+                    }) {
+                        Text("Limpiar filtros", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Filter panel
+        if (showFilters) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Date range
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = filterStartDate,
+                            onValueChange = { filterStartDate = it },
+                            label = { Text("Desde", fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                        OutlinedTextField(
+                            value = filterEndDate,
+                            onValueChange = { filterEndDate = it },
+                            label = { Text("Hasta", fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Campaign filters
+                    val parentCampaigns = filterOptions?.optJSONArray("parent_campaigns")
+                    val subcampaigns = filterOptions?.optJSONArray("subcampaigns")
+                    val supervisors = filterOptions?.optJSONArray("supervisors")
+                    val agents = filterOptions?.optJSONArray("agents")
+
+                    if (parentCampaigns != null && parentCampaigns.length() > 0) {
+                        FilterDropdown(
+                            label = "Campaña",
+                            selectedId = filterParentCampaignId,
+                            options = (0 until parentCampaigns.length()).map {
+                                val c = parentCampaigns.getJSONObject(it)
+                                Pair(c.optString("id"), c.optString("name"))
+                            },
+                            onSelected = { filterParentCampaignId = it; filterCampaignId = "" }
+                        )
+                    }
+
+                    if (subcampaigns != null && subcampaigns.length() > 0) {
+                        val filteredSubs = (0 until subcampaigns.length())
+                            .map { subcampaigns.getJSONObject(it) }
+                            .filter { filterParentCampaignId.isEmpty() || it.optString("parent_id") == filterParentCampaignId }
+                        if (filteredSubs.isNotEmpty()) {
+                            FilterDropdown(
+                                label = "Subcampaña",
+                                selectedId = filterCampaignId,
+                                options = filteredSubs.map { Pair(it.optString("id"), it.optString("name")) },
+                                onSelected = { filterCampaignId = it }
+                            )
+                        }
+                    }
+
+                    if (supervisors != null && supervisors.length() > 0) {
+                        FilterDropdown(
+                            label = "Supervisor",
+                            selectedId = filterSupervisorId,
+                            options = (0 until supervisors.length()).map {
+                                val s = supervisors.getJSONObject(it)
+                                Pair(s.optString("id"), s.optString("name"))
+                            },
+                            onSelected = { filterSupervisorId = it }
+                        )
+                    }
+
+                    if (agents != null && agents.length() > 0) {
+                        FilterDropdown(
+                            label = "Agente",
+                            selectedId = filterAgentId,
+                            options = (0 until agents.length()).map {
+                                val a = agents.getJSONObject(it)
+                                Pair(a.optString("id"), a.optString("name"))
+                            },
+                            onSelected = { filterAgentId = it }
+                        )
+                    }
+
+                    // Apply button
+                    Button(
+                        onClick = {
+                            val filters = mutableMapOf<String, String>()
+                            if (filterStartDate.isNotEmpty()) filters["start_date"] = filterStartDate
+                            if (filterEndDate.isNotEmpty()) filters["end_date"] = filterEndDate
+                            if (filterCampaignId.isNotEmpty()) filters["campaign_id"] = filterCampaignId
+                            else if (filterParentCampaignId.isNotEmpty()) filters["parent_campaign_id"] = filterParentCampaignId
+                            if (filterSupervisorId.isNotEmpty()) filters["supervisor_id"] = filterSupervisorId
+                            if (filterAgentId.isNotEmpty()) filters["agent_id"] = filterAgentId
+                            onFiltersChanged(filters)
+                            showFilters = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Aplicar filtros")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Render tab contents
         when (selectedSubTab) {
@@ -1000,7 +1153,16 @@ private fun DashboardExecutiveHero(
 ) {
     val avgScore = overview.optDouble("average_score", 0.0)
     val scoreColor = getScoreColor(avgScore)
-    val profileName = profile.optString("name", "Usuario")
+    val fullName = profile.optString("full_name", "")
+    val firstName = profile.optString("name", "Usuario")
+    val paternalSurname = profile.optString("paternal_surname", "")
+    val displayName = if (fullName.isNotBlank()) {
+        val parts = fullName.trim().split("\\s+".toRegex())
+        if (parts.size >= 2) "${parts[0]} ${parts[1]}" else parts[0]
+    } else {
+        if (paternalSurname.isNotBlank()) "$firstName $paternalSurname" else firstName
+    }
+    val avatarUrl = profile.optString("avatar_url", "")
     val published = feedbackSummary.optDouble("published", 0.0).coerceAtLeast(0.0)
     val responded = feedbackSummary.optDouble("responded", 0.0).coerceAtLeast(0.0)
     val responsePct = if (published > 0) (responded / published * 100.0) else 0.0
@@ -1036,11 +1198,11 @@ private fun DashboardExecutiveHero(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = profileName,
+                        text = displayName,
                         fontSize = 25.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1056,30 +1218,60 @@ private fun DashboardExecutiveHero(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(78.dp)
-                        .clip(CircleShape)
-                        .background(scoreColor.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.Center
+                    // Profile photo
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = String.format("%.0f", avgScore),
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black,
-                            color = scoreColor
-                        )
-                        Text(
-                            text = "%",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black,
-                            color = scoreColor,
-                            modifier = Modifier.padding(bottom = 3.dp, start = 1.dp)
-                        )
+                        if (avatarUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = avatarUrl,
+                                contentDescription = "Foto de perfil",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = displayName.take(2).uppercase(),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // Quality score circle
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(scoreColor.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = String.format("%.0f", avgScore),
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                color = scoreColor
+                            )
+                            Text(
+                                text = "%",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = scoreColor,
+                                modifier = Modifier.padding(bottom = 2.dp, start = 1.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -2635,6 +2827,50 @@ fun AlertRowCard(title: String, description: String, severity: String, dateLabel
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 lineHeight = 18.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun FilterDropdown(
+    label: String,
+    selectedId: String,
+    options: List<Pair<String, String>>,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedName = options.find { it.first == selectedId }?.second ?: label
+
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = if (selectedId.isNotEmpty()) selectedName else label,
+                fontSize = 13.sp,
+                color = if (selectedId.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(label, fontSize = 13.sp) },
+                onClick = { onSelected(""); expanded = false }
+            )
+            options.forEach { (id, name) ->
+                DropdownMenuItem(
+                    text = { Text(name, fontSize = 13.sp) },
+                    onClick = { onSelected(id); expanded = false }
+                )
+            }
         }
     }
 }

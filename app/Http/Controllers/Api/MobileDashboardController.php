@@ -81,6 +81,7 @@ class MobileDashboardController extends Controller
                 'primary_view' => $user->hasRole('agent') ? 'agent' : 'executive',
                 'avatar_url' => $user->avatar_url,
             ],
+            'filter_options' => $this->filterOptions($user),
             'filters' => $filters,
             'summary' => $summary,
             'overview' => $overview,
@@ -347,6 +348,38 @@ class MobileDashboardController extends Controller
             'start_date' => $request->input('start_date', now()->startOfMonth()->format('Y-m-d')),
             'end_date' => $request->input('end_date', now()->format('Y-m-d')),
             'campaign_id' => $request->input('campaign_id'),
+            'parent_campaign_id' => $request->input('parent_campaign_id'),
+            'supervisor_id' => $request->input('supervisor_id'),
+            'agent_id' => $request->input('agent_id'),
+        ];
+    }
+
+    private function filterOptions(User $user): array
+    {
+        $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get(['id', 'name', 'parent_id']);
+        $parentCampaigns = $campaigns->whereNull('parent_id')->values();
+        $subcampaigns = $campaigns->whereNotNull('parent_id')->values();
+
+        $supervisors = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'supervisor'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'paternal_surname'])
+            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
+            ->values();
+
+        $agents = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'agent'))
+            ->orderBy('name')
+            ->limit(200)
+            ->get(['id', 'name', 'paternal_surname'])
+            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->full_name])
+            ->values();
+
+        return [
+            'parent_campaigns' => $parentCampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            'subcampaigns' => $subcampaigns->map(fn (Campaign $c) => ['id' => $c->id, 'name' => $c->name, 'parent_id' => $c->parent_id])->values(),
+            'supervisors' => $supervisors,
+            'agents' => $agents,
         ];
     }
 

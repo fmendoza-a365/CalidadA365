@@ -959,6 +959,16 @@ class QualityAnalyticsService
         if (!empty($filters['agent_id'])) {
             $query->where('evaluations.agent_id', $filters['agent_id']);
         }
+
+        if (!empty($filters['supervisor_id'])) {
+            $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $filters['supervisor_id'])
+                ->where('is_active', true)
+                ->pluck('agent_id')
+                ->unique();
+            if ($agentIds->isNotEmpty()) {
+                $query->whereIn('evaluations.agent_id', $agentIds);
+            }
+        }
     }
 
     protected function applyInteractionFilters($query, array $filters): void

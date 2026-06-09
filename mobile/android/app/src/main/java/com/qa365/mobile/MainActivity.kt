@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private var activeTab by mutableStateOf("dashboard")
     private var themeMode by mutableStateOf("system")
     private var pendingEvaluationId by mutableStateOf<String?>(null)
+    private var dashboardFilters by mutableStateOf<Map<String, String>>(emptyMap())
 
     // ActivityResultLauncher for requesting push notification permissions on Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
@@ -110,7 +111,8 @@ class MainActivity : ComponentActivity() {
                                 prefs.edit().remove("token").apply()
                                 dashboardData = null
                             },
-                            onRefresh = { loadDashboard() }
+                            onRefresh = { loadDashboard() },
+                            onFiltersChanged = { filters -> loadDashboard(filters) }
                         )
                     }
                 }
@@ -197,10 +199,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun loadDashboard() {
+    private fun loadDashboard(filters: Map<String, String> = dashboardFilters) {
+        dashboardFilters = filters
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                dashboardData = Api.request(serverUrl, "/api/mobile/dashboard", "GET", null, token)
+                val queryParams = filters.entries.joinToString("&") { "${it.key}=${it.value}" }
+                val path = if (queryParams.isNotEmpty()) "/api/mobile/dashboard?$queryParams" else "/api/mobile/dashboard"
+                dashboardData = Api.request(serverUrl, path, "GET", null, token)
             } catch (e: Exception) {
                 if (e is ApiException && e.code == 401) {
                     token = null
