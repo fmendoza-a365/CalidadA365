@@ -523,9 +523,9 @@
                 </div>
                 <div class="qd-card">
                     <h4 class="qd-card-title">Ranking Asesor(a)</h4>
-                    <div class="overflow-x-auto mt-2">
+                    <div class="overflow-y-auto mt-2" style="max-height: 16rem;">
                         <table class="w-full text-[11px]">
-                            <thead>
+                            <thead class="sticky top-0 bg-white dark:bg-gray-900 z-10">
                                 <tr class="border-b border-gray-200 dark:border-gray-700">
                                     <th class="text-left py-1.5 px-2 font-semibold text-gray-400 uppercase">Asesor</th>
                                     <th class="text-center py-1.5 px-2 font-semibold text-gray-400 uppercase">Cant</th>
