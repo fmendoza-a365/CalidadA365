@@ -104,7 +104,12 @@ PROMPT;
                 return;
             }
 
-            Log::warning("GenerateManualFeedbackJob: AI no retornó feedback válido para evaluación #{$evaluation->id}. Response: " . substr((string) $response, 0, 300));
+            Log::warning("GenerateManualFeedbackJob: AI no retornó feedback válido para evaluación #{$evaluation->id}", [
+                'response_type' => gettype($response),
+                'response_preview' => substr((string) $response, 0, 500),
+                'feedback_type' => gettype($feedback),
+                'feedback_keys' => is_array($feedback) ? array_keys($feedback) : null,
+            ]);
         } catch (Throwable $e) {
             Log::error("GenerateManualFeedbackJob: error para evaluación #{$evaluation->id}: " . $e->getMessage());
         }
