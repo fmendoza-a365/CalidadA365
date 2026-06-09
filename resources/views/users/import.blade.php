@@ -169,7 +169,7 @@
                                     <option value="">Usar columna supervisor</option>
                                     @foreach($supervisors as $supervisor)
                                         <option value="{{ $supervisor->id }}" @selected((string) old('default_supervisor_id') === (string) $supervisor->id)>
-                                            {{ $supervisor->name }} · {{ '@'.$supervisor->username }}
+                                            {{ $supervisor->full_name }} · {{ '@'.$supervisor->username }}
                                         </option>
                                     @endforeach
                                 </select>

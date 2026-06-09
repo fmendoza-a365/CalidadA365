@@ -77,10 +77,10 @@
                     <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                         <div class="flex items-center gap-4">
                             <div class="avatar avatar-md bg-gray-100 dark:bg-gray-800">
-                                {{ substr($evaluation->agent->name, 0, 2) }}
+                                {{ substr($evaluation->agent->full_name, 0, 2) }}
                             </div>
                             <div>
-                                <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->agent->name }}</p>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ $evaluation->agent->full_name }}</p>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ $evaluation->campaign?->displayName() ?? 'Sin campaña' }}</p>
                             </div>
                         </div>

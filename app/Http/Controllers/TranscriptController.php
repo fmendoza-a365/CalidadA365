@@ -143,7 +143,7 @@ class TranscriptController extends Controller
         $formOptions = $this->formOptions();
         $uploaders = User::whereIn('id', Interaction::forUser($user)->select('uploaded_by')->distinct())
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'paternal_surname', 'maternal_surname']);
 
         return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions', 'uploaders'));
     }

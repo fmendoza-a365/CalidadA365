@@ -251,7 +251,7 @@
                                                     class="text-gray-500 text-xs font-normal">|
                                                     {{ $match->campaign?->displayName() ?? 'Sin campaña' }}</span></h4>
                                             <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">Auditor:
-                                                {{ $match->evaluator->name ?? 'Sistema Automático' }}</p>
+                                                {{ $match->evaluator->full_name ?? 'Sistema Automático' }}</p>
                                         </div>
                                     </div>
 

@@ -6,10 +6,10 @@
             <div class="card-header">
                 <div class="flex items-center gap-3">
                     <div class="avatar avatar-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
-                        {{ substr($assignment->agent->name, 0, 2) }}
+                        {{ substr($assignment->agent->full_name, 0, 2) }}
                     </div>
                     <div>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->name }}</p>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->full_name }}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">{{ $campaign->displayName() }}</p>
                     </div>
                 </div>
@@ -37,7 +37,7 @@
                             <option value="">Seleccione un supervisor</option>
                             @foreach($supervisors as $supervisor)
                                 <option value="{{ $supervisor->id }}" {{ old('supervisor_id', $assignment->supervisor_id) == $supervisor->id ? 'selected' : '' }}>
-                                    {{ $supervisor->name }}
+                                    {{ $supervisor->full_name }}
                                 </option>
                             @endforeach
                         </select>

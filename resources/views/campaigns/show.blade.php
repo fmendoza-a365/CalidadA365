@@ -168,9 +168,9 @@
                     <tbody>
                         @forelse($assignmentsPreview as $assignment)
                             <tr>
-                                <td class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->name }}</td>
+                                <td class="font-medium text-gray-900 dark:text-white">{{ $assignment->agent->full_name }}</td>
                                 <td class="text-gray-500 dark:text-gray-400">{{ $assignment->campaign?->displayName() ?? '—' }}</td>
-                                <td class="text-gray-500 dark:text-gray-400">{{ $assignment->supervisor->name }}</td>
+                                <td class="text-gray-500 dark:text-gray-400">{{ $assignment->supervisor->full_name }}</td>
                                 <td class="text-center">
                                     @if($assignment->is_active)
                                         <span class="badge badge-success">Activa</span>

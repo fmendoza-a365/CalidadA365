@@ -132,7 +132,7 @@
                         <select name="monitor_ids[]" id="monitor_ids" class="form-select h-auto" multiple size="5">
                             @foreach($monitors as $monitor)
                                 <option value="{{ $monitor->id }}" {{ is_array(old('monitor_ids')) && in_array($monitor->id, old('monitor_ids')) ? 'selected' : '' }}>
-                                    {{ $monitor->name }}
+                                    {{ $monitor->full_name }}
                                     ({{ ucfirst(str_replace('_', ' ', $monitor->roles->first()?->name ?? 'Sin rol')) }})
                                 </option>
                             @endforeach

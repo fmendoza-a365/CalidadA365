@@ -148,7 +148,7 @@
                                         $campaignDisplay = $activeAssignment->campaign->displayName();
                                     }
                                     if ($activeAssignment->supervisor) {
-                                        $supervisorDisplay = $activeAssignment->supervisor->name;
+                                        $supervisorDisplay = $activeAssignment->supervisor->full_name;
                                     }
                                 }
                             } elseif ($user->hasAnyRole(['qa_monitor', 'qa_coordinator', 'manager'])) {

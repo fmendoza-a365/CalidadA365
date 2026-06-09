@@ -103,7 +103,7 @@
                     <select name="uploaded_by" id="uploaded_by" class="form-select">
                         <option value="">Todos</option>
                         @foreach($uploaders as $uploader)
-                            <option value="{{ $uploader->id }}" {{ request('uploaded_by') == $uploader->id ? 'selected' : '' }}>{{ $uploader->name }}</option>
+                            <option value="{{ $uploader->id }}" {{ request('uploaded_by') == $uploader->id ? 'selected' : '' }}>{{ $uploader->full_name }}</option>
                         @endforeach
                     </select>
                 </div>

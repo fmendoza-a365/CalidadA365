@@ -84,7 +84,7 @@
                             </svg>
                             {{ $insight->date_range_start->format('d/m/Y') }} al {{ $insight->date_range_end->format('d/m/Y') }}
                             <span class="text-gray-300 dark:text-gray-700">·</span>
-                            <span>Generado por <strong class="text-gray-700 dark:text-gray-300">{{ $insight->creator->name ?? 'Sistema' }}</strong></span>
+                            <span>Generado por <strong class="text-gray-700 dark:text-gray-300">{{ $insight->creator->full_name ?? 'Sistema' }}</strong></span>
                             <span class="text-gray-300 dark:text-gray-700">·</span>
                             <span>{{ $insight->created_at->format('d/m/Y H:i') }}</span>
                         </p>

@@ -34,13 +34,13 @@
                     @forelse($assignments as $assignment)
                         <tr>
                             <td class="font-medium text-gray-900 dark:text-white">
-                                {{ $assignment->agent->name }}
+                                {{ $assignment->agent->full_name }}
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $assignment->campaign?->displayName() ?? '—' }}
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
-                                {{ $assignment->supervisor->name }}
+                                {{ $assignment->supervisor->full_name }}
                             </td>
                             <td class="text-gray-500 dark:text-gray-400">
                                 {{ $assignment->start_date?->format('d/m/Y') ?? '—' }}

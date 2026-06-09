@@ -119,7 +119,7 @@
                     <ul class="space-y-2">
                         @forelse($stats['top_performers'] as $performer)
                             <li class="flex items-center justify-between">
-                                <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $performer->agent->name }}</span>
+                                <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $performer->agent->full_name }}</span>
                                 <span class="badge badge-success">{{ number_format($performer->avg_score, 0) }}%</span>
                             </li>
                         @empty
@@ -138,7 +138,7 @@
                     <ul class="space-y-2">
                         @forelse($stats['bottom_performers'] as $performer)
                             <li class="flex items-center justify-between">
-                                <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $performer->agent->name }}</span>
+                                <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $performer->agent->full_name }}</span>
                                 <span class="badge badge-danger">{{ number_format($performer->avg_score, 0) }}%</span>
                             </li>
                         @empty
@@ -274,7 +274,7 @@
                                     @endif
                                 </td>
                                 <td class="whitespace-nowrap">{{ $report->date_range_start->format('d/m') }} - {{ $report->date_range_end->format('d/m') }}</td>
-                                <td>{{ $report->creator->name ?? 'Sistema' }}</td>
+                                <td>{{ $report->creator->full_name ?? 'Sistema' }}</td>
                                 <td>
                                     <div class="flex items-center gap-2">
                                         <a href="{{ route('insights.show', $report) }}" class="btn-secondary btn-sm">Ver Reporte</a>

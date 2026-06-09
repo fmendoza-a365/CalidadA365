@@ -27,7 +27,7 @@
                                 <option value="">Seleccione un asesor</option>
                                 @foreach($agents as $agent)
                                     <option value="{{ $agent->id }}" {{ old('agent_id') == $agent->id ? 'selected' : '' }}>
-                                        {{ $agent->name }} ({{ $agent->email }})
+                                        {{ $agent->full_name }} ({{ $agent->email }})
                                     </option>
                                 @endforeach
                             </select>
@@ -40,7 +40,7 @@
                                 <option value="">Seleccione un supervisor</option>
                                 @foreach($supervisors as $supervisor)
                                     <option value="{{ $supervisor->id }}" {{ old('supervisor_id') == $supervisor->id ? 'selected' : '' }}>
-                                        {{ $supervisor->name }}
+                                        {{ $supervisor->full_name }}
                                     </option>
                                 @endforeach
                             </select>
