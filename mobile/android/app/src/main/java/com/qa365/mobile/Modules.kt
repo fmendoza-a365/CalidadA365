@@ -34,6 +34,7 @@ import org.json.JSONObject
 // DASHBOARD MODULE — Web-aligned BI Dashboard
 // ═══════════════════════════════════════════════════════════════════
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Unit, onFiltersChanged: (Map<String, String>) -> Unit = {}) {
     val overview = data.optJSONObject("overview") ?: JSONObject()
     val summary = data.optJSONObject("summary") ?: JSONObject()
@@ -198,24 +199,118 @@ fun MainDashboardModule(data: JSONObject, onNavigate: (String, JSONObject) -> Un
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Date range
+                    // Date range with date pickers
+                    var showStartPicker by remember { mutableStateOf(false) }
+                    var showEndPicker by remember { mutableStateOf(false) }
+
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = filterStartDate,
-                            onValueChange = { filterStartDate = it },
-                            label = { Text("Desde", fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
+                        // Start date
+                        OutlinedCard(
+                            modifier = Modifier.weight(1f).clickable { showStartPicker = true },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Desde", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    Text(
+                                        text = if (filterStartDate.isNotEmpty()) filterStartDate else "Seleccionar",
+                                        fontSize = 13.sp,
+                                        color = if (filterStartDate.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+                                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
+                                }
+                                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                            }
+                        }
+
+                        // End date
+                        OutlinedCard(
+                            modifier = Modifier.weight(1f).clickable { showEndPicker = true },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Hasta", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    Text(
+                                        text = if (filterEndDate.isNotEmpty()) filterEndDate else "Seleccionar",
+                                        fontSize = 13.sp,
+                                        color = if (filterEndDate.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+                                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                    )
+                                }
+                                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                            }
+                        }
+                    }
+
+                    // Start date picker dialog
+                    if (showStartPicker) {
+                        val datePickerState = rememberDatePickerState(
+                            initialSelectedDateMillis = filterStartDate.takeIf { it.isNotEmpty() }?.let {
+                                try {
+                                    java.time.LocalDate.parse(it).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                } catch (_: Exception) { null }
+                            }
                         )
-                        OutlinedTextField(
-                            value = filterEndDate,
-                            onValueChange = { filterEndDate = it },
-                            label = { Text("Hasta", fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
+                        DatePickerDialog(
+                            onDismissRequest = { showStartPicker = false },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    datePickerState.selectedDateMillis?.let { millis ->
+                                        val date = java.time.Instant.ofEpochMilli(millis)
+                                            .atZone(java.time.ZoneId.systemDefault())
+                                            .toLocalDate()
+                                        filterStartDate = date.toString()
+                                    }
+                                    showStartPicker = false
+                                }) { Text("OK") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showStartPicker = false }) { Text("Cancelar") }
+                            }
+                        ) {
+                            DatePicker(state = datePickerState)
+                        }
+                    }
+
+                    // End date picker dialog
+                    if (showEndPicker) {
+                        val datePickerState = rememberDatePickerState(
+                            initialSelectedDateMillis = filterEndDate.takeIf { it.isNotEmpty() }?.let {
+                                try {
+                                    java.time.LocalDate.parse(it).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                } catch (_: Exception) { null }
+                            }
                         )
+                        DatePickerDialog(
+                            onDismissRequest = { showEndPicker = false },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    datePickerState.selectedDateMillis?.let { millis ->
+                                        val date = java.time.Instant.ofEpochMilli(millis)
+                                            .atZone(java.time.ZoneId.systemDefault())
+                                            .toLocalDate()
+                                        filterEndDate = date.toString()
+                                    }
+                                    showEndPicker = false
+                                }) { Text("OK") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showEndPicker = false }) { Text("Cancelar") }
+                            }
+                        ) {
+                            DatePicker(state = datePickerState)
+                        }
                     }
 
                     // Campaign filters
