@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Evaluation;
+use App\Services\AiResponseParser;
 use App\Services\AIEvaluationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -88,25 +89,22 @@ PROMPT;
 
         try {
             $response = $aiService->analyze($prompt);
+            $parser = new AiResponseParser();
+            $feedback = $parser->parse($response);
 
-            if (is_string($response)) {
-                $feedback = json_decode($response, true);
+            if (is_array($feedback) && isset($feedback['performanceSummary'])) {
+                $evaluation->update(['ai_feedback' => $feedback]);
+                Log::info("GenerateManualFeedbackJob: feedback AI generado para evaluación #{$evaluation->id}");
 
-                if (is_array($feedback) && isset($feedback['performanceSummary'])) {
-                    $evaluation->update(['ai_feedback' => $feedback]);
-                    Log::info("GenerateManualFeedbackJob: feedback AI generado para evaluación #{$evaluation->id}");
-
-                    // Dispatch audio generation
-                    if (config('ai.feedback_tts.enabled')) {
-                        $evaluation->update(['feedback_audio_status' => 'pending']);
-                        GenerateFeedbackAudioJob::dispatch($evaluation->id);
-                    }
-
-                    return;
+                if (config('ai.feedback_tts.enabled')) {
+                    $evaluation->update(['feedback_audio_status' => 'pending']);
+                    GenerateFeedbackAudioJob::dispatch($evaluation->id);
                 }
+
+                return;
             }
 
-            Log::warning("GenerateManualFeedbackJob: AI no retornó feedback válido para evaluación #{$evaluation->id}");
+            Log::warning("GenerateManualFeedbackJob: AI no retornó feedback válido para evaluación #{$evaluation->id}. Response: " . substr((string) $response, 0, 300));
         } catch (Throwable $e) {
             Log::error("GenerateManualFeedbackJob: error para evaluación #{$evaluation->id}: " . $e->getMessage());
         }
