@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateFeedbackAudioJob;
+use App\Jobs\GenerateManualFeedbackJob;
 use App\Models\Evaluation;
 use App\Models\Interaction;
 use App\Models\QualityFormVersion;
@@ -184,8 +185,6 @@ class ManualEvaluationController extends Controller
                     $hasCriticalFailure
                 );
 
-                $manualFeedback = $this->buildManualFeedback($summaryItems, round($percentage, 2), $hasCriticalFailure);
-
                 $evaluation = Evaluation::create([
                     'interaction_id' => $lockedInteraction->id,
                     'form_version_id' => $formVersion->id,
@@ -203,7 +202,6 @@ class ManualEvaluationController extends Controller
                     'visible_to_agent_at' => now(),
                     'finalized_at' => now(),
                     'ai_summary' => $manualSummary,
-                    'ai_feedback' => $manualFeedback,
                 ]);
 
                 $evaluation->items()->createMany($itemsData);
@@ -217,10 +215,8 @@ class ManualEvaluationController extends Controller
 
                 $aiEvaluation?->releaseReviewClaim();
 
-                if (config('ai.feedback_tts.enabled')) {
-                    $evaluation->update(['feedback_audio_status' => 'pending']);
-                    GenerateFeedbackAudioJob::dispatch($evaluation->id);
-                }
+                // Dispatch AI feedback generation (generates detailed feedback + audio)
+                GenerateManualFeedbackJob::dispatch($evaluation->id);
 
                 return ['evaluation' => $evaluation];
             });
