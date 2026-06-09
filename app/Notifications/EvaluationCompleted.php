@@ -76,6 +76,7 @@ class EvaluationCompleted extends Notification
         return [
             'title' => 'Nueva Evaluación Publicada',
             'message' => "Se ha publicado una evaluación para la campaña {$campaignName}. Puntaje: {$this->evaluation->percentage_score}%",
+            'evaluation_id' => $this->evaluation->id,
             'action_url' => route('evaluations.show', $this->evaluation),
             'icon' => 'clipboard-check',
             'type' => 'success',

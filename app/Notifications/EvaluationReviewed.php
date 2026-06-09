@@ -82,6 +82,7 @@ class EvaluationReviewed extends Notification
         return [
             'title' => 'Evaluación revisada',
             'message' => "El asesor {$agentName} ha revisado la evaluación y {$actionWord}.",
+            'evaluation_id' => $this->evaluation->id,
             'action_url' => route('evaluations.show', $this->evaluation),
             'icon' => 'clipboard-check',
             'type' => 'info',

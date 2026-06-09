@@ -359,27 +359,15 @@ fun NotificationsModule(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (token != null) {
+                                // Navigate immediately, mark as read in background
+                                if (evalId > 0) {
+                                    onNavigate("evaluation", JSONObject().put("id", evalId))
+                                }
+                                if (token != null && isUnread) {
                                     coroutineScope.launch {
                                         try {
-                                            if (isUnread) {
-                                                Api.request(serverUrl, "/api/mobile/notifications/$id/read", "POST", null, token)
-                                            }
-                                            if (evalId > 0) {
-                                                onNavigate("evaluation", JSONObject().put("id", evalId))
-                                            } else {
-                                                onReload()
-                                            }
-                                        } catch (e: Exception) {
-                                            // Fallback navigation in case of error
-                                            if (evalId > 0) {
-                                                onNavigate("evaluation", JSONObject().put("id", evalId))
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    if (evalId > 0) {
-                                        onNavigate("evaluation", JSONObject().put("id", evalId))
+                                            Api.request(serverUrl, "/api/mobile/notifications/$id/read", "POST", null, token)
+                                        } catch (_: Exception) {}
                                     }
                                 }
                             }
