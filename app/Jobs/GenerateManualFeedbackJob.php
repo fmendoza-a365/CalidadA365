@@ -94,20 +94,22 @@ PROMPT;
                 return;
             }
 
-            // Extract JSON from response (may be wrapped in markdown)
+            // Extract JSON from response (may be wrapped in markdown or have extra text)
             $jsonString = $response;
-            if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $response, $matches)) {
+
+            // Try markdown code block first
+            if (preg_match('/```(?:json)?\s*(\{[\s\S]*?\})\s*```/', $response, $matches)) {
                 $jsonString = $matches[1];
+            } else {
+                // Find first { to last } boundary
+                $start = strpos($response, '{');
+                $end = strrpos($response, '}');
+                if ($start !== false && $end !== false && $end > $start) {
+                    $jsonString = substr($response, $start, $end - $start + 1);
+                }
             }
 
-            // Try to find JSON object boundaries
-            $start = strpos($jsonString, '{');
-            $end = strrpos($jsonString, '}');
-            if ($start !== false && $end !== false && $end > $start) {
-                $jsonString = substr($jsonString, $start, $end - $start + 1);
-            }
-
-            // Clean control characters
+            // Clean control characters that break JSON
             $jsonString = preg_replace('/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/', '', $jsonString);
 
             $feedback = json_decode($jsonString, true);
