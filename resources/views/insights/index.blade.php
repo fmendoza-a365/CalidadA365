@@ -2,6 +2,57 @@
     <x-slot name="header">Insights & Análisis de Calidad</x-slot>
 
     <div class="space-y-6">
+        {{-- Campaign Filter --}}
+        @php
+            $parentCampaigns = $campaigns->whereNull('parent_id');
+            $subcampaignsByParent = $campaigns->whereNotNull('parent_id')->groupBy('parent_id');
+        @endphp
+        <div class="card">
+            <div class="card-body py-3">
+                <form method="GET" action="{{ route('insights.index') }}" class="flex flex-wrap items-end gap-3" x-data="{
+                    parentCampaignId: '{{ request('parent_campaign_id') }}',
+                    campaignId: '{{ request('campaign_id') }}',
+                    subcampaigns: {{ json_encode($subcampaignsByParent->map(fn($group) => $group->map(fn($item) => ['id' => $item->id, 'name' => $item->name])->values())) }},
+                    get availableSubcampaigns() {
+                        return this.parentCampaignId ? (this.subcampaigns[this.parentCampaignId] || []) : [];
+                    }
+                }">
+                    <div>
+                        <label for="filter_parent_campaign" class="form-label">Campaña</label>
+                        <select name="parent_campaign_id" id="filter_parent_campaign" x-model="parentCampaignId" @change="campaignId = ''" class="form-select">
+                            <option value="">Todas</option>
+                            @foreach($parentCampaigns as $pCamp)
+                                <option value="{{ $pCamp->id }}">{{ $pCamp->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label for="filter_campaign" class="form-label">Subcampaña</label>
+                        <select name="campaign_id" id="filter_campaign" x-model="campaignId" :disabled="!parentCampaignId || availableSubcampaigns.length === 0" class="form-select disabled:opacity-50">
+                            <option value="">Todas</option>
+                            <template x-for="sub in availableSubcampaigns" :key="sub.id">
+                                <option :value="sub.id" x-text="sub.name" :selected="campaignId == sub.id"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn-primary btn-md">Filtrar</button>
+                        @if(request('campaign_id') || request('parent_campaign_id'))
+                            <a href="{{ route('insights.index') }}" class="btn-secondary btn-md">Limpiar</a>
+                        @endif
+                    </div>
+                    @if($campaign)
+                        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Mostrando datos de: <strong class="text-gray-700 dark:text-gray-300">{{ $campaign->displayName() }}</strong>
+                        </div>
+                    @endif
+                </form>
+            </div>
+        </div>
+
         {{-- Overview Statistics --}}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {{-- Total Evaluations --}}

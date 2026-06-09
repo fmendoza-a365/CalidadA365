@@ -25,10 +25,31 @@ class InsightsController extends Controller
 
     public function index(Request $request)
     {
-        // Comprehensive Stats
         $user = auth()->user();
+        $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get();
+
+        // Resolve campaign filter
+        $campaign = null;
+        $campaignIds = null;
+        if ($request->filled('campaign_id')) {
+            $campaign = Campaign::forUser($user)->whereKey($request->campaign_id)->first();
+        } elseif ($request->filled('parent_campaign_id')) {
+            $campaign = Campaign::forUser($user)->whereKey($request->parent_campaign_id)->first();
+        }
+        if ($campaign) {
+            $campaignIds = Campaign::idsForFilter($campaign->id);
+        }
+
+        // Helper: apply campaign filter to evaluation query
+        $applyCampaign = function ($query) use ($campaignIds) {
+            if ($campaignIds) {
+                $query->whereIn('evaluations.campaign_id', $campaignIds);
+            }
+        };
+
+        // Reports list
         $reports = InsightReport::with('campaign.parent', 'creator')
-            ->where(function ($query) use ($user) {
+            ->where(function ($query) use ($user, $campaign) {
                 $query
                     ->where('generated_by', $user->id)
                     ->orWhereHas('campaign', function ($campaignQuery) use ($user) {
@@ -39,19 +60,21 @@ class InsightsController extends Controller
                     $query->orWhereNull('campaign_id');
                 }
             })
+            ->when($campaign, fn ($q) => $q->whereIn('campaign_id', Campaign::idsForFilter($campaign->id)))
             ->latest()
             ->paginate(10);
-        $campaigns = Campaign::forUser($user)->active()->orderedForSelect()->get();
 
-        $totalEvaluations = Evaluation::forUser($user)->count();
-        $avgScore = Evaluation::forUser($user)->avg('percentage_score') ?? 0;
+        // Stats (filtered by campaign when selected)
+        $evalQuery = Evaluation::forUser($user)->tap($applyCampaign);
+        $totalEvaluations = (clone $evalQuery)->count();
+        $avgScore = (float) ((clone $evalQuery)->avg('percentage_score') ?? 0);
         $complianceRate = $totalEvaluations > 0
-            ? (Evaluation::forUser($user)->where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100
+            ? ((clone $evalQuery)->where('percentage_score', '>=', 80)->count() / $totalEvaluations) * 100
             : 0;
 
         // Top Failed Criteria
-        $topFailedCriteria = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user) {
-            $query->forUser($user);
+        $topFailedCriteria = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user, $applyCampaign) {
+            $query->forUser($user)->tap($applyCampaign);
         })
             ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
@@ -61,9 +84,9 @@ class InsightsController extends Controller
             ->limit(5)
             ->get();
 
-        // Critical Failures (Critical items that failed)
-        $criticalFailures = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user) {
-            $query->forUser($user);
+        // Critical Failures
+        $criticalFailures = \App\Models\EvaluationItem::whereHas('evaluation', function ($query) use ($user, $applyCampaign) {
+            $query->forUser($user)->tap($applyCampaign);
         })
             ->where('status', 'non_compliant')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
@@ -71,36 +94,36 @@ class InsightsController extends Controller
             ->count();
 
         // Score Trend (last 30 days vs previous 30 days)
-        $currentPeriodAvg = Evaluation::forUser($user)->where('created_at', '>=', now()->subDays(30))->avg('percentage_score') ?? 0;
-        $previousPeriodAvg = Evaluation::forUser($user)->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])->avg('percentage_score') ?? 0;
+        $currentPeriodAvg = (float) ((clone $evalQuery)->where('created_at', '>=', now()->subDays(30))->avg('percentage_score') ?? 0);
+        $previousPeriodAvg = (float) ((clone $evalQuery)->whereBetween('created_at', [now()->subDays(60), now()->subDays(30)])->avg('percentage_score') ?? 0);
         $trendDirection = $currentPeriodAvg > $previousPeriodAvg ? 'up' : ($currentPeriodAvg < $previousPeriodAvg ? 'down' : 'stable');
         $trendChange = $previousPeriodAvg > 0 ? (($currentPeriodAvg - $previousPeriodAvg) / $previousPeriodAvg) * 100 : 0;
 
         // Top/Bottom Performers (last 30 days, min 3 evals)
-        $topPerformers = Evaluation::forUser($user)
+        $topPerformers = (clone $evalQuery)
             ->select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
             ->havingRaw('COUNT(*) >= ?', [3])
             ->orderByDesc('avg_score')
             ->limit(3)
-            ->with('agent:id,name')
+            ->with('agent:id,name,paternal_surname,maternal_surname')
             ->get();
 
-        $bottomPerformers = Evaluation::forUser($user)
+        $bottomPerformers = (clone $evalQuery)
             ->select('agent_id', \DB::raw('AVG(percentage_score) as avg_score'), \DB::raw('COUNT(*) as eval_count'))
             ->where('created_at', '>=', now()->subDays(30))
             ->groupBy('agent_id')
             ->havingRaw('COUNT(*) >= ?', [3])
             ->orderBy('avg_score')
             ->limit(3)
-            ->with('agent:id,name')
+            ->with('agent:id,name,paternal_surname,maternal_surname')
             ->get();
 
         $stats = [
             'total_evaluations' => $totalEvaluations,
-            'avg_score' => $avgScore,
-            'compliance_rate' => $complianceRate,
+            'avg_score' => round($avgScore, 1),
+            'compliance_rate' => round($complianceRate, 1),
             'top_failed_criteria' => $topFailedCriteria,
             'critical_failures' => $criticalFailures,
             'trend_direction' => $trendDirection,
@@ -109,7 +132,7 @@ class InsightsController extends Controller
             'bottom_performers' => $bottomPerformers,
         ];
 
-        return view('insights.index', compact('reports', 'campaigns', 'stats'));
+        return view('insights.index', compact('reports', 'campaigns', 'stats', 'campaign'));
     }
 
     public function generate(Request $request)
