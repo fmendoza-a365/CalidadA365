@@ -99,11 +99,11 @@ class AIEvaluationService
             ->post('https://api.openai.com/v1/chat/completions', [
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['openai_model'],
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad de call centers. Responde en texto narrativo profesional, sin formato JSON. Usa párrafos claros y concisos.'],
+                    ['role' => 'system', 'content' => 'Eres un experto analista de calidad de call centers. Responde exactamente con lo que se te pide, sin texto adicional fuera del formato solicitado.'],
                     ['role' => 'user', 'content' => $prompt],
                 ],
                 'temperature' => 0.7,
-                'max_tokens' => 1500,
+                'max_tokens' => 3000,
             ]);
 
         if ($response->failed()) {
@@ -131,7 +131,7 @@ class AIEvaluationService
             ],
             'generationConfig' => [
                 'temperature' => 0.7,
-                'maxOutputTokens' => 1500,
+                'maxOutputTokens' => 3000,
             ],
         ]);
 
@@ -159,7 +159,7 @@ class AIEvaluationService
             ->timeout(120)
             ->post('https://api.anthropic.com/v1/messages', [
                 'model' => $this->config['model'] ?? AiSettings::DEFAULTS['claude_model'],
-                'max_tokens' => 1500,
+                'max_tokens' => 3000,
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
                 ],
