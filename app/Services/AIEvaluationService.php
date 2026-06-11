@@ -285,6 +285,11 @@ class AIEvaluationService
                     $criterion['d'] = $description;
                 }
 
+                $guidelines = trim((string) ($subAttribute->guidelines ?? ''));
+                if ($guidelines !== '' && mb_strtolower($guidelines) !== 'sin guía' && mb_strtolower($guidelines) !== 'sin guia' && mb_strtolower($guidelines) !== 'sin descripción') {
+                    $criterion['g'] = $guidelines;
+                }
+
                 $criteria[] = $criterion;
             }
         }
@@ -326,12 +331,13 @@ AUDIO
 Versión de prompt: {$this->promptVersion()}.
 
 ## CRITERIOS DE EVALUACIÓN
-Leyenda compacta: id=ID del subatributo, a=atributo/categoría, n=criterio, d=descripción, w=peso, mp=mala práctica crítica.
+Leyenda compacta: id=ID del subatributo, a=atributo/categoría, n=criterio, d=descripción, g=guía de referencia para evaluar, w=peso, mp=mala práctica crítica.
 {$criteriaJson}
 
 {$operationalContextBlock}
 
 ## CALIBRACIÓN Y CRITERIOS
+- Utiliza la guía de referencia ('g') de cada criterio como la regla específica para determinar el cumplimiento o incumplimiento de ese ítem.
 - No infieras hechos, intenciones, precios, validaciones, promesas o gestiones que no aparezcan en la transcripción, señales de audio o contexto operativo.
 - Si un criterio exige frase, cláusula, precio, restricción o validación exacta, marca "non_compliant" cuando no haya evidencia explícita suficiente.
 - Si un criterio evalúa intención comunicativa, empatía, escucha activa o claridad, permite equivalencias semánticas razonables solo cuando el criterio lo permita.
