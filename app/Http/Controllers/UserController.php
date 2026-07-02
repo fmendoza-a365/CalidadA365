@@ -37,13 +37,26 @@ class UserController extends Controller
             })
             ->when($request->filled('role'), fn ($query) => $query->role($request->string('role')->toString()))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
+            ->when($request->filled('campaign_id'), function ($query) use ($request) {
+                $campaignId = $request->integer('campaign_id');
+                $query->where(function ($q) use ($campaignId) {
+                    $q->whereHas('agentAssignments', function ($sub) use ($campaignId) {
+                        $sub->where('campaign_id', $campaignId)
+                            ->where('is_active', true);
+                    })
+                    ->orWhereHas('managedCampaigns', function ($sub) use ($campaignId) {
+                        $sub->where('campaign_id', $campaignId);
+                    });
+                });
+            })
             ->orderBy('created_at', 'desc')
             ->paginate(10)
             ->withQueryString();
 
         $roles = Role::orderBy('name')->get();
+        $campaigns = Campaign::active()->orderedForSelect()->get();
 
-        return view('users.index', compact('users', 'roles'));
+        return view('users.index', compact('users', 'roles', 'campaigns'));
     }
 
     public function import(UserImportService $importService)

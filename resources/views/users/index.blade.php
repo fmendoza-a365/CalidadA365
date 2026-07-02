@@ -24,7 +24,7 @@
             };
         };
 
-        $activeFilterCount = collect(request()->only(['q', 'role', 'status']))->filter(fn ($value) => filled($value))->count();
+        $activeFilterCount = collect(request()->only(['q', 'role', 'status', 'campaign_id']))->filter(fn ($value) => filled($value))->count();
     @endphp
 
     <div
@@ -71,7 +71,7 @@
         </div>
 
         <div class="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-            <form method="GET" action="{{ route('users.index') }}" class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_200px_150px_auto]">
+            <form method="GET" action="{{ route('users.index') }}" class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(200px,1fr)_160px_160px_160px_auto]">
                 <div>
                     <label for="q" class="form-label">Buscar</label>
                     <input type="search" name="q" id="q" value="{{ request('q') }}" class="form-input"
@@ -85,6 +85,18 @@
                         @foreach($roles as $role)
                             <option value="{{ $role->name }}" {{ request('role') === $role->name ? 'selected' : '' }}>
                                 {{ $roleLabel($role->name) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="campaign_id" class="form-label">Campaña</label>
+                    <select name="campaign_id" id="campaign_id" class="form-select">
+                        <option value="">Todas</option>
+                        @foreach($campaigns as $campaign)
+                            <option value="{{ $campaign->id }}" {{ request('campaign_id') == $campaign->id ? 'selected' : '' }}>
+                                {{ $campaign->displayName() }}
                             </option>
                         @endforeach
                     </select>
