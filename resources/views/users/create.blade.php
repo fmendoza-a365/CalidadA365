@@ -82,6 +82,14 @@
                                 </select>
                             </div>
 
+                            <div>
+                                <label class="form-label">Estado <span class="text-rose-500">*</span></label>
+                                <select name="status" required class="form-select">
+                                    <option value="Activo" @selected(old('status', 'Activo') == 'Activo')>Activo</option>
+                                    <option value="Baja" @selected(old('status') == 'Baja')>Baja</option>
+                                </select>
+                            </div>
+
                             <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 dark:border-gray-800">
                                 <div>
                                     <label class="form-label">Contraseña <span class="text-rose-500">*</span></label>

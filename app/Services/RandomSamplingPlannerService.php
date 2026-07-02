@@ -434,7 +434,7 @@ class RandomSamplingPlannerService
             return null;
         }
 
-        $query = User::query();
+        $query = User::query()->active();
 
         if ($role && Role::where('name', $role)->exists()) {
             $query->role($role);

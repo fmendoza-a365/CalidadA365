@@ -62,6 +62,14 @@
                                         @endforeach
                                     </select>
                                 </div>
+
+                                <div>
+                                    <label class="form-label">Estado <span class="text-red-500">*</span></label>
+                                    <select name="status" required class="form-select w-full bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800 focus:ring-indigo-500">
+                                        <option value="Activo" {{ old('status', $user->status) == 'Activo' ? 'selected' : '' }}>Activo</option>
+                                        <option value="Baja" {{ old('status', $user->status) == 'Baja' ? 'selected' : '' }}>Baja</option>
+                                    </select>
+                                </div>
                                 
                                 <div class="pt-4 border-t border-gray-100 dark:border-gray-700">
                                     <label class="form-label">Nueva Contraseña</label>

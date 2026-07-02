@@ -35,8 +35,8 @@ class CampaignUserAssignmentController extends Controller
     {
         $this->ensureCampaignAccess($campaign);
 
-        $agents = User::role('agent')->orderBy('name')->get();
-        $supervisors = User::role('supervisor')->orderBy('name')->get();
+        $agents = User::role('agent')->active()->orderBy('name')->get();
+        $supervisors = User::role('supervisor')->active()->orderBy('name')->get();
         $assignmentCampaigns = $this->assignmentCampaignOptions($campaign);
 
         return view('campaigns.assignments.create', compact('campaign', 'agents', 'supervisors', 'assignmentCampaigns'));
@@ -92,8 +92,8 @@ class CampaignUserAssignmentController extends Controller
         $campaign = $assignment->campaign;
         $this->ensureCampaignAccess($campaign);
 
-        $agents = User::role('agent')->orderBy('name')->get();
-        $supervisors = User::role('supervisor')->orderBy('name')->get();
+        $agents = User::role('agent')->active()->orderBy('name')->get();
+        $supervisors = User::role('supervisor')->active()->orderBy('name')->get();
         $contextCampaign = $campaign->parent ?: $campaign;
         $assignmentCampaigns = $this->assignmentCampaignOptions($contextCampaign);
 
@@ -154,7 +154,7 @@ class CampaignUserAssignmentController extends Controller
 
     private function ensureUserHasRole(int $userId, string $role, string $field, string $message): void
     {
-        if (!User::role($role)->whereKey($userId)->exists()) {
+        if (!User::role($role)->active()->whereKey($userId)->exists()) {
             throw ValidationException::withMessages([
                 $field => $message,
             ]);

@@ -236,17 +236,26 @@ class TranscriptController extends Controller
         // Also provide all agents for fallback or non-javascript users
         $assignmentsQuery = \App\Models\CampaignUserAssignment::with(['agent', 'supervisor'])
             ->whereIn('campaign_id', $campaignIds)
-            ->where('is_active', true);
+            ->where('is_active', true)
+            ->whereHas('agent', function ($q) {
+                $q->active();
+            })
+            ->where(function ($query) {
+                $query->whereNull('supervisor_id')
+                    ->orWhereHas('supervisor', function ($q) {
+                        $q->active();
+                    });
+            });
 
         if ($user->hasRole('supervisor')) {
             $assignmentsQuery->where('supervisor_id', $user->id);
             $agentIds = $assignmentsQuery->pluck('agent_id');
-            $agents = User::whereIn('id', $agentIds)->orderBy('name')->get();
+            $agents = User::whereIn('id', $agentIds)->active()->orderBy('name')->get();
         } elseif ($user->hasRole('agent')) {
             $agents = collect([$user]);
             $assignmentsQuery->where('agent_id', $user->id);
         } else {
-            $agents = User::role('agent')->orderBy('name')->limit(500)->get();
+            $agents = User::role('agent')->active()->orderBy('name')->limit(500)->get();
         }
 
         $assignments = $assignmentsQuery->get();
@@ -545,11 +554,11 @@ class TranscriptController extends Controller
             $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $user->id)
                 ->where('is_active', true)
                 ->pluck('agent_id');
-            $agents = User::whereIn('id', $agentIds)->orderBy('name')->get();
+            $agents = User::whereIn('id', $agentIds)->active()->orderBy('name')->get();
         } elseif ($user->hasRole('agent')) {
             $agents = collect([$user]);
         } else {
-            $agents = User::role('agent')->orderBy('name')->limit(500)->get();
+            $agents = User::role('agent')->active()->orderBy('name')->limit(500)->get();
         }
 
         $formOptions = $this->formOptions();

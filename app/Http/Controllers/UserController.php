@@ -36,6 +36,7 @@ class UserController extends Controller
                 });
             })
             ->when($request->filled('role'), fn ($query) => $query->role($request->string('role')->toString()))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
             ->orderBy('created_at', 'desc')
             ->paginate(10)
             ->withQueryString();
@@ -189,10 +190,12 @@ class UserController extends Controller
             'profile_photo' => 'nullable|image|max:2048',
             'campaign_ids' => 'nullable|array',
             'campaign_ids.*' => 'exists:campaigns,id',
+            'status' => 'nullable|string|in:Activo,Baja',
         ]);
 
         $userData = $request->except(['password', 'password_confirmation', 'role', 'profile_photo']);
         $userData['password'] = Hash::make($request->password);
+        $userData['status'] = $request->input('status') ?: 'Activo';
 
         if ($request->hasFile('profile_photo')) {
             $path = $request->file('profile_photo')->store('profile-photos', 'public');
@@ -230,9 +233,11 @@ class UserController extends Controller
             'profile_photo' => 'nullable|image|max:2048',
             'campaign_ids' => 'nullable|array',
             'campaign_ids.*' => 'exists:campaigns,id',
+            'status' => 'nullable|string|in:Activo,Baja',
         ]);
 
         $userData = $request->except(['password', 'password_confirmation', 'role', 'profile_photo']);
+        $userData['status'] = $request->input('status') ?: $user->status;
 
         if ($request->filled('password')) {
             $request->validate(['password' => 'required|string|min:8|confirmed']);

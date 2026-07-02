@@ -34,7 +34,7 @@ class CampaignController extends Controller
 
     public function create()
     {
-        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
+        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->active()->orderBy('name')->get();
         $parentCampaigns = Campaign::active()->parents()->orderBy('name')->get();
 
         return view('campaigns.create', compact('monitors', 'parentCampaigns'));
@@ -115,7 +115,7 @@ class CampaignController extends Controller
     {
         $this->ensureCampaignAccess($campaign);
 
-        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->orderBy('name')->get();
+        $monitors = \App\Models\User::role(['qa_monitor', 'qa_coordinator', 'manager'])->active()->orderBy('name')->get();
         $campaign->load('managers');
         $parentCampaigns = Campaign::active()
             ->parents()
@@ -256,15 +256,18 @@ class CampaignController extends Controller
 
         $allowedRoles = ['qa_monitor', 'qa_coordinator', 'manager'];
         $invalidNames = User::whereIn('id', $userIds)
-            ->whereDoesntHave('roles', function ($query) use ($allowedRoles) {
-                $query->whereIn('name', $allowedRoles);
+            ->where(function ($query) use ($allowedRoles) {
+                $query->whereDoesntHave('roles', function ($query) use ($allowedRoles) {
+                    $query->whereIn('name', $allowedRoles);
+                })
+                ->orWhere('status', '!=', 'Activo');
             })
             ->pluck('name')
             ->all();
 
         if (!empty($invalidNames)) {
             throw ValidationException::withMessages([
-                'monitor_ids' => 'Solo se pueden asignar monitores, coordinadores QA o managers a una campaña. Usuarios inválidos: ' . implode(', ', $invalidNames),
+                'monitor_ids' => 'Solo se pueden asignar monitores, coordinadores QA o managers activos a una campaña. Usuarios inválidos o inactivos: ' . implode(', ', $invalidNames),
             ]);
         }
     }

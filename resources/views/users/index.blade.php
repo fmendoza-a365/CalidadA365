@@ -24,7 +24,7 @@
             };
         };
 
-        $activeFilterCount = collect(request()->only(['q', 'role']))->filter(fn ($value) => filled($value))->count();
+        $activeFilterCount = collect(request()->only(['q', 'role', 'status']))->filter(fn ($value) => filled($value))->count();
     @endphp
 
     <div
@@ -71,7 +71,7 @@
         </div>
 
         <div class="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-            <form method="GET" action="{{ route('users.index') }}" class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_220px_auto]">
+            <form method="GET" action="{{ route('users.index') }}" class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_200px_150px_auto]">
                 <div>
                     <label for="q" class="form-label">Buscar</label>
                     <input type="search" name="q" id="q" value="{{ request('q') }}" class="form-input"
@@ -87,6 +87,15 @@
                                 {{ $roleLabel($role->name) }}
                             </option>
                         @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="status" class="form-label">Estado</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="Activo" {{ request('status') === 'Activo' ? 'selected' : '' }}>Activo</option>
+                        <option value="Baja" {{ request('status') === 'Baja' ? 'selected' : '' }}>Baja</option>
                     </select>
                 </div>
 
@@ -193,9 +202,16 @@
                             </td>
 
                             <td>
-                                <span class="badge {{ $roleTone($primaryRole) }}">
-                                    {{ $roleLabel($primaryRole) }}
-                                </span>
+                                <div class="flex flex-col gap-1 items-start">
+                                    <span class="badge {{ $roleTone($primaryRole) }}">
+                                        {{ $roleLabel($primaryRole) }}
+                                    </span>
+                                    @if(($user->status ?? 'Activo') === 'Baja')
+                                        <span class="badge badge-danger text-[10px] py-0.5 px-1.5 font-bold uppercase tracking-wider">Baja</span>
+                                    @else
+                                        <span class="badge badge-success text-[10px] py-0.5 px-1.5 font-bold uppercase tracking-wider">Activo</span>
+                                    @endif
+                                </div>
                             </td>
 
                             <td class="wrap-text">

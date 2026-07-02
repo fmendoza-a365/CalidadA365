@@ -36,6 +36,7 @@ class User extends Authenticatable
         'profile_photo_path',
         'password',
         'telegram_chat_id',
+        'status',
     ];
 
     /**
@@ -105,6 +106,11 @@ class User extends Authenticatable
         }
 
         return 'ring-1 ring-gray-200 dark:ring-gray-700';
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'Activo');
     }
 
     public function monitors()
