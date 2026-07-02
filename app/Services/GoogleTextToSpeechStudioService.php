@@ -95,17 +95,17 @@ class GoogleTextToSpeechStudioService
             throw new RuntimeException('Gemini TTS error: '.AiProviderErrors::sanitize($response->body()));
         }
 
-        $audioContent = $this->geminiAudioContent($response->json() ?? []);
-        if ($audioContent === null || $audioContent === '') {
-            throw new RuntimeException('Gemini TTS no devolvió audio en output_audio.data.');
+        $audio = $this->geminiAudio($response->json() ?? []);
+        if (($audio['data'] ?? '') === '') {
+            throw new RuntimeException('Gemini TTS no devolvió audio en la respuesta.');
         }
 
-        $audioBinary = base64_decode($audioContent, true);
+        $audioBinary = base64_decode($audio['data'], true);
         if ($audioBinary === false) {
             throw new RuntimeException('Gemini TTS devolvió audio inválido.');
         }
 
-        $audioBinary = $this->wavFromPcm($audioBinary);
+        $audioBinary = $this->wavFromPcm($audioBinary, $audio['sample_rate'], $audio['channels']);
 
         return [
             'content' => $audioBinary,
@@ -266,7 +266,10 @@ class GoogleTextToSpeechStudioService
             : $endpoint;
     }
 
-    private function geminiAudioContent(array $response): ?string
+    /**
+     * @return array{data: string, sample_rate: int, channels: int}
+     */
+    private function geminiAudio(array $response): array
     {
         foreach ([
             'output_audio.data',
@@ -277,11 +280,33 @@ class GoogleTextToSpeechStudioService
             $value = data_get($response, $path);
 
             if (is_string($value) && $value !== '') {
-                return $value;
+                return [
+                    'data' => $value,
+                    'sample_rate' => 24000,
+                    'channels' => 1,
+                ];
             }
         }
 
-        return null;
+        foreach (($response['steps'] ?? []) as $step) {
+            foreach (($step['content'] ?? []) as $content) {
+                $value = $content['data'] ?? null;
+
+                if (($content['type'] ?? null) === 'audio' && is_string($value) && $value !== '') {
+                    return [
+                        'data' => $value,
+                        'sample_rate' => (int) ($content['sample_rate'] ?? 24000),
+                        'channels' => (int) ($content['channels'] ?? 1),
+                    ];
+                }
+            }
+        }
+
+        return [
+            'data' => '',
+            'sample_rate' => 24000,
+            'channels' => 1,
+        ];
     }
 
     private function wavFromPcm(string $pcm, int $sampleRate = 24000, int $channels = 1, int $bitsPerSample = 16): string

@@ -106,8 +106,19 @@ class TextToSpeechStudioTest extends TestCase
         Storage::fake('local');
         Http::fake([
             'https://generativelanguage.googleapis.com/v1beta/interactions' => Http::response([
-                'output_audio' => [
-                    'data' => base64_encode('fake-pcm-audio'),
+                'steps' => [
+                    [
+                        'content' => [
+                            [
+                                'mime_type' => 'audio/l16',
+                                'data' => base64_encode('fake-pcm-audio'),
+                                'channels' => 1,
+                                'sample_rate' => 24000,
+                                'type' => 'audio',
+                            ],
+                        ],
+                        'type' => 'model_output',
+                    ],
                 ],
             ]),
         ]);
