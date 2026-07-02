@@ -237,6 +237,11 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        \Illuminate\Support\Facades\Log::info('UserController@update called', [
+            'user_id' => $user->id,
+            'request_all' => $request->all(),
+        ]);
+
         $request->validate([
             'username' => 'required|string|max:255|unique:users,username,'.$user->id,
             'name' => 'required|string|max:255',
@@ -251,6 +256,10 @@ class UserController extends Controller
 
         $userData = $request->except(['password', 'password_confirmation', 'role', 'profile_photo']);
         $userData['status'] = $request->input('status') ?: $user->status;
+
+        \Illuminate\Support\Facades\Log::info('UserController@update userData', [
+            'userData' => $userData,
+        ]);
 
         if ($request->filled('password')) {
             $request->validate(['password' => 'required|string|min:8|confirmed']);
@@ -273,6 +282,10 @@ class UserController extends Controller
         } else {
             $user->managedCampaigns()->detach();
         }
+
+        \Illuminate\Support\Facades\Log::info('UserController@update user updated', [
+            'fresh_status' => $user->fresh()->status,
+        ]);
 
         return redirect()->route('users.index')
             ->with('success', 'Usuario actualizado correctamente.');
