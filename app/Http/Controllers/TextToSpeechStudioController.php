@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Services\GoogleTextToSpeechStudioService;
+use App\Support\AiSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,11 @@ class TextToSpeechStudioController extends Controller
                 'gemini-2.5-flash-tts',
                 'gemini-2.5-pro-tts',
                 'gemini-2.5-flash-lite-preview-tts',
+            ],
+            'authModes' => [
+                'gemini_api_key' => 'Gemini API key',
+                'google_cloud_adc' => 'Google Cloud ADC / service account',
+                'google_cloud_access_token' => 'Google Cloud OAuth access token',
             ],
         ]);
     }
@@ -124,9 +130,19 @@ class TextToSpeechStudioController extends Controller
             $settings[$key] = Setting::get("tts_studio.{$key}", $default);
         }
 
+        if (($settings['auth_mode'] ?? '') === 'gemini_api_key'
+            && str_contains((string) $settings['endpoint'], 'texttospeech.googleapis.com')
+        ) {
+            $settings['endpoint'] = $defaults['gemini_endpoint'];
+        }
+
         $settings['audio_disk'] = $settings['audio_disk'] ?: config('filesystems.default', 'local');
         $settings['access_token_configured'] = trim((string) $settings['access_token']) !== '';
         $settings['masked_access_token'] = $this->maskedSecret((string) $settings['access_token']);
+        $settings['api_key_configured'] = trim((string) $settings['api_key']) !== '';
+        $settings['masked_api_key'] = $this->maskedSecret((string) $settings['api_key']);
+        $settings['gemini_ai_key_configured'] = AiSettings::apiKey('gemini') !== '';
+        $settings['masked_gemini_ai_key'] = AiSettings::maskedApiKey('gemini');
 
         return $settings;
     }
@@ -138,6 +154,7 @@ class TextToSpeechStudioController extends Controller
     {
         return [
             'intent' => ['required', 'in:save,generate'],
+            'auth_mode' => ['required', 'in:gemini_api_key,google_cloud_adc,google_cloud_access_token'],
             'endpoint' => ['required', 'url', 'max:255'],
             'model_name' => ['required', 'string', 'max:120'],
             'language_code' => ['required', 'string', 'max:20', 'regex:/^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/'],
@@ -148,7 +165,9 @@ class TextToSpeechStudioController extends Controller
             'style_instructions' => ['nullable', 'string', 'max:4000'],
             'credentials_path' => ['nullable', 'string', 'max:500'],
             'access_token' => ['nullable', 'string', 'max:5000'],
+            'api_key' => ['nullable', 'string', 'max:5000'],
             'clear_access_token' => ['nullable', 'boolean'],
+            'clear_api_key' => ['nullable', 'boolean'],
             'tts_text' => [$generate ? 'required' : 'nullable', 'string', 'max:5000'],
         ];
     }
@@ -156,7 +175,7 @@ class TextToSpeechStudioController extends Controller
     private function saveSettings(array $validated, Request $request): void
     {
         foreach ([
-            'endpoint', 'model_name', 'language_code', 'voice_name', 'audio_encoding',
+            'auth_mode', 'endpoint', 'model_name', 'language_code', 'voice_name', 'audio_encoding',
             'style_instructions', 'credentials_path',
         ] as $key) {
             Setting::set("tts_studio.{$key}", $validated[$key] ?? '', 'string', 'tts_studio');
@@ -164,6 +183,20 @@ class TextToSpeechStudioController extends Controller
 
         Setting::set('tts_studio.speaking_rate', (float) $validated['speaking_rate'], 'float', 'tts_studio');
         Setting::set('tts_studio.pitch', (float) $validated['pitch'], 'float', 'tts_studio');
+
+        if ($request->boolean('clear_api_key')) {
+            Setting::set('tts_studio.api_key', '', 'string', 'tts_studio');
+        } elseif ($request->filled('api_key')) {
+            Setting::set('tts_studio.api_key', (string) $validated['api_key'], 'string', 'tts_studio');
+        } elseif (($validated['auth_mode'] ?? '') === 'gemini_api_key'
+            && $request->filled('access_token')
+            && $this->looksLikeGoogleApiKey((string) $validated['access_token'])
+        ) {
+            Setting::set('tts_studio.api_key', (string) $validated['access_token'], 'string', 'tts_studio');
+            Setting::set('tts_studio.access_token', '', 'string', 'tts_studio');
+
+            return;
+        }
 
         if ($request->boolean('clear_access_token')) {
             Setting::set('tts_studio.access_token', '', 'string', 'tts_studio');
@@ -189,5 +222,10 @@ class TextToSpeechStudioController extends Controller
         $suffix = strlen($secret) > 4 ? substr($secret, -4) : '****';
 
         return "•••• •••• •••• {$suffix}";
+    }
+
+    private function looksLikeGoogleApiKey(string $value): bool
+    {
+        return str_starts_with(trim($value), 'AIza');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\AiProviderErrors;
+use App\Support\AiSettings;
 use Google\Auth\ApplicationDefaultCredentials;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -11,6 +12,8 @@ class GoogleTextToSpeechStudioService
 {
     public const DEFAULTS = [
         'endpoint' => 'https://texttospeech.googleapis.com/v1beta1/text:synthesize',
+        'gemini_endpoint' => 'https://generativelanguage.googleapis.com/v1beta/interactions',
+        'auth_mode' => 'gemini_api_key',
         'model_name' => 'gemini-3.1-flash-tts-preview',
         'language_code' => 'es-419',
         'voice_name' => 'Charon',
@@ -20,6 +23,7 @@ class GoogleTextToSpeechStudioService
         'style_instructions' => '',
         'credentials_path' => '',
         'access_token' => '',
+        'api_key' => '',
         'scope' => 'https://www.googleapis.com/auth/cloud-platform',
         'audio_disk' => null,
     ];
@@ -29,11 +33,23 @@ class GoogleTextToSpeechStudioService
      */
     public function synthesize(array $settings, string $text): array
     {
-        $payload = $this->payload($settings, $text);
+        if ($this->authMode($settings) === 'gemini_api_key') {
+            return $this->synthesizeWithGeminiApi($settings, $text);
+        }
 
-        $response = Http::withToken($this->accessToken($settings))
+        return $this->synthesizeWithCloudTts($settings, $text);
+    }
+
+    /**
+     * @return array{content: string, bytes: int, encoding: string, extension: string, mime: string, payload: array<string, mixed>}
+     */
+    private function synthesizeWithCloudTts(array $settings, string $text): array
+    {
+        $payload = $this->cloudPayload($settings, $text);
+
+        $response = Http::withToken($this->cloudAccessToken($settings))
             ->timeout(90)
-            ->post((string) $settings['endpoint'], $payload);
+            ->post($this->cloudEndpoint($settings), $payload);
 
         if ($response->failed()) {
             throw new RuntimeException('Google Cloud TTS error: '.AiProviderErrors::sanitize($response->body()));
@@ -62,20 +78,51 @@ class GoogleTextToSpeechStudioService
     }
 
     /**
+     * @return array{content: string, bytes: int, encoding: string, extension: string, mime: string, payload: array<string, mixed>}
+     */
+    private function synthesizeWithGeminiApi(array $settings, string $text): array
+    {
+        $payload = $this->geminiPayload($settings, $text);
+
+        $response = Http::withHeaders([
+            'x-goog-api-key' => $this->geminiApiKey($settings),
+            'Content-Type' => 'application/json',
+        ])
+            ->timeout(90)
+            ->post($this->geminiEndpoint($settings), $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Gemini TTS error: '.AiProviderErrors::sanitize($response->body()));
+        }
+
+        $audioContent = $this->geminiAudioContent($response->json() ?? []);
+        if ($audioContent === null || $audioContent === '') {
+            throw new RuntimeException('Gemini TTS no devolvió audio en output_audio.data.');
+        }
+
+        $audioBinary = base64_decode($audioContent, true);
+        if ($audioBinary === false) {
+            throw new RuntimeException('Gemini TTS devolvió audio inválido.');
+        }
+
+        $audioBinary = $this->wavFromPcm($audioBinary);
+
+        return [
+            'content' => $audioBinary,
+            'bytes' => strlen($audioBinary),
+            'encoding' => 'LINEAR16',
+            'extension' => 'wav',
+            'mime' => 'audio/wav',
+            'payload' => $payload,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function payload(array $settings, string $text): array
+    private function cloudPayload(array $settings, string $text): array
     {
-        $text = $this->normalizeInput($text, 5000);
-        if ($text === '') {
-            throw new RuntimeException('Ingresa texto para generar audio.');
-        }
-
-        $prompt = $this->normalizeInput((string) ($settings['style_instructions'] ?? ''), 4000);
-
-        if ($prompt !== '') {
-            $text = $prompt."\n\n".$text;
-        }
+        $text = $this->textWithStyle($settings, $text);
 
         return [
             'audioConfig' => [
@@ -94,13 +141,68 @@ class GoogleTextToSpeechStudioService
         ];
     }
 
-    private function accessToken(array $settings): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function geminiPayload(array $settings, string $text): array
+    {
+        return [
+            'model' => (string) $settings['model_name'],
+            'input' => $this->textWithStyle($settings, $text),
+            'response_format' => [
+                'type' => 'audio',
+            ],
+            'generation_config' => [
+                'speech_config' => [
+                    [
+                        'voice' => (string) $settings['voice_name'],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function textWithStyle(array $settings, string $text): string
+    {
+        $text = $this->normalizeInput($text, 5000);
+        if ($text === '') {
+            throw new RuntimeException('Ingresa texto para generar audio.');
+        }
+
+        $prompt = $this->normalizeInput((string) ($settings['style_instructions'] ?? ''), 4000);
+
+        if ($prompt !== '') {
+            $text = $prompt."\n\n".$text;
+        }
+
+        return $text;
+    }
+
+    private function cloudAccessToken(array $settings): string
+    {
+        if ($this->authMode($settings) === 'google_cloud_access_token') {
+            return $this->configuredOAuthToken($settings);
+        }
+
+        return $this->applicationDefaultAccessToken($settings);
+    }
+
+    private function configuredOAuthToken(array $settings): string
     {
         $configuredToken = trim((string) ($settings['access_token'] ?? ''));
         if ($configuredToken !== '') {
+            if ($this->looksLikeGoogleApiKey($configuredToken)) {
+                throw new RuntimeException('El valor ingresado parece una API key de Gemini. Para Cloud TTS usa un OAuth 2 access token o cambia el modo a Gemini API key.');
+            }
+
             return $configuredToken;
         }
 
+        throw new RuntimeException('Ingresa un OAuth 2 access token temporal o cambia el modo de autenticación.');
+    }
+
+    private function applicationDefaultAccessToken(array $settings): string
+    {
         $credentialsPath = trim((string) ($settings['credentials_path'] ?? ''));
         if ($credentialsPath !== '') {
             putenv('GOOGLE_APPLICATION_CREDENTIALS='.$credentialsPath);
@@ -115,6 +217,97 @@ class GoogleTextToSpeechStudioService
         }
 
         return $accessToken;
+    }
+
+    private function geminiApiKey(array $settings): string
+    {
+        $apiKey = trim((string) ($settings['api_key'] ?? ''));
+        if ($apiKey !== '') {
+            return $apiKey;
+        }
+
+        $legacyToken = trim((string) ($settings['access_token'] ?? ''));
+        if ($this->looksLikeGoogleApiKey($legacyToken)) {
+            return $legacyToken;
+        }
+
+        $apiKey = AiSettings::apiKey('gemini');
+        if ($apiKey !== '') {
+            return $apiKey;
+        }
+
+        throw new RuntimeException('Configura una API key de Gemini o guarda una API key de Gemini en Configuración IA.');
+    }
+
+    private function authMode(array $settings): string
+    {
+        $mode = (string) ($settings['auth_mode'] ?? self::DEFAULTS['auth_mode']);
+
+        return in_array($mode, ['gemini_api_key', 'google_cloud_adc', 'google_cloud_access_token'], true)
+            ? $mode
+            : self::DEFAULTS['auth_mode'];
+    }
+
+    private function cloudEndpoint(array $settings): string
+    {
+        $endpoint = trim((string) ($settings['endpoint'] ?? ''));
+
+        return $endpoint === '' || str_contains($endpoint, 'generativelanguage.googleapis.com')
+            ? self::DEFAULTS['endpoint']
+            : $endpoint;
+    }
+
+    private function geminiEndpoint(array $settings): string
+    {
+        $endpoint = trim((string) ($settings['endpoint'] ?? ''));
+
+        return $endpoint === '' || str_contains($endpoint, 'texttospeech.googleapis.com')
+            ? self::DEFAULTS['gemini_endpoint']
+            : $endpoint;
+    }
+
+    private function geminiAudioContent(array $response): ?string
+    {
+        foreach ([
+            'output_audio.data',
+            'outputAudio.data',
+            'output_audio.inline_data.data',
+            'outputAudio.inlineData.data',
+        ] as $path) {
+            $value = data_get($response, $path);
+
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function wavFromPcm(string $pcm, int $sampleRate = 24000, int $channels = 1, int $bitsPerSample = 16): string
+    {
+        if (str_starts_with($pcm, 'RIFF')) {
+            return $pcm;
+        }
+
+        $bytesPerSample = intdiv($bitsPerSample, 8);
+        $dataLength = strlen($pcm);
+        $byteRate = $sampleRate * $channels * $bytesPerSample;
+        $blockAlign = $channels * $bytesPerSample;
+
+        return 'RIFF'
+            .pack('V', 36 + $dataLength)
+            .'WAVE'
+            .'fmt '
+            .pack('VvvVVvv', 16, 1, $channels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample)
+            .'data'
+            .pack('V', $dataLength)
+            .$pcm;
+    }
+
+    private function looksLikeGoogleApiKey(string $value): bool
+    {
+        return str_starts_with(trim($value), 'AIza');
     }
 
     private function normalizeInput(string $text, int $maxBytes): string

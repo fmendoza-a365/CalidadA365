@@ -55,6 +55,28 @@
                     <h3 class="font-semibold text-gray-900 dark:text-white">Configuración Google TTS</h3>
                 </div>
                 <div class="card-body space-y-5">
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <div class="form-group">
+                            <label for="auth_mode" class="form-label">Modo de autenticación</label>
+                            <select name="auth_mode" id="auth_mode" class="form-select">
+                                @foreach($authModes as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('auth_mode', $settings['auth_mode']) === $value)>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                Gemini API key usa la clave guardada en Configuración IA si no ingresas una clave propia.
+                            </p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="endpoint" class="form-label">Endpoint</label>
+                            <input type="url" name="endpoint" id="endpoint"
+                                value="{{ old('endpoint', $settings['endpoint']) }}" class="form-input">
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         <div class="form-group">
                             <label for="model_name" class="form-label">Modelo</label>
@@ -108,15 +130,31 @@
                             <input type="number" step="0.5" min="-20" max="20" name="pitch" id="pitch"
                                 value="{{ old('pitch', $settings['pitch']) }}" class="form-input">
                         </div>
-
-                        <div class="form-group">
-                            <label for="endpoint" class="form-label">Endpoint</label>
-                            <input type="url" name="endpoint" id="endpoint"
-                                value="{{ old('endpoint', $settings['endpoint']) }}" class="form-input">
-                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <div class="form-group">
+                            <label for="api_key" class="form-label">API key Gemini</label>
+                            @if($settings['api_key_configured'])
+                                <div class="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                                    <span class="font-medium text-emerald-700 dark:text-emerald-300">API key TTS guardada</span>
+                                    <span class="ml-2 font-mono text-xs text-emerald-700 dark:text-emerald-200">{{ $settings['masked_api_key'] }}</span>
+                                </div>
+                            @elseif($settings['gemini_ai_key_configured'])
+                                <div class="mb-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm dark:border-blue-500/20 dark:bg-blue-500/10">
+                                    <span class="font-medium text-blue-700 dark:text-blue-300">Usará la API key Gemini de Configuración IA</span>
+                                    <span class="ml-2 font-mono text-xs text-blue-700 dark:text-blue-200">{{ $settings['masked_gemini_ai_key'] }}</span>
+                                </div>
+                            @endif
+                            <input type="password" name="api_key" id="api_key" value="" class="form-input" autocomplete="off">
+                            @if($settings['api_key_configured'])
+                                <label class="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                    <input type="checkbox" name="clear_api_key" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                                    Quitar API key TTS guardada
+                                </label>
+                            @endif
+                        </div>
+
                         <div class="form-group">
                             <label for="credentials_path" class="form-label">Credenciales ADC</label>
                             <input type="text" name="credentials_path" id="credentials_path"
@@ -125,14 +163,17 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="access_token" class="form-label">Access token temporal</label>
+                            <label for="access_token" class="form-label">OAuth access token temporal</label>
                             @if($settings['access_token_configured'])
                                 <div class="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
-                                    <span class="font-medium text-emerald-700 dark:text-emerald-300">Token guardado</span>
+                                    <span class="font-medium text-emerald-700 dark:text-emerald-300">OAuth token guardado</span>
                                     <span class="ml-2 font-mono text-xs text-emerald-700 dark:text-emerald-200">{{ $settings['masked_access_token'] }}</span>
                                 </div>
                             @endif
                             <input type="password" name="access_token" id="access_token" value="" class="form-input" autocomplete="off">
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                Solo para Google Cloud OAuth. No pegues aquí una API key.
+                            </p>
                             @if($settings['access_token_configured'])
                                 <label class="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                                     <input type="checkbox" name="clear_access_token" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
