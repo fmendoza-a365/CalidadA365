@@ -16,6 +16,7 @@ class GoogleTextToSpeechStudioService
         'auth_mode' => 'gemini_api_key',
         'model_name' => 'gemini-3.1-flash-tts-preview',
         'language_code' => 'es-419',
+        'language_label' => 'Español (Latinoamérica)',
         'voice_name' => 'Charon',
         'audio_encoding' => 'LINEAR16',
         'speaking_rate' => 1.0,
@@ -170,9 +171,14 @@ class GoogleTextToSpeechStudioService
         }
 
         $prompt = $this->normalizeInput((string) ($settings['style_instructions'] ?? ''), 4000);
+        $directives = $this->voiceDirectives($settings);
 
         if ($prompt !== '') {
-            $text = $prompt."\n\n".$text;
+            $directives[] = $prompt;
+        }
+
+        if ($directives !== []) {
+            $text = implode(' ', $directives)."\n\n".$text;
         }
 
         return $text;
@@ -344,6 +350,47 @@ class GoogleTextToSpeechStudioService
         }
 
         return rtrim(mb_strcut($text, 0, $maxBytes, 'UTF-8'));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function voiceDirectives(array $settings): array
+    {
+        $directives = [];
+        $language = trim((string) ($settings['language_label'] ?? ''));
+
+        if ($language !== '') {
+            $directives[] = "Lee en {$language}.";
+        }
+
+        $speakingRate = (float) ($settings['speaking_rate'] ?? 1.0);
+        if ($speakingRate <= 0.75) {
+            $directives[] = 'Usa un ritmo pausado.';
+        } elseif ($speakingRate < 0.95) {
+            $directives[] = 'Usa un ritmo ligeramente pausado.';
+        } elseif ($speakingRate > 1.25) {
+            $directives[] = 'Usa un ritmo ágil.';
+        } elseif ($speakingRate > 1.05) {
+            $directives[] = 'Usa un ritmo ligeramente ágil.';
+        } else {
+            $directives[] = 'Usa un ritmo natural.';
+        }
+
+        $pitch = (float) ($settings['pitch'] ?? 0.0);
+        if ($pitch <= -8) {
+            $directives[] = 'Usa un tono más grave.';
+        } elseif ($pitch < -2) {
+            $directives[] = 'Usa un tono ligeramente grave.';
+        } elseif ($pitch >= 8) {
+            $directives[] = 'Usa un tono más agudo.';
+        } elseif ($pitch > 2) {
+            $directives[] = 'Usa un tono ligeramente agudo.';
+        } else {
+            $directives[] = 'Usa un tono natural.';
+        }
+
+        return $directives;
     }
 
     private function extensionForEncoding(string $encoding): string
