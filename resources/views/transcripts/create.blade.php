@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">Cargar Interacción</x-slot>
 
-    <div class="mx-auto max-w-[1280px]">
+    <div class="w-full">
         <form method="POST" action="{{ route('transcripts.store') }}" enctype="multipart/form-data"
             class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
             x-data="{ submitting: false, fileCount: 0, fileSize: '0 B' }"

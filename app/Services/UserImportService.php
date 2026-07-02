@@ -31,6 +31,23 @@ class UserImportService
 
         $usernameMap = $this->buildUsernameMap($rows);
 
+        // Process supervisors and administrative roles before agents so agent
+        // rows can resolve supervisors created by the same import batch.
+        usort($rows, function ($a, $b) {
+            $roleA = CsvImport::value($a, ['role', 'rol'], 'agent');
+            $roleB = CsvImport::value($b, ['role', 'rol'], 'agent');
+
+            if ($roleA === 'agent' && $roleB !== 'agent') {
+                return 1;
+            }
+
+            if ($roleA !== 'agent' && $roleB === 'agent') {
+                return -1;
+            }
+
+            return 0;
+        });
+
         foreach ($rows as $row) {
             $name = CsvImport::value($row, ['name', 'nombre', 'nombres']);
             $paternal = CsvImport::value($row, ['paternal_surname', 'apellido_paterno']);

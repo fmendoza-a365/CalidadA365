@@ -56,6 +56,7 @@ class AiProviderErrors
     public static function sanitize(string $message): string
     {
         $message = preg_replace('/([?&]key=)[^&\s"]+/i', '$1[redacted]', $message) ?? $message;
+        $message = preg_replace('/AQ\.[0-9A-Za-z_\-]{20,}/', '[redacted-api-key]', $message) ?? $message;
         $message = preg_replace('/AIza[0-9A-Za-z_\-]{20,}/', '[redacted-api-key]', $message) ?? $message;
         $message = preg_replace('/sk-[A-Za-z0-9_\-]{20,}/', '[redacted-api-key]', $message) ?? $message;
 

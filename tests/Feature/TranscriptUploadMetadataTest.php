@@ -104,6 +104,19 @@ class TranscriptUploadMetadataTest extends TestCase
             ->assertOk()
             ->assertSee('SN-ABC-123')
             ->assertSee('CRM-987');
+
+        $this->actingAs($admin)
+            ->get(route('transcripts.index', ['search' => (string) $interaction->id]))
+            ->assertOk()
+            ->assertSee('SN-ABC-123')
+            ->assertSee('CRM-987');
+
+        $interaction->update(['call_sn' => '178136128306096444815426329481']);
+
+        $this->actingAs($admin)
+            ->get(route('transcripts.index', ['search' => '178136128306096444815426329481']))
+            ->assertOk()
+            ->assertSee('178136128306096444815426329481');
     }
 
     public function test_audio_transcription_derives_duration_from_wav_file(): void

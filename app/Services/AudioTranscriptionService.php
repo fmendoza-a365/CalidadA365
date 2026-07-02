@@ -278,6 +278,8 @@ PROMPT;
                     'acoustic_analysis' => $this->mergeTechnicalSilenceAnalysis([], $technicalSilence),
                     'quality_signals' => null,
                     'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
+                    'provider' => 'gemini',
+                    'model' => $this->model,
                 ];
             }
 
@@ -295,6 +297,8 @@ PROMPT;
                 'acoustic_analysis' => $acousticAnalysis,
                 'quality_signals' => $parsed['quality_signals'] ?? null,
                 'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
+                'provider' => 'gemini',
+                'model' => $this->model,
             ];
 
         } catch (\Illuminate\Http\Client\ConnectionException $e) {

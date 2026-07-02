@@ -239,7 +239,8 @@ class AIEvaluationService
                 continue; // Try next provider (issue may be provider-specific)
             } catch (\Exception $e) {
                 $lastException = $e;
-                Log::error("AI failover: {$attemptProvider} error inesperado para interacción {$interaction->id}: ".$e->getMessage());
+                $safeMessage = AiProviderErrors::sanitize($e->getMessage());
+                Log::error("AI failover: {$attemptProvider} error inesperado para interacción {$interaction->id}: ".$safeMessage);
                 $this->provider = $previousProvider ?? $this->provider;
                 continue;
             }
@@ -566,7 +567,7 @@ PROMPT;
             $requestText = $cacheId ? $dynamicPrompt : $prompt;
         }
 
-        $response = Http::timeout(120)->post($url, $this->geminiPayload($requestText, $cacheId));
+        $response = Http::timeout(300)->post($url, $this->geminiPayload($requestText, $cacheId));
 
         if ($response->failed()) {
             $message = $response->json('error.message', $response->body());
@@ -575,7 +576,7 @@ PROMPT;
                 $this->geminiContextCache()->clear($formVersion);
                 $cacheResult['status'] = 'invalid_retry_full';
                 $cacheId = null;
-                $response = Http::timeout(120)->post($url, $this->geminiPayload($prompt, null));
+                $response = Http::timeout(300)->post($url, $this->geminiPayload($prompt, null));
             }
         }
 

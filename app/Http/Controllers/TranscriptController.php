@@ -132,8 +132,8 @@ class TranscriptController extends Controller
                     ->orWhere('contact_reason', 'like', "%{$search}%")
                     ->orWhere('customer_reference', 'like', "%{$search}%");
 
-                if (ctype_digit($search)) {
-                    $query->orWhereKey((int) $search);
+                if ($this->isIntegerKeySearch($search)) {
+                    $query->orWhere($query->getModel()->getQualifiedKeyName(), (int) $search);
                 }
             });
         }
@@ -146,6 +146,23 @@ class TranscriptController extends Controller
             ->get(['id', 'name', 'paternal_surname', 'maternal_surname']);
 
         return view('transcripts.index', compact('interactions', 'campaigns', 'formOptions', 'uploaders'));
+    }
+
+    private function isIntegerKeySearch(string $search): bool
+    {
+        if (! ctype_digit($search)) {
+            return false;
+        }
+
+        $normalized = ltrim($search, '0');
+        if ($normalized === '') {
+            return true;
+        }
+
+        $maxInteger = (string) PHP_INT_MAX;
+
+        return strlen($normalized) < strlen($maxInteger)
+            || (strlen($normalized) === strlen($maxInteger) && strcmp($normalized, $maxInteger) <= 0);
     }
 
     public function create()

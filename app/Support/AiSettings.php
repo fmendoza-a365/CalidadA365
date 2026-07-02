@@ -54,20 +54,24 @@ class AiSettings
     /**
      * Ordered list of providers to try, starting with the preferred one.
      * Only includes providers that have an API key configured.
-     * Always includes 'simulated' as the last fallback.
+     * Simulated fallback is disabled in production so failed AI calls can retry
+     * instead of creating non-real quality evaluations.
      */
     public static function failoverChain(?string $preferred = null): array
     {
         $preferred ??= self::provider();
         $candidates = ['gemini', 'openai', 'claude'];
 
-        // Put the preferred provider first, then the rest in default order
-        $ordered = array_unique(array_merge([$preferred], $candidates));
+        // In production, keep evaluations on the configured provider. Cross-provider
+        // fallback can mix scoring behavior and hide transient quota errors.
+        $ordered = app()->environment('production')
+            ? [$preferred]
+            : array_unique(array_merge([$preferred], $candidates));
 
-        // Filter to only configured providers, always append simulated as last resort
+        // Filter to only configured providers.
         $chain = array_values(array_filter($ordered, fn($p) => self::isConfigured($p)));
 
-        if (! in_array('simulated', $chain, true)) {
+        if (! app()->environment('production') && ! in_array('simulated', $chain, true)) {
             $chain[] = 'simulated';
         }
 
@@ -129,6 +133,7 @@ class AiSettings
     public static function transcriptionConfig(): array
     {
         return [
+            'provider' => 'gemini',
             'api_key' => self::apiKey('gemini'),
             'model' => (string) self::get('gemini_model'),
             'temperature' => (float) self::get('gemini_temperature'),

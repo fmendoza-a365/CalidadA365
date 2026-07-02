@@ -10,6 +10,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SamplingPlanController;
 use App\Http\Controllers\StaffingController;
+use App\Http\Controllers\TextToSpeechStudioController;
 use App\Http\Controllers\TranscriptController;
 use Illuminate\Support\Facades\Route;
 
@@ -150,9 +151,11 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('evaluations', EvaluationController::class)->only(['index', 'show']);
 
     // Exportaciones
-    Route::get('exports/evaluations.csv', [ExportController::class, 'evaluations'])
+    Route::get('exports/evaluations.xlsx', [ExportController::class, 'evaluations'])
         ->middleware('permission:export_evaluations')
         ->name('exports.evaluations');
+    Route::get('exports/evaluations.csv', [ExportController::class, 'evaluations'])
+        ->middleware('permission:export_evaluations');
     Route::get('exports/calibration.csv', [ExportController::class, 'calibration'])
         ->middleware('permission:export_calibration')
         ->name('exports.calibration');
@@ -241,6 +244,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('settings.ai.update');
         Route::post('settings/ai/test', [\App\Http\Controllers\SettingsController::class, 'testAiConnection'])
             ->name('settings.ai.test');
+        Route::get('settings/tts', [TextToSpeechStudioController::class, 'index'])
+            ->name('settings.tts');
+        Route::post('settings/tts', [TextToSpeechStudioController::class, 'store'])
+            ->name('settings.tts.store');
+        Route::get('settings/tts/download', [TextToSpeechStudioController::class, 'download'])
+            ->name('settings.tts.download');
     });
 
     Route::get('settings/ai/performance', [\App\Http\Controllers\SettingsController::class, 'aiPerformance'])

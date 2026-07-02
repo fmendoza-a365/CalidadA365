@@ -7,6 +7,7 @@ use App\Exceptions\TransientAiProviderException;
 use App\Models\Evaluation;
 use App\Models\Interaction;
 use App\Services\AIEvaluationService;
+use App\Support\AiProviderErrors;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -165,15 +166,16 @@ class ScoreTranscriptJob implements ShouldQueue
         } catch (\Exception $e) {
             $interaction->update(['status' => 'uploaded']);
             $fromStatus = $existingAiEvaluation->status;
+            $safeMessage = AiProviderErrors::sanitize($e->getMessage());
             $existingAiEvaluation->update([
                 'status' => Evaluation::STATUS_AI_FAILED,
-                'ai_summary' => 'La evaluación IA falló: '.$e->getMessage(),
+                'ai_summary' => 'La evaluación IA falló: '.$safeMessage,
             ]);
             $existingAiEvaluation->recordAuditEvent('ai_failed', null, [
                 'source' => 'job_exception',
                 'exception_class' => get_class($e),
             ], $fromStatus, Evaluation::STATUS_AI_FAILED);
-            Log::error("Error evaluating interaction {$this->interactionId}: ".$e->getMessage());
+            Log::error("Error evaluating interaction {$this->interactionId}: ".$safeMessage);
             throw $e;
         }
     }
@@ -225,9 +227,10 @@ class ScoreTranscriptJob implements ShouldQueue
             $evaluation = $interaction->aiEvaluation()->first();
             if ($evaluation) {
                 $fromStatus = $evaluation->status;
+                $safeMessage = AiProviderErrors::sanitize($exception->getMessage());
                 $evaluation->update([
                     'status' => Evaluation::STATUS_AI_FAILED,
-                    'ai_summary' => 'La evaluación IA falló en cola: '.$exception->getMessage(),
+                    'ai_summary' => 'La evaluación IA falló en cola: '.$safeMessage,
                 ]);
                 $evaluation->recordAuditEvent('ai_failed', null, [
                     'source' => 'queue_failed',
@@ -236,6 +239,6 @@ class ScoreTranscriptJob implements ShouldQueue
             }
         }
 
-        Log::error("ScoreTranscriptJob failed for interaction {$this->interactionId}: ".$exception->getMessage());
+        Log::error("ScoreTranscriptJob failed for interaction {$this->interactionId}: ".AiProviderErrors::sanitize($exception->getMessage()));
     }
 }

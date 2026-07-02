@@ -6,6 +6,7 @@ use App\Exceptions\PermanentAiProviderException;
 use App\Exceptions\TransientAiProviderException;
 use App\Models\Interaction;
 use App\Services\AudioTranscriptionService;
+use App\Support\AiProviderErrors;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -132,6 +133,12 @@ class TranscribeAudioJob implements ShouldQueue
 
             $metadata = $updateData['metadata'] ?? ($interaction->metadata ?? []);
             $metadata['transcription_completed_at'] = now()->toIso8601String();
+            if (! empty($result['provider'])) {
+                $metadata['transcription_provider'] = $result['provider'];
+            }
+            if (! empty($result['model'])) {
+                $metadata['transcription_model'] = $result['model'];
+            }
             $updateData['metadata'] = $metadata;
 
             $interaction->update($updateData);
@@ -165,7 +172,7 @@ class TranscribeAudioJob implements ShouldQueue
 
             return;
         } catch (\Exception $e) {
-            Log::error("TranscribeAudioJob: Attempt {$this->attempts()} failed for interaction {$this->interactionId}: ".$e->getMessage());
+            Log::error("TranscribeAudioJob: Attempt {$this->attempts()} failed for interaction {$this->interactionId}: ".AiProviderErrors::sanitize($e->getMessage()));
             throw $e;
         }
     }
@@ -188,6 +195,6 @@ class TranscribeAudioJob implements ShouldQueue
             ]);
         }
 
-        Log::error("TranscribeAudioJob: Permanently failed for interaction {$this->interactionId}: ".$exception->getMessage());
+        Log::error("TranscribeAudioJob: Permanently failed for interaction {$this->interactionId}: ".AiProviderErrors::sanitize($exception->getMessage()));
     }
 }
