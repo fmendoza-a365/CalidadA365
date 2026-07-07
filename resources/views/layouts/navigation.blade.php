@@ -16,25 +16,33 @@
                         {{ __('Dashboard') }}
                     </x-nav-link>
 
-                    @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'supervisor']))
+                    @if(auth()->user()->hasAnyRole(['admin', 'qa_manager']) || auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts') || auth()->user()->can('view_insights'))
+                        @if(auth()->user()->can('view_campaigns') || auth()->user()->hasAnyRole(['admin', 'qa_manager']))
                         <x-nav-link :href="route('campaigns.index')" :active="request()->routeIs('campaigns.*')">
                             Campañas
                         </x-nav-link>
+                        @endif
 
+                        @if(auth()->user()->can('view_quality_forms') || auth()->user()->hasAnyRole(['admin', 'qa_manager']))
                         <x-nav-link :href="route('quality-forms.index')" :active="request()->routeIs('quality-forms.*')">
                             Fichas de Calidad
                         </x-nav-link>
+                        @endif
 
+                        @if(auth()->user()->can('view_transcripts'))
                         <x-nav-link :href="route('transcripts.index')" :active="request()->routeIs('transcripts.*')">
                             Transcripciones
                         </x-nav-link>
+                        @endif
 
+                        @if(auth()->user()->can('view_insights'))
                         <x-nav-link :href="route('insights.index')" :active="request()->routeIs('insights.*')">
                             Insights IA
                         </x-nav-link>
+                        @endif
                     @endif
 
-                    @if(!auth()->user()->hasRole('agent'))
+                    @if(auth()->user()->can('view_work_queue') || auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager']))
                         <x-nav-link :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')">
                             Bandeja
                         </x-nav-link>
@@ -112,25 +120,33 @@
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
 
-            @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'supervisor']))
+            @if(auth()->user()->hasAnyRole(['admin', 'qa_manager']) || auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts') || auth()->user()->can('view_insights'))
+                @if(auth()->user()->can('view_campaigns') || auth()->user()->hasAnyRole(['admin', 'qa_manager']))
                 <x-responsive-nav-link :href="route('campaigns.index')" :active="request()->routeIs('campaigns.*')">
                     Campañas
                 </x-responsive-nav-link>
+                @endif
 
+                @if(auth()->user()->can('view_quality_forms') || auth()->user()->hasAnyRole(['admin', 'qa_manager']))
                 <x-responsive-nav-link :href="route('quality-forms.index')" :active="request()->routeIs('quality-forms.*')">
                     Fichas de Calidad
                 </x-responsive-nav-link>
+                @endif
 
+                @if(auth()->user()->can('view_transcripts'))
                 <x-responsive-nav-link :href="route('transcripts.index')" :active="request()->routeIs('transcripts.*')">
                     Transcripciones
                 </x-responsive-nav-link>
+                @endif
 
+                @if(auth()->user()->can('view_insights'))
                 <x-responsive-nav-link :href="route('insights.index')" :active="request()->routeIs('insights.*')">
                     Insights IA
                 </x-responsive-nav-link>
+                @endif
             @endif
 
-            @if(!auth()->user()->hasRole('agent'))
+            @if(auth()->user()->can('view_work_queue') || auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager']))
                 <x-responsive-nav-link :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')">
                     Bandeja
                 </x-responsive-nav-link>

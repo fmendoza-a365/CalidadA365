@@ -15,7 +15,7 @@ class EvaluationWorkQueueController extends Controller
     {
         $user = auth()->user();
 
-        if (! $user->can('view_work_queue') && ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'supervisor', 'manager'])) {
+        if (! $user->can('view_work_queue') && ! $user->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager'])) {
             abort(403);
         }
 

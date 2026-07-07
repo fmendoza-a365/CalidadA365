@@ -129,12 +129,6 @@ class PermissionSeeder extends Seeder
             ]);
         }
 
-        // Assign Insights View to Supervisor
-        $supervisor = \Spatie\Permission\Models\Role::where('name', 'supervisor')->first();
-        if ($supervisor) {
-            $supervisor->givePermissionTo(['view_insights', 'view_sampling', 'view_staffing']);
-        }
-
         // Assign Agent Permissions
         $agentRole = \Spatie\Permission\Models\Role::where('name', 'agent')->first();
         if ($agentRole) {
@@ -174,14 +168,22 @@ class PermissionSeeder extends Seeder
                 'view_team_evaluations', // Scope filters by agent assignment
                 'view_campaigns',
                 'view_quality_forms',
-                'view_transcripts',
                 'view_supervisor_dashboard',
-                'view_insights',
                 'export_evaluations',
+                'review_disputes',
+            ]);
+            $supervisorRole->revokePermissionTo([
+                'view_transcripts',
+                'create_transcripts',
+                'edit_transcripts',
+                'delete_transcripts',
+                'view_insights',
+                'generate_insights',
                 'view_work_queue',
                 'view_sampling',
+                'manage_sampling',
                 'view_staffing',
-                'review_disputes',
+                'manage_staffing',
             ]);
         }
 

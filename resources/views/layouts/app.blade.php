@@ -135,7 +135,7 @@
 
                 <p class="px-3 py-2 mt-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Operación</p>
 
-                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager', 'supervisor']) || auth()->user()->can('view_work_queue'))
+                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager']) || auth()->user()->can('view_work_queue'))
                     <a href="{{ route('work-queue.index') }}"
                         class="nav-item {{ request()->routeIs('work-queue.*') ? 'nav-item-active' : '' }}"
                         title="Bandeja">
@@ -147,7 +147,7 @@
                     </a>
                 @endif
 
-                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager', 'supervisor']) || auth()->user()->can('view_sampling'))
+                @if(auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager']) || auth()->user()->can('view_sampling'))
                     <a href="{{ route('sampling.index') }}"
                         class="nav-item {{ request()->routeIs('sampling.*') ? 'nav-item-active' : '' }}"
                         title="Muestreo QA">

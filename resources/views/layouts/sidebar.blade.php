@@ -36,7 +36,7 @@
             </x-nav-link-sidebar>
         </div>
 
-        @if(auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts'))
+        @if(auth()->user()->can('view_campaigns') || auth()->user()->can('view_quality_forms') || auth()->user()->can('view_transcripts') || auth()->user()->can('view_insights'))
             <!-- Menu Group: Gestión -->
             <div class="mb-6">
                 <p x-show="open"
@@ -58,21 +58,19 @@
                     </x-nav-link-sidebar>
                 @endcan
 
-                <!-- Transcripciones moved here logically or checking where it was? -->
-                <!-- Wait, in the file view, Transcripts was in 'Operación' group in line 67. The USER screenshot shows Transcripts in 'GESTIÓN'. -->
-                <!-- The user screenshot shows: GESTIÓN -> Campañas, Fichas, Transcripciones. -->
-                <!-- The file content shows: Operación -> Transcripciones. -->
-                <!-- I should move Transcriptions to Gestión to match User Screenshot AND add Insights there too. -->
+                @can('view_transcripts')
+                    <x-nav-link-sidebar :href="route('transcripts.index')" :active="request()->routeIs('transcripts.*')"
+                        icon="document-text" :open="true">
+                        Transcripciones
+                    </x-nav-link-sidebar>
+                @endcan
 
-                <x-nav-link-sidebar :href="route('transcripts.index')" :active="request()->routeIs('transcripts.*')"
-                    icon="document-text" :open="true">
-                    Transcripciones
-                </x-nav-link-sidebar>
-
-                <x-nav-link-sidebar :href="route('insights.index')" :active="request()->routeIs('insights.*')"
-                    icon="document-report" :open="true">
-                    Insights IA
-                </x-nav-link-sidebar>
+                @can('view_insights')
+                    <x-nav-link-sidebar :href="route('insights.index')" :active="request()->routeIs('insights.*')"
+                        icon="document-report" :open="true">
+                        Insights IA
+                    </x-nav-link-sidebar>
+                @endcan
             </div>
         @endif
 
@@ -83,7 +81,7 @@
                 Operación
             </p>
 
-            @if(!auth()->user()->hasRole('agent'))
+            @if(auth()->user()->can('view_work_queue') || auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager']))
                 <x-nav-link-sidebar :href="route('work-queue.index')" :active="request()->routeIs('work-queue.*')"
                     icon="clipboard-list" :open="true">
                     Bandeja

@@ -418,7 +418,7 @@ class SamplingPlanController extends Controller
 
     private function authorizeSamplingAccess(): void
     {
-        if (! auth()->user()->can('view_sampling') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'supervisor', 'manager'])) {
+        if (! auth()->user()->can('view_sampling') && ! auth()->user()->hasAnyRole(['admin', 'qa_manager', 'qa_coordinator', 'qa_monitor', 'manager'])) {
             abort(403);
         }
     }
