@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\TransientAiProviderException;
 use App\Support\AiProviderErrors;
 use App\Support\AiSettings;
 use Illuminate\Support\Facades\Http;
@@ -231,6 +232,7 @@ PROMPT;
                         'topP' => 0.1,
                         'topK' => 1,
                         'maxOutputTokens' => 16384,
+                        'responseMimeType' => 'application/json',
                     ],
                 ]);
 
@@ -248,45 +250,61 @@ PROMPT;
                 throw new \Exception('Gemini returned an empty response.');
             }
 
-            // Clean loops if any survived
-            $rawText = $this->cleanHallucinatedLoops($rawText);
+            $rawText = $this->normalizeGeminiText($rawText);
+            $parsed = $this->parseJsonPayload($rawText);
 
-            // Clean markdown code fences if present
-            $rawText = preg_replace('/^```(?:json)?\s*/m', '', $rawText);
-            $rawText = preg_replace('/\s*```$/m', '', $rawText);
-            $rawText = trim($rawText);
+            if (! is_array($parsed) || ! isset($parsed['transcript'])) {
+                $cleanTranscript = $this->extractTranscriptFallback($parsed, $rawText);
 
-            // Robust extraction: if it doesn't parse as a whole, try to extract the first { ... } block
-            $parsed = json_decode($rawText, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                if (preg_match('/\{(?:[^{}]|(?R))*\}/s', $rawText, $matches)) {
-                    $jsonCandidate = trim($matches[0]);
-                    $parsed = json_decode($jsonCandidate, true);
+                if ($cleanTranscript === null) {
+                    throw new TransientAiProviderException(
+                        'Gemini did not return valid transcription JSON with required audio analysis.',
+                        'gemini'
+                    );
                 }
-            }
 
-            if (json_last_error() !== JSON_ERROR_NONE || ! isset($parsed['transcript'])) {
-                // Fallback: treat the entire response as plain transcript text
-                Log::warning('AudioTranscriptionService: Could not parse JSON, using raw text as transcript');
-                $cleanTranscript = str_replace('\n', "\n", $rawText);
+                Log::warning('AudioTranscriptionService: Could not parse full JSON; running second-pass audio analysis');
 
-                return [
+                $analysis = $this->analyzeAudioSignals(
+                    $base64Audio,
+                    $mimeType,
+                    $cleanTranscript,
+                    $technicalSilence
+                );
+
+                return array_merge($analysis, [
                     'transcript' => $cleanTranscript,
-                    'sentiment' => null,
-                    'sentiment_segments' => [],
-                    'acoustic_analysis' => $this->mergeTechnicalSilenceAnalysis([], $technicalSilence),
-                    'quality_signals' => null,
                     'duration_seconds' => $audioDurationSeconds ?? $this->durationSecondsFromTranscript($cleanTranscript),
                     'provider' => 'gemini',
                     'model' => $this->model,
-                ];
+                ]);
             }
 
             // Clean literal \n if they survived in the transcript field
             $cleanTranscript = str_replace('\n', "\n", $parsed['transcript']);
             $parsedAcousticAnalysis = is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [];
             $acousticAnalysis = $this->mergeTechnicalSilenceAnalysis($parsedAcousticAnalysis, $technicalSilence);
+
+            if (! $this->hasRequiredAudioAnalysis([
+                'sentiment' => $parsed['sentiment'] ?? null,
+                'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
+                'acoustic_analysis' => $acousticAnalysis,
+                'quality_signals' => $parsed['quality_signals'] ?? null,
+            ])) {
+                Log::warning('AudioTranscriptionService: Transcription JSON missing required analysis; running second-pass audio analysis');
+
+                $analysis = $this->analyzeAudioSignals(
+                    $base64Audio,
+                    $mimeType,
+                    $cleanTranscript,
+                    $technicalSilence
+                );
+
+                $parsed['sentiment'] = $analysis['sentiment'];
+                $parsed['sentiment_segments'] = $analysis['sentiment_segments'];
+                $acousticAnalysis = $analysis['acoustic_analysis'];
+                $parsed['quality_signals'] = $analysis['quality_signals'];
+            }
 
             Log::info('AudioTranscriptionService: Transcription + sentiment completed. Length: '.strlen($cleanTranscript).' chars');
 
@@ -310,6 +328,264 @@ PROMPT;
 
             throw AiProviderErrors::exceptionFor('gemini', null, 'Could not connect to Gemini API: '.$safeMessage);
         }
+    }
+
+    private function normalizeGeminiText(string $rawText): string
+    {
+        $rawText = $this->cleanHallucinatedLoops($rawText);
+        $rawText = preg_replace('/^```(?:json)?\s*/m', '', $rawText) ?? $rawText;
+        $rawText = preg_replace('/\s*```$/m', '', $rawText) ?? $rawText;
+
+        return trim($rawText);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseJsonPayload(string $rawText): ?array
+    {
+        $parsed = json_decode($rawText, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE
+            && preg_match('/\{(?:[^{}]|(?R))*\}/s', $rawText, $matches)) {
+            $parsed = json_decode(trim($matches[0]), true);
+        }
+
+        return is_array($parsed) ? $parsed : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $parsed
+     */
+    private function extractTranscriptFallback(?array $parsed, string $rawText): ?string
+    {
+        if (isset($parsed['transcript']) && is_string($parsed['transcript'])) {
+            return str_replace('\n', "\n", trim($parsed['transcript']));
+        }
+
+        if (preg_match('/"transcript"\s*:\s*"((?:\\\\.|[^"\\\\])*)"/s', $rawText, $matches)) {
+            $decoded = json_decode('"'.$matches[1].'"');
+
+            if (is_string($decoded) && trim($decoded) !== '') {
+                return str_replace('\n', "\n", trim($decoded));
+            }
+        }
+
+        $candidate = trim($rawText);
+
+        if ($candidate === '') {
+            return null;
+        }
+
+        if (preg_match('/\b(Agente|Cliente|Sistema)\s*:/iu', $candidate)
+            || preg_match('/\[?\d{1,2}:\d{2}(?::\d{2})?\]?/', $candidate)) {
+            return str_replace('\n', "\n", $candidate);
+        }
+
+        if (str_starts_with($candidate, '{') || str_starts_with($candidate, '[')) {
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $technicalSilence
+     * @return array<string, mixed>
+     */
+    private function analyzeAudioSignals(
+        string $base64Audio,
+        string $mimeType,
+        string $transcript,
+        array $technicalSilence
+    ): array {
+        $transcriptContext = mb_strlen($transcript) > 60000
+            ? mb_substr($transcript, 0, 60000)."\n\n[Transcripción truncada para análisis por longitud]"
+            : $transcript;
+
+        $prompt = <<<'PROMPT'
+Tenemos la transcripción, pero falta el análisis emocional/acústico obligatorio.
+
+Analiza nuevamente el AUDIO y usa la transcripción como apoyo. Debes devolver SOLO JSON válido con estos campos:
+- sentiment
+- sentiment_segments
+- acoustic_analysis
+- quality_signals
+
+Reglas:
+- Todo audio debe tener análisis de sentimiento, emociones, señales acústicas y señales operativas.
+- Si una señal no se aprecia, usa "no_detectado"; no omitas el campo.
+- Si hay silencio o audio ininteligible, genera al menos un segmento "system" con sentimiento "neutro", emoción "calma" y evidencia "audio sin voz clara" o equivalente.
+- Alinea "sentiment_segments" con intervenciones de la transcripción cuando existan.
+- Usa scores de sentimiento entre -1.0 y 1.0 e intensity entre 0 y 100.
+
+Formato obligatorio:
+{
+  "sentiment": {
+    "overall": "positivo|neutro|negativo|mixto",
+    "overall_score": 0.0,
+    "agent": {
+      "sentiment": "positivo|neutro|negativo",
+      "score": 0.0,
+      "tone": "descripción breve",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "energy": "baja|media|alta|variable|no_detectado"
+    },
+    "client": {
+      "sentiment": "positivo|neutro|negativo",
+      "score": 0.0,
+      "tone": "descripción breve",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "energy": "baja|media|alta|variable|no_detectado",
+      "satisfaction": "satisfecho|insatisfecho|neutro"
+    },
+    "summary": "Resumen breve del sentimiento general de la llamada."
+  },
+  "sentiment_segments": [
+    {
+      "index": 0,
+      "start": 0,
+      "speaker": "agent|client|system",
+      "sentiment": "positivo|neutro|negativo|mixto",
+      "emotion": "calma|confianza|satisfaccion|preocupacion|frustracion|tension_controlada|enojo|tristeza|molestia",
+      "score": 0.0,
+      "intensity": 0,
+      "tone": "tono percibido",
+      "pace": "pausado|normal|rápido|variable|no_detectado",
+      "volume": "bajo|medio|alto|variable|no_detectado",
+      "clarity": "claro|regular|bajo|no_detectado",
+      "evidence": "frase o señal que justifica el tramo"
+    }
+  ],
+  "acoustic_analysis": {
+    "agent_speech_rate_wpm": 0,
+    "client_speech_rate_wpm": 0,
+    "overall_pace": "pausado|normal|rápido|variable|no_detectado",
+    "agent_energy": "baja|media|alta|variable|no_detectado",
+    "client_energy": "baja|media|alta|variable|no_detectado",
+    "clarity": "claro|regular|bajo|no_detectado",
+    "interruptions": 0,
+    "agent_interruptions": 0,
+    "client_interruptions": 0,
+    "long_pauses": 0,
+    "silence_ratio": 0.0,
+    "talk_balance": "agent_dominant|client_dominant|balanced|no_detectado",
+    "talk_balance_note": "lectura breve",
+    "emotional_turning_point": {
+      "second": 0,
+      "label": "MM:SS",
+      "type": "recuperacion|deterioro|sin_cambio|no_detectado",
+      "summary": "momento donde cambia o se estabiliza la emoción"
+    },
+    "notes": "observaciones acústicas relevantes"
+  },
+  "quality_signals": {
+    "empathy": "fortaleza|neutral|riesgo",
+    "active_listening": "fortaleza|neutral|riesgo",
+    "objection_handling": "fortaleza|neutral|riesgo",
+    "resolution_clarity": "fortaleza|neutral|riesgo",
+    "script_control": "fortaleza|neutral|riesgo",
+    "closing_quality": "fortaleza|neutral|riesgo",
+    "customer_experience_risk": "bajo|medio|alto",
+    "emotional_recovery": "recupera|contiene|empeora|sin_riesgo|no_detectado",
+    "agent_control": "alto|medio|bajo|no_detectado",
+    "frustration_cause": "motivo o no_detectado",
+    "customer_left_unresolved": true,
+    "supervisor_alerts": [],
+    "critical_moments": [],
+    "coaching_recommendations": [],
+    "summary": "impacto de estas señales en calidad y experiencia"
+  }
+}
+
+TRANSCRIPCIÓN:
+PROMPT;
+
+        $prompt .= "\n".$transcriptContext;
+        $prompt .= $this->technicalSilencePrompt($technicalSilence);
+
+        $response = Http::timeout(300)
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->post("https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}", [
+                'systemInstruction' => [
+                    'parts' => [
+                        ['text' => 'Eres un analista de sentimiento y señales acústicas de call center. Devuelve únicamente JSON válido.'],
+                    ],
+                ],
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'inline_data' => [
+                                    'mime_type' => $mimeType,
+                                    'data' => $base64Audio,
+                                ],
+                            ],
+                            [
+                                'text' => $prompt,
+                            ],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.0,
+                    'topP' => 0.1,
+                    'topK' => 1,
+                    'maxOutputTokens' => 12000,
+                    'responseMimeType' => 'application/json',
+                ],
+            ]);
+
+        if ($response->failed()) {
+            $error = $response->json('error.message', $response->body());
+            Log::error("AudioTranscriptionService: Gemini analysis repair error - {$error}");
+            throw AiProviderErrors::exceptionFor('gemini', $response->status(), "Gemini analysis repair error: {$error}");
+        }
+
+        $rawText = trim($response->json('candidates.0.content.parts.0.text', ''));
+
+        if ($rawText === '') {
+            throw new TransientAiProviderException('Gemini returned an empty audio analysis response.', 'gemini');
+        }
+
+        $parsed = $this->parseJsonPayload($this->normalizeGeminiText($rawText)) ?? [];
+
+        $analysis = [
+            'sentiment' => $parsed['sentiment'] ?? null,
+            'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
+            'acoustic_analysis' => $this->mergeTechnicalSilenceAnalysis(
+                is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [],
+                $technicalSilence
+            ),
+            'quality_signals' => $parsed['quality_signals'] ?? null,
+        ];
+
+        if (! $this->hasRequiredAudioAnalysis($analysis)) {
+            throw new TransientAiProviderException(
+                'Gemini audio analysis response is missing required sentiment, emotion, acoustic, or quality signal fields.',
+                'gemini'
+            );
+        }
+
+        return $analysis;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function hasRequiredAudioAnalysis(array $result): bool
+    {
+        return is_array($result['sentiment'] ?? null)
+            && ! empty($result['sentiment'])
+            && is_array($result['sentiment_segments'] ?? null)
+            && count($result['sentiment_segments']) > 0
+            && is_array($result['acoustic_analysis'] ?? null)
+            && ! empty($result['acoustic_analysis'])
+            && is_array($result['quality_signals'] ?? null)
+            && ! empty($result['quality_signals']);
     }
 
     /**

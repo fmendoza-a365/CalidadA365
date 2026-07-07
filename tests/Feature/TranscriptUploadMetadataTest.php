@@ -6,10 +6,12 @@ use App\Jobs\TranscribeAudioJob;
 use App\Models\Campaign;
 use App\Models\CampaignUserAssignment;
 use App\Models\Interaction;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AudioTranscriptionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -157,6 +159,93 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame(1, $interaction->metadata['acoustic_analysis']['long_pauses']);
         $this->assertEqualsWithDelta(3.0, $interaction->metadata['acoustic_analysis']['dead_air_total_seconds'], 0.2);
         $this->assertSame('fortaleza', $interaction->metadata['quality_signals']['empathy']);
+    }
+
+    public function test_audio_transcription_repairs_plain_transcript_response_with_required_analysis(): void
+    {
+        Storage::fake('local');
+        Setting::set('ai.gemini_api_key', 'test-gemini-key', 'string', 'ai');
+
+        Http::fakeSequence()
+            ->push($this->geminiTextResponse("[00:00] Agente: Hola, ¿en qué puedo ayudarle?\n[00:04] Cliente: Tengo un reclamo."), 200)
+            ->push($this->geminiTextResponse(json_encode($this->analysisPayload(), JSON_UNESCAPED_UNICODE)), 200);
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/plain-response.wav', $this->wavBytes(3));
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/plain-response.wav',
+            'file_name' => 'plain-response.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+
+        $this->assertSame('completed', $interaction->transcription_status);
+        $this->assertStringContainsString('Tengo un reclamo', $interaction->transcript_text);
+        $this->assertSame('mixto', $interaction->metadata['sentiment']['overall']);
+        $this->assertNotEmpty($interaction->metadata['sentiment_segments']);
+        $this->assertSame('variable', $interaction->metadata['acoustic_analysis']['overall_pace']);
+        $this->assertSame('riesgo', $interaction->metadata['quality_signals']['empathy']);
+
+        Http::assertSentCount(2);
+    }
+
+    public function test_audio_transcription_remains_pending_when_required_analysis_is_missing(): void
+    {
+        Storage::fake('local');
+        Setting::set('ai.gemini_api_key', 'test-gemini-key', 'string', 'ai');
+
+        Http::fakeSequence()
+            ->push($this->geminiTextResponse(json_encode(['transcript' => '[00:00] Agente: Hola'], JSON_UNESCAPED_UNICODE)), 200)
+            ->push($this->geminiTextResponse(json_encode(['sentiment_segments' => []], JSON_UNESCAPED_UNICODE)), 200);
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/missing-analysis.wav', $this->wavBytes(3));
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/missing-analysis.wav',
+            'file_name' => 'missing-analysis.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+
+        $this->assertSame('pending', $interaction->transcription_status);
+        $this->assertSame('', $interaction->transcript_text);
+        $this->assertEmpty($interaction->metadata['sentiment'] ?? null);
+
+        Http::assertSentCount(2);
     }
 
     public function test_audio_transcription_stores_technical_dead_air_metrics(): void
@@ -328,6 +417,122 @@ class TranscriptUploadMetadataTest extends TestCase
         $user->assignRole($role);
 
         return $user;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function geminiTextResponse(string $text): array
+    {
+        return [
+            'candidates' => [
+                [
+                    'content' => [
+                        'parts' => [
+                            ['text' => $text],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function analysisPayload(): array
+    {
+        return [
+            'sentiment' => [
+                'overall' => 'mixto',
+                'overall_score' => -0.15,
+                'agent' => [
+                    'sentiment' => 'neutro',
+                    'score' => 0.1,
+                    'tone' => 'Cordial, pero con poca contención emocional',
+                    'pace' => 'normal',
+                    'energy' => 'media',
+                ],
+                'client' => [
+                    'sentiment' => 'negativo',
+                    'score' => -0.45,
+                    'tone' => 'Molesto por el reclamo',
+                    'pace' => 'rápido',
+                    'energy' => 'alta',
+                    'satisfaction' => 'insatisfecho',
+                ],
+                'summary' => 'El cliente expresa molestia y el agente necesita contener mejor el reclamo.',
+            ],
+            'sentiment_segments' => [
+                [
+                    'index' => 0,
+                    'start' => 0,
+                    'speaker' => 'agent',
+                    'sentiment' => 'neutro',
+                    'emotion' => 'calma',
+                    'score' => 0.1,
+                    'intensity' => 35,
+                    'tone' => 'cordial',
+                    'pace' => 'normal',
+                    'volume' => 'medio',
+                    'clarity' => 'claro',
+                    'evidence' => 'saludo inicial',
+                ],
+                [
+                    'index' => 1,
+                    'start' => 4,
+                    'speaker' => 'client',
+                    'sentiment' => 'negativo',
+                    'emotion' => 'molestia',
+                    'score' => -0.45,
+                    'intensity' => 70,
+                    'tone' => 'molesto',
+                    'pace' => 'rápido',
+                    'volume' => 'alto',
+                    'clarity' => 'claro',
+                    'evidence' => 'Tengo un reclamo',
+                ],
+            ],
+            'acoustic_analysis' => [
+                'agent_speech_rate_wpm' => 110,
+                'client_speech_rate_wpm' => 150,
+                'overall_pace' => 'variable',
+                'agent_energy' => 'media',
+                'client_energy' => 'alta',
+                'clarity' => 'claro',
+                'interruptions' => 0,
+                'agent_interruptions' => 0,
+                'client_interruptions' => 0,
+                'long_pauses' => 0,
+                'silence_ratio' => 0.0,
+                'talk_balance' => 'balanced',
+                'talk_balance_note' => 'El cliente marca el reclamo y el agente abre la atención.',
+                'emotional_turning_point' => [
+                    'second' => 4,
+                    'label' => '00:04',
+                    'type' => 'deterioro',
+                    'summary' => 'El cliente introduce una molestia.',
+                ],
+                'notes' => 'Ritmo variable por reclamo inicial.',
+            ],
+            'quality_signals' => [
+                'empathy' => 'riesgo',
+                'active_listening' => 'neutral',
+                'objection_handling' => 'riesgo',
+                'resolution_clarity' => 'neutral',
+                'script_control' => 'neutral',
+                'closing_quality' => 'neutral',
+                'customer_experience_risk' => 'medio',
+                'emotional_recovery' => 'no_detectado',
+                'agent_control' => 'medio',
+                'frustration_cause' => 'reclamo no detallado',
+                'customer_left_unresolved' => true,
+                'supervisor_alerts' => [],
+                'critical_moments' => [],
+                'coaching_recommendations' => [],
+                'summary' => 'Se requiere validar emoción del cliente y aclarar el siguiente paso.',
+            ],
+        ];
     }
 
     private function wavBytes(int $durationSeconds): string

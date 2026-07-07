@@ -104,6 +104,13 @@ class TranscribeAudioJob implements ShouldQueue
         try {
             $result = $transcriptionService->transcribe($interaction->file_path);
 
+            if (! $this->hasRequiredAudioAnalysis($result)) {
+                throw new TransientAiProviderException(
+                    'Audio transcription result is missing required sentiment, emotion, acoustic, or quality signal analysis.',
+                    'gemini'
+                );
+            }
+
             $updateData = [
                 'transcript_text' => $result['transcript'],
                 'transcription_status' => 'completed',
@@ -196,5 +203,20 @@ class TranscribeAudioJob implements ShouldQueue
         }
 
         Log::error("TranscribeAudioJob: Permanently failed for interaction {$this->interactionId}: ".AiProviderErrors::sanitize($exception->getMessage()));
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     */
+    private function hasRequiredAudioAnalysis(array $result): bool
+    {
+        return is_array($result['sentiment'] ?? null)
+            && ! empty($result['sentiment'])
+            && is_array($result['sentiment_segments'] ?? null)
+            && count($result['sentiment_segments']) > 0
+            && is_array($result['acoustic_analysis'] ?? null)
+            && ! empty($result['acoustic_analysis'])
+            && is_array($result['quality_signals'] ?? null)
+            && ! empty($result['quality_signals']);
     }
 }
