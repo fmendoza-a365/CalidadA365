@@ -19,9 +19,7 @@ trait CreatesUsersWithRoles
     private static array $rolePermissions = [
         'agent' => ['view_own_evaluations', 'view_agent_dashboard', 'respond_evaluations'],
         'supervisor' => [
-            'view_team_evaluations', 'view_campaigns', 'view_quality_forms',
-            'view_supervisor_dashboard',
-            'export_evaluations',
+            'view_team_evaluations', 'view_supervisor_dashboard', 'export_evaluations',
             'review_disputes', 'manage_evaluation_lifecycle', 'respond_evaluations',
         ],
         'qa_monitor' => [

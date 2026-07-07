@@ -166,13 +166,13 @@ class PermissionSeeder extends Seeder
         if ($supervisorRole) {
             $supervisorRole->givePermissionTo([
                 'view_team_evaluations', // Scope filters by agent assignment
-                'view_campaigns',
-                'view_quality_forms',
                 'view_supervisor_dashboard',
                 'export_evaluations',
                 'review_disputes',
             ]);
             $supervisorRole->revokePermissionTo([
+                'view_campaigns',
+                'view_quality_forms',
                 'view_transcripts',
                 'create_transcripts',
                 'edit_transcripts',

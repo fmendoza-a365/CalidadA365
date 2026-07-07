@@ -300,7 +300,13 @@
                         </svg>
                         Ranking de Equipo
                     </h3>
-                    <span class="text-[10px] text-gray-500 uppercase font-medium">Top Agentes</span>
+                    <span class="text-[10px] text-gray-500 uppercase font-medium">
+                        @if($agentRanking instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator)
+                            {{ $agentRanking->total() }} agentes · 10 por página
+                        @else
+                            Top Agentes
+                        @endif
+                    </span>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -316,8 +322,14 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @php
+                                $rankingBase = $agentRanking instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator
+                                    ? max(0, ($agentRanking->firstItem() ?? 1) - 1)
+                                    : 0;
+                            @endphp
                             @forelse($agentRanking as $i => $agent)
                                 @php
+                                    $rank = $rankingBase + $i + 1;
                                     $score = $agent['avg_score'];
                                     if ($score >= 90) {
                                         $lName = 'Q1 - Diamante';
@@ -334,17 +346,17 @@
                                 <tr
                                     class="border-b border-gray-100 dark:border-[#2B2B2F] hover:bg-gray-50 dark:hover:bg-[#1E2328] transition-colors {{ $isMe ? 'bg-indigo-50/50 dark:bg-[#091428] border-l-2 border-l-indigo-500 dark:border-l-[#C8AA6E]' : '' }}">
                                     <td class="py-2.5 px-2 text-center">
-                                        @if($i === 0)
+                                        @if($rank === 1)
                                             <span
                                                 class="inline-flex items-center justify-center w-5 h-5 rounded text-[#F0E6D2] bg-gradient-to-br from-yellow-400 to-yellow-600 dark:from-yellow-500 dark:to-yellow-700 font-bold text-[10px] border border-yellow-300 dark:border-yellow-600 shadow-sm">1</span>
-                                        @elseif($i === 1)
+                                        @elseif($rank === 2)
                                             <span
                                                 class="inline-flex items-center justify-center w-5 h-5 rounded text-gray-700 dark:text-gray-100 bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-300 dark:to-gray-500 font-bold text-[10px] border border-gray-300 dark:border-gray-400 shadow-sm">2</span>
-                                        @elseif($i === 2)
+                                        @elseif($rank === 3)
                                             <span
                                                 class="inline-flex items-center justify-center w-5 h-5 rounded text-orange-900 bg-gradient-to-br from-orange-200 to-orange-400 dark:from-orange-300 dark:to-orange-500 font-bold text-[10px] border border-orange-300 dark:border-orange-400 shadow-sm">3</span>
                                         @else
-                                            <span class="text-gray-500 font-bold text-[10px]">{{ $i + 1 }}</span>
+                                            <span class="text-gray-500 font-bold text-[10px]">{{ $rank }}</span>
                                         @endif
                                     </td>
                                     <td class="py-2.5 px-2">
@@ -377,6 +389,12 @@
                         </tbody>
                     </table>
                 </div>
+
+                @if($agentRanking instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator && $agentRanking->hasPages())
+                    <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                        {{ $agentRanking->links() }}
+                    </div>
+                @endif
             </div>
 
             {{-- Weaknesses (Defects) --}}

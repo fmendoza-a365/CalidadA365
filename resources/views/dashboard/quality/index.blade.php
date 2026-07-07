@@ -1,6 +1,12 @@
 <x-app-layout>
     <x-slot name="header">Dashboard Calidad</x-slot>
 
+    @php
+        $currentUser = auth()->user();
+        $isAgentDashboard = $currentUser->hasRole('agent');
+        $showInternalDashboard = ! $currentUser->hasAnyRole(['agent', 'supervisor']);
+    @endphp
+
     <div x-data="{ tab: 'calidad', qualityPeriod: 'day', mpPeriod: 'day', feedbackPeriod: 'week' }" class="space-y-5">
 
         {{-- Filters --}}
@@ -48,7 +54,7 @@
                     </template>
                 </select>
             </div>
-            @if(!auth()->user()->hasRole('agent'))
+            @if($showInternalDashboard)
                 <a href="{{ route('exports.calibration', request()->query()) }}" class="btn-secondary btn-md">Exportar calibración</a>
             @endif
         </form>
@@ -84,7 +90,7 @@
 
         {{-- KPI Row 2 --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            @if(!auth()->user()->hasRole('agent'))
+            @if(! $isAgentDashboard)
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
                 <div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
                     <svg class="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -95,6 +101,8 @@
                     <p class="text-[10px] text-gray-400">{{ $stats['evals_per_agent'] }} evals/agente</p>
                 </div>
             </div>
+            @endif
+            @if($showInternalDashboard)
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3">
                 <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
                     <svg class="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -143,7 +151,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 Seguimiento Feedback
             </button>
-            @if(!auth()->user()->hasRole('agent'))
+            @if($showInternalDashboard)
             <button @click="tab = 'calibracion'" :class="tab === 'calibracion' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
@@ -155,7 +163,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                 Ranking Asesores
             </button>
-            @if(!auth()->user()->hasRole('agent'))
+            @if($showInternalDashboard)
             <button @click="tab = 'gestion'" :class="tab === 'gestion' ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
@@ -189,7 +197,7 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                @if(!auth()->user()->hasRole('agent'))
+                @if($showInternalDashboard)
                 <div class="qd-card"><h4 class="qd-card-title">Calidad Emitida — Supervisor</h4><div id="chart-quality-supervisor" class="h-64"></div></div>
                 <div class="qd-card"><h4 class="qd-card-title">Motivos de Baja Calidad</h4><div id="chart-defects" class="h-64"></div></div>
                 @else
@@ -223,10 +231,10 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                @if(!auth()->user()->hasRole('agent'))
+                @if($showInternalDashboard)
                 <div class="qd-card"><h4 class="qd-card-title">MP — Supervisor</h4><div id="chart-mp-supervisor" class="h-64"></div></div>
                 @endif
-                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif">
+                <div class="qd-card @if(! $showInternalDashboard) col-span-1 lg:col-span-2 @endif">
                     <h4 class="qd-card-title">Criterios Críticos Fallidos</h4>
                     <div class="overflow-x-auto mt-2">
                         <table class="w-full text-xs">
@@ -292,10 +300,10 @@
             </h3>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                @if(!auth()->user()->hasRole('agent'))
+                @if($showInternalDashboard)
                 <div class="qd-card"><h4 class="qd-card-title">Feedback — Supervisor(a)</h4><div id="chart-feedback-supervisor" class="h-64"></div></div>
                 @endif
-                <div class="qd-card @if(auth()->user()->hasRole('agent')) col-span-1 lg:col-span-2 @endif">
+                <div class="qd-card @if(! $showInternalDashboard) col-span-1 lg:col-span-2 @endif">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <h4 class="qd-card-title mb-0">Evolutivo de Feedback</h4>
                         <div class="qd-period-control">
@@ -308,7 +316,7 @@
                 </div>
             </div>
 
-            @if(!auth()->user()->hasRole('agent'))
+            @if($showInternalDashboard)
             {{-- Monitor Table --}}
             <div class="qd-card">
                 <h4 class="qd-card-title">Resumen Monitor(a)</h4>
@@ -347,7 +355,7 @@
             @endif
         </div>
 
-        @if(!auth()->user()->hasRole('agent'))
+        @if($showInternalDashboard)
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: CALIBRACION IA                     --}}
         {{-- ══════════════════════════════════════════ --}}
@@ -506,7 +514,7 @@
             </div>
         </div>
 
-        @if(!auth()->user()->hasRole('agent'))
+        @if($showInternalDashboard)
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 5: DASHBOARD GESTIÓN                  --}}
         {{-- ══════════════════════════════════════════ --}}

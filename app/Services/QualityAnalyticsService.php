@@ -18,7 +18,13 @@ class QualityAnalyticsService
 
     protected function cacheKey(string $method, array $filters = []): string
     {
-        return 'analytics.'.$method.'.'.md5(json_encode($filters));
+        $user = auth()->user();
+
+        return 'analytics.'.$method.'.'.md5(json_encode([
+            'filters' => $filters,
+            'user_id' => $user?->id,
+            'roles' => $user?->roles?->pluck('name')->sort()->values()->all() ?? [],
+        ]));
     }
 
     public function applyFiltersPublic($query, array $filters): void
@@ -759,14 +765,30 @@ class QualityAnalyticsService
      */
     public function getAgentRanking(array $filters = [], int $limit = 20): array
     {
-        $query = Evaluation::query();
+        $rows = $this->agentRankingQuery($filters)
+            ->limit($limit)
+            ->get()
+            ->map(fn ($item) => $this->agentRankingRow($item))
+            ->toArray();
 
-        // 1. Determine whose evaluations to query for the ranking
+        return $this->withGroupedInsights($rows, 'agent', 'avg_score', 'total_evals');
+    }
+
+    public function paginateAgentRanking(array $filters = [], int $perPage = 10, string $pageName = 'ranking_page'): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        return $this->agentRankingQuery($filters)
+            ->paginate($perPage, ['*'], $pageName)
+            ->withQueryString()
+            ->through(fn ($item) => $this->agentRankingRow($item));
+    }
+
+    private function agentRankingQuery(array $filters)
+    {
+        $query = Evaluation::query();
         $user = auth()->user();
         $agentIds = null;
 
         if ($user && $user->hasRole('agent')) {
-            // If the user is an agent, get all agents under their active supervisors
             $supervisorIds = \App\Models\CampaignUserAssignment::where('agent_id', $user->id)
                 ->where('is_active', true)
                 ->pluck('supervisor_id');
@@ -774,44 +796,34 @@ class QualityAnalyticsService
             $agentIds = \App\Models\CampaignUserAssignment::whereIn('supervisor_id', $supervisorIds)
                 ->where('is_active', true)
                 ->pluck('agent_id')
-                ->push($user->id) // Always include themselves
+                ->push($user->id)
                 ->unique();
         }
 
-        // Apply visual logic
         if ($agentIds) {
-            // Explicitly set agent_ids to force the query to only consider these agents
-            // We temporarily remove the global forUser scope's agent check by overriding it
-            // The standard `applyFilters` will add `forUser`, which for agents restricts to `agent_id = $user->id`.
-            // So we MUST NOT call `$this->applyFilters($query, $filters)` directly for this specific query
-            // OR we customize `applyFilters` to not apply `forUser` if we are doing a team ranking.
-            // Better approach: apply standard date/campaign filters, but handle `forUser` manually here.
-
-            if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
                 $query->whereBetween('evaluations.created_at', [
                     Carbon::parse($filters['start_date'])->startOfDay(),
-                    Carbon::parse($filters['end_date'])->endOfDay()
+                    Carbon::parse($filters['end_date'])->endOfDay(),
                 ]);
             }
 
-            if (!empty($filters['campaign_id'])) {
+            if (! empty($filters['campaign_id'])) {
                 $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
-            } elseif (!empty($filters['parent_campaign_id'])) {
+            } elseif (! empty($filters['parent_campaign_id'])) {
                 $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
             }
 
-            if (!empty($filters['agent_id'])) {
+            if (! empty($filters['agent_id'])) {
                 $query->where('evaluations.agent_id', $filters['agent_id']);
             } else {
                 $query->whereIn('evaluations.agent_id', $agentIds);
             }
-
         } else {
-            // Normal apply filters for supervisors/admins
             $this->applyFilters($query, $filters);
         }
 
-        $rows = $query->join('users', 'evaluations.agent_id', '=', 'users.id')
+        return $query->join('users', 'evaluations.agent_id', '=', 'users.id')
             ->selectRaw("
                 users.id,
                 users.name as label,
@@ -822,19 +834,19 @@ class QualityAnalyticsService
             ")
             ->groupBy('users.id', 'users.name')
             ->orderByDesc('avg_score')
-            ->limit($limit)
-            ->get()
-            ->map(fn($item) => [
-                'id' => $item->id,
-                'label' => $item->label,
-                'avg_score' => round((float) $item->avg_score, 2),
-                'total_evals' => (int) $item->total_evals,
-                'excellent' => (int) $item->excellent,
-                'critical' => (int) $item->critical,
-            ])
-            ->toArray();
+            ->orderBy('users.name');
+    }
 
-        return $this->withGroupedInsights($rows, 'agent', 'avg_score', 'total_evals');
+    private function agentRankingRow($item): array
+    {
+        return [
+            'id' => $item->id,
+            'label' => $item->label,
+            'avg_score' => round((float) $item->avg_score, 2),
+            'total_evals' => (int) $item->total_evals,
+            'excellent' => (int) $item->excellent,
+            'critical' => (int) $item->critical,
+        ];
     }
 
     /**

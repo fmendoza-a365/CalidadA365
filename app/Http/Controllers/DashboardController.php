@@ -22,7 +22,7 @@ class DashboardController extends Controller
             $stats = $analytics->getOverviewStats($filters);
             $league = $analytics->getAgentLeague($stats['average_score']);
             $matchHistory = $analytics->paginateAgentMatchHistory($filters, 10);
-            $agentRanking = $analytics->getAgentRanking($filters);
+            $agentRanking = $analytics->paginateAgentRanking($filters, 10);
             $topDefects = $analytics->getTopDefects($filters);
             $campaigns = Campaign::forUser($user)->orderedForSelect()->get();
 
