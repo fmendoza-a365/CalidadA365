@@ -210,18 +210,7 @@ class ExportController extends Controller
                     default => null,
                 };
             })
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $term = trim($request->string('q')->toString());
-
-                $query->where(function ($query) use ($term) {
-                    $query
-                        ->whereHas('agent', fn ($agentQuery) => $agentQuery->where('name', 'like', "%{$term}%")->orWhere('email', 'like', "%{$term}%"))
-                        ->orWhereHas('campaign', fn ($campaignQuery) => $campaignQuery
-                            ->where('name', 'like', "%{$term}%")
-                            ->orWhereHas('parent', fn ($parentQuery) => $parentQuery->where('name', 'like', "%{$term}%")))
-                        ->orWhereHas('evaluator', fn ($evaluatorQuery) => $evaluatorQuery->where('name', 'like', "%{$term}%"));
-                });
-        });
+            ->when($request->filled('q'), fn ($query) => $query->searchIndex($request->string('q')->toString()));
     }
 
     private function evaluationCategoryColumns(Collection $evaluationIds): Collection

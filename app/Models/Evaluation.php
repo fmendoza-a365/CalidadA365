@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Evaluation extends Model
 {
@@ -353,6 +354,112 @@ class Evaluation extends Model
         return $query->where('type', 'manual');
     }
 
+    public function scopeSearchIndex($query, string $term)
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return $query;
+        }
+
+        $needle = mb_strtolower($term);
+        $like = "%{$needle}%";
+        $date = self::dateFromSearchTerm($term);
+        $statusMatches = collect(self::statusLabels())
+            ->filter(fn (string $label, string $status) => str_contains(mb_strtolower($label), $needle) || str_contains(mb_strtolower($status), $needle))
+            ->keys()
+            ->all();
+
+        return $query->where(function ($query) use ($term, $like, $date, $statusMatches) {
+            $query
+                ->whereRaw('LOWER(COALESCE(evaluations.type, \'\')) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(COALESCE(evaluations.status, \'\')) LIKE ?', [$like]);
+
+            if (ctype_digit($term)) {
+                $query->orWhere('evaluations.id', (int) $term);
+            }
+
+            if ($statusMatches !== []) {
+                $query->orWhereIn('evaluations.status', $statusMatches);
+            }
+
+            if ($date !== null) {
+                $query
+                    ->orWhereDate('evaluations.created_at', $date)
+                    ->orWhereHas('interaction', function ($interactionQuery) use ($date) {
+                        $interactionQuery->where(function ($query) use ($date) {
+                            $query->whereDate('occurred_at', $date)
+                                ->orWhereDate('uploaded_at', $date)
+                                ->orWhereDate('created_at', $date);
+                        });
+                    });
+            }
+
+            $query
+                ->orWhereHas('agent', fn ($userQuery) => self::whereUserMatchesSearch($userQuery, $like))
+                ->orWhereHas('evaluator', fn ($userQuery) => self::whereUserMatchesSearch($userQuery, $like))
+                ->orWhereHas('reviewer', fn ($userQuery) => self::whereUserMatchesSearch($userQuery, $like))
+                ->orWhereHas('publisher', fn ($userQuery) => self::whereUserMatchesSearch($userQuery, $like))
+                ->orWhereHas('campaign', function ($campaignQuery) use ($like) {
+                    $campaignQuery->where(function ($query) use ($like) {
+                        $query->whereRaw('LOWER(COALESCE(name, \'\')) LIKE ?', [$like])
+                            ->orWhereHas('parent', fn ($parentQuery) => $parentQuery->whereRaw('LOWER(COALESCE(name, \'\')) LIKE ?', [$like]));
+                    });
+                })
+                ->orWhereHas('interaction', function ($interactionQuery) use ($like) {
+                    $interactionQuery->where(function ($query) use ($like) {
+                        foreach ([
+                            'call_sn',
+                            'external_id',
+                            'file_name',
+                            'source_type',
+                            'channel',
+                            'direction',
+                            'contact_reason',
+                            'outcome',
+                            'customer_reference',
+                            'queue_name',
+                            'product_name',
+                            'priority',
+                        ] as $index => $column) {
+                            $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                            $query->{$method}("LOWER(COALESCE({$column}, '')) LIKE ?", [$like]);
+                        }
+                    });
+                });
+        });
+    }
+
+    private static function whereUserMatchesSearch($query, string $like): void
+    {
+        $query->where(function ($query) use ($like) {
+            $query
+                ->whereRaw('LOWER(COALESCE(name, \'\')) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(COALESCE(paternal_surname, \'\')) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(COALESCE(maternal_surname, \'\')) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(COALESCE(username, \'\')) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(COALESCE(email, \'\')) LIKE ?', [$like])
+                ->orWhereRaw("LOWER(COALESCE(name, '') || ' ' || COALESCE(paternal_surname, '') || ' ' || COALESCE(maternal_surname, '')) LIKE ?", [$like]);
+        });
+    }
+
+    private static function dateFromSearchTerm(string $term): ?string
+    {
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y'] as $format) {
+            try {
+                $date = Carbon::createFromFormat($format, $term);
+
+                if ($date !== false && $date->format($format) === $term) {
+                    return $date->format('Y-m-d');
+                }
+            } catch (\Throwable) {
+                //
+            }
+        }
+
+        return null;
+    }
+
     public function scopeAvailableForReviewBy($query, User $user)
     {
         if ($user->hasRole('admin')) {
@@ -521,7 +628,7 @@ class Evaluation extends Model
         return $this->isClosed() && filled($this->previous_status_before_close);
     }
 
-    public static function statusLabel(string $status): string
+    public static function statusLabels(): array
     {
         return [
             self::STATUS_PENDING_AI => 'Pendiente IA',
@@ -537,6 +644,11 @@ class Evaluation extends Model
             self::STATUS_CLOSED => 'Cerrada',
             self::STATUS_AGENT_REVIEWED => 'Revisada por el asesor',
             self::STATUS_COMMITMENT_REGISTERED => 'Compromiso registrado',
-        ][$status] ?? ucfirst(str_replace('_', ' ', $status));
+        ];
+    }
+
+    public static function statusLabel(string $status): string
+    {
+        return self::statusLabels()[$status] ?? ucfirst(str_replace('_', ' ', $status));
     }
 }

@@ -7,8 +7,8 @@ use App\Jobs\ScoreTranscriptJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Services\EvaluationCalibrationService;
-use App\Support\TranscriptConversationParser;
 use App\Support\TranscriptAudioTimeline;
+use App\Support\TranscriptConversationParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -23,7 +23,7 @@ class EvaluationController extends Controller
             'agent',
             'campaign.parent',
             'interaction' => function ($query) {
-                $query->select('id', 'campaign_id', 'agent_id', 'channel', 'direction', 'contact_reason', 'outcome', 'product_name', 'queue_name', 'audio_duration', 'occurred_at', 'source_type');
+                $query->select('id', 'campaign_id', 'agent_id', 'channel', 'direction', 'contact_reason', 'outcome', 'product_name', 'queue_name', 'audio_duration', 'occurred_at', 'uploaded_at', 'created_at', 'source_type');
             },
             'evaluator',
             'reviewer',
@@ -85,18 +85,7 @@ class EvaluationController extends Controller
                     default => null,
                 };
             })
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $term = trim($request->string('q')->toString());
-
-                $query->where(function ($query) use ($term) {
-                    $query
-                        ->whereHas('agent', fn ($agentQuery) => $agentQuery->where('name', 'like', "%{$term}%")->orWhere('email', 'like', "%{$term}%"))
-                        ->orWhereHas('campaign', fn ($campaignQuery) => $campaignQuery
-                            ->where('name', 'like', "%{$term}%")
-                            ->orWhereHas('parent', fn ($parentQuery) => $parentQuery->where('name', 'like', "%{$term}%")))
-                        ->orWhereHas('evaluator', fn ($evaluatorQuery) => $evaluatorQuery->where('name', 'like', "%{$term}%"));
-                });
-            });
+            ->when($request->filled('q'), fn ($query) => $query->searchIndex($request->string('q')->toString()));
     }
 
     private function indexSummary($query): array

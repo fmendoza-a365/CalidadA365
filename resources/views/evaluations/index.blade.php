@@ -181,7 +181,7 @@
                 <form method="GET" action="{{ route('evaluations.index') }}" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.2fr)_repeat(4,minmax(130px,1fr))_minmax(250px,1fr)_auto]">
                     <div class="md:col-span-2 xl:col-span-1">
                         <label for="q" class="form-label">Buscar</label>
-                        <input type="search" name="q" id="q" value="{{ request('q') }}" class="form-input" placeholder="Agente, campaña o monitor">
+                        <input type="search" name="q" id="q" value="{{ request('q') }}" class="form-input" placeholder="Agente, campaña, monitor, SN o canal">
                     </div>
 
                     @php
@@ -279,7 +279,8 @@
                             <th class="w-28">Score</th>
                             <th class="w-36">Canal</th>
                             <th class="w-10 text-center">Gold</th>
-                            <th class="w-32">Fecha</th>
+                            <th class="w-32">Fecha Llamada</th>
+                            <th class="w-32">Fecha Subida</th>
                             <th class="w-40">Estado</th>
                             <th class="w-36">Responsable</th>
                             <th class="w-24 text-right">Acción</th>
@@ -293,6 +294,7 @@
                                 $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
                                 $interaction = $evaluation->interaction;
                                 $evaluationCampaign = $evaluation->campaign;
+                                $uploadedAt = $interaction?->uploaded_at ?? $interaction?->created_at ?? $evaluation->created_at;
                                 $ch = $channelData($interaction->channel ?? null);
                                 $dir = $directionData($interaction->direction ?? null);
                             @endphp
@@ -388,11 +390,17 @@
                                     @endif
                                 </td>
 
-                                {{-- Columna Fecha --}}
+                                {{-- Columna Fecha Llamada --}}
                                 <td>
                                     <div class="text-[11px] text-gray-700 dark:text-gray-300">{{ $interaction?->occurred_at?->format('d/m/Y') ?? 'N/A' }}</div>
                                     <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $interaction?->occurred_at?->format('H:i') ?? '' }}</div>
-                                    <div class="text-[9px] text-gray-400 dark:text-gray-500">{{ $evaluation->created_at->diffForHumans() }}</div>
+                                </td>
+
+                                {{-- Columna Fecha Subida --}}
+                                <td>
+                                    <div class="text-[11px] text-gray-700 dark:text-gray-300">{{ $uploadedAt?->format('d/m/Y') ?? 'N/A' }}</div>
+                                    <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ $uploadedAt?->format('H:i') ?? '' }}</div>
+                                    <div class="text-[9px] text-gray-400 dark:text-gray-500">{{ $uploadedAt?->diffForHumans() ?? '' }}</div>
                                 </td>
 
                                 {{-- Columna Estado --}}
@@ -429,7 +437,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12">
+                                <td colspan="13">
                                     <div class="empty-state py-12">
                                         <div class="empty-state-icon">
                                             <svg class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -453,6 +461,7 @@
                         $scoreWidth = $hasScore ? max(0, min(100, (float) $score)) : 0;
                         $interaction = $evaluation->interaction;
                         $evaluationCampaign = $evaluation->campaign;
+                        $uploadedAt = $interaction?->uploaded_at ?? $interaction?->created_at ?? $evaluation->created_at;
                         $ch = $channelData($interaction->channel ?? null);
                     @endphp
                     <a href="{{ route('evaluations.show', $evaluation) }}" class="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -494,7 +503,8 @@
                             <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold {{ $statusTone($evaluation->status) }}">
                                 {{ \App\Models\Evaluation::statusLabel($evaluation->status) }}
                             </span>
-                            <span class="text-[10px] text-gray-400">{{ $evaluation->created_at->format('d/m/Y H:i') }}</span>
+                            <span class="text-[10px] text-gray-400">Llamada: {{ $interaction?->occurred_at?->format('d/m/Y H:i') ?? 'N/A' }}</span>
+                            <span class="text-[10px] text-gray-400">Subida: {{ $uploadedAt?->format('d/m/Y H:i') ?? 'N/A' }}</span>
                         </div>
                     </a>
                 @empty

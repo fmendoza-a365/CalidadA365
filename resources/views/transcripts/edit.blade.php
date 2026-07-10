@@ -46,7 +46,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="occurred_at" class="form-label">Fecha y Hora <span class="text-rose-500">*</span></label>
+                            <label for="occurred_at" class="form-label">Fecha y Hora de la Llamada <span class="text-rose-500">*</span></label>
                             <input type="datetime-local" name="occurred_at" id="occurred_at"
                                 value="{{ old('occurred_at', $interaction->occurred_at?->format('Y-m-d\TH:i')) }}"
                                 class="form-input" required>

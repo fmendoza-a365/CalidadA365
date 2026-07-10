@@ -147,7 +147,7 @@
 
                             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div class="form-group">
-                                    <label for="occurred_at" class="form-label">Fecha y hora <span class="text-rose-500">*</span></label>
+                                    <label for="occurred_at" class="form-label">Fecha y Hora de la Llamada <span class="text-rose-500">*</span></label>
                                     <input type="datetime-local" name="occurred_at" id="occurred_at"
                                         value="{{ old('occurred_at') }}" class="form-input" required>
                                     <x-input-error :messages="$errors->get('occurred_at')" class="mt-1" />
