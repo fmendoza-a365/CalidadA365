@@ -5,11 +5,18 @@ namespace App\Services;
 use App\Support\AiProviderErrors;
 use App\Support\AiSettings;
 use Google\Auth\ApplicationDefaultCredentials;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class GoogleTextToSpeechStudioService
 {
+    private const GEMINI_TEXT_CHUNK_BYTES = 1200;
+
+    private const GEMINI_MAX_ATTEMPTS = 3;
+
+    private const GEMINI_RETRY_SLEEP_MICROSECONDS = 200000;
+
     public const DEFAULTS = [
         'endpoint' => 'https://texttospeech.googleapis.com/v1beta1/text:synthesize',
         'gemini_endpoint' => 'https://generativelanguage.googleapis.com/v1beta/interactions',
@@ -83,30 +90,33 @@ class GoogleTextToSpeechStudioService
      */
     private function synthesizeWithGeminiApi(array $settings, string $text): array
     {
-        $payload = $this->geminiPayload($settings, $text);
+        $payloads = [];
+        $pcmParts = [];
+        $sampleRate = null;
+        $channels = null;
 
-        $response = Http::withHeaders([
-            'x-goog-api-key' => $this->geminiApiKey($settings),
-            'Content-Type' => 'application/json',
-        ])
-            ->timeout(90)
-            ->post($this->geminiEndpoint($settings), $payload);
+        foreach ($this->splitTextForGemini($text) as $chunk) {
+            $payload = $this->geminiPayload($settings, $chunk);
+            $payloads[] = $payload;
 
-        if ($response->failed()) {
-            throw new RuntimeException('Gemini TTS error: '.AiProviderErrors::sanitize($response->body()));
+            $audio = $this->requestGeminiAudio($settings, $payload);
+
+            $audioBinary = base64_decode($audio['data'], true);
+            if ($audioBinary === false) {
+                throw new RuntimeException('Gemini TTS devolvió audio inválido.');
+            }
+
+            $sampleRate ??= $audio['sample_rate'];
+            $channels ??= $audio['channels'];
+
+            if ($sampleRate !== $audio['sample_rate'] || $channels !== $audio['channels']) {
+                throw new RuntimeException('Gemini TTS devolvió audio con formato inconsistente entre segmentos.');
+            }
+
+            $pcmParts[] = $this->pcmFromAudioBinary($audioBinary);
         }
 
-        $audio = $this->geminiAudio($response->json() ?? []);
-        if (($audio['data'] ?? '') === '') {
-            throw new RuntimeException('Gemini TTS no devolvió audio en la respuesta.');
-        }
-
-        $audioBinary = base64_decode($audio['data'], true);
-        if ($audioBinary === false) {
-            throw new RuntimeException('Gemini TTS devolvió audio inválido.');
-        }
-
-        $audioBinary = $this->wavFromPcm($audioBinary, $audio['sample_rate'], $audio['channels']);
+        $audioBinary = $this->wavFromPcm(implode('', $pcmParts), $sampleRate ?? 24000, $channels ?? 1);
 
         return [
             'content' => $audioBinary,
@@ -114,8 +124,67 @@ class GoogleTextToSpeechStudioService
             'encoding' => 'LINEAR16',
             'extension' => 'wav',
             'mime' => 'audio/wav',
-            'payload' => $payload,
+            'payload' => count($payloads) === 1 ? $payloads[0] : [
+                'chunks' => count($payloads),
+                'payloads' => $payloads,
+            ],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{data: string, sample_rate: int, channels: int}
+     */
+    private function requestGeminiAudio(array $settings, array $payload): array
+    {
+        $lastError = null;
+
+        for ($attempt = 1; $attempt <= self::GEMINI_MAX_ATTEMPTS; $attempt++) {
+            try {
+                $response = Http::withHeaders([
+                    'x-goog-api-key' => $this->geminiApiKey($settings),
+                    'Content-Type' => 'application/json',
+                ])
+                    ->timeout(90)
+                    ->post($this->geminiEndpoint($settings), $payload);
+            } catch (ConnectionException $exception) {
+                $lastError = $exception;
+
+                if ($attempt < self::GEMINI_MAX_ATTEMPTS) {
+                    usleep(self::GEMINI_RETRY_SLEEP_MICROSECONDS * $attempt);
+
+                    continue;
+                }
+
+                throw new RuntimeException(
+                    'Gemini TTS no respondió antes del tiempo límite. Intenta nuevamente o usa un texto más corto.',
+                    previous: $exception
+                );
+            }
+
+            if (($response->serverError() || $response->status() === 429) && $attempt < self::GEMINI_MAX_ATTEMPTS) {
+                $lastError = new RuntimeException('Gemini TTS transient response: '.$response->status());
+                usleep(self::GEMINI_RETRY_SLEEP_MICROSECONDS * $attempt);
+
+                continue;
+            }
+
+            if ($response->failed()) {
+                throw new RuntimeException('Gemini TTS error: '.AiProviderErrors::sanitize($response->body()));
+            }
+
+            $audio = $this->geminiAudio($response->json() ?? []);
+            if (($audio['data'] ?? '') === '') {
+                throw new RuntimeException('Gemini TTS no devolvió audio en la respuesta.');
+            }
+
+            return $audio;
+        }
+
+        throw new RuntimeException(
+            'Gemini TTS no pudo generar audio después de varios intentos.',
+            previous: $lastError
+        );
     }
 
     /**
@@ -182,6 +251,110 @@ class GoogleTextToSpeechStudioService
         }
 
         return $text;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function splitTextForGemini(string $text): array
+    {
+        $text = $this->normalizeInput($text, 5000);
+        if ($text === '') {
+            throw new RuntimeException('Ingresa texto para generar audio.');
+        }
+
+        if (strlen($text) <= self::GEMINI_TEXT_CHUNK_BYTES) {
+            return [$text];
+        }
+
+        $sentences = preg_split('/(?<=[.!?;:])\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [$text];
+        $chunks = [];
+        $current = '';
+
+        foreach ($sentences as $sentence) {
+            $sentence = trim($sentence);
+            if ($sentence === '') {
+                continue;
+            }
+
+            if (strlen($sentence) > self::GEMINI_TEXT_CHUNK_BYTES) {
+                if ($current !== '') {
+                    $chunks[] = $current;
+                    $current = '';
+                }
+
+                array_push($chunks, ...$this->splitOversizedText($sentence, self::GEMINI_TEXT_CHUNK_BYTES));
+
+                continue;
+            }
+
+            $candidate = $current === '' ? $sentence : "{$current} {$sentence}";
+            if (strlen($candidate) > self::GEMINI_TEXT_CHUNK_BYTES) {
+                $chunks[] = $current;
+                $current = $sentence;
+
+                continue;
+            }
+
+            $current = $candidate;
+        }
+
+        if ($current !== '') {
+            $chunks[] = $current;
+        }
+
+        return $chunks === [] ? [$text] : $chunks;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function splitOversizedText(string $text, int $maxBytes): array
+    {
+        $chunks = [];
+        $current = '';
+
+        foreach (preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [$text] as $word) {
+            if (strlen($word) > $maxBytes) {
+                if ($current !== '') {
+                    $chunks[] = $current;
+                    $current = '';
+                }
+
+                $remaining = $word;
+                while (strlen($remaining) > $maxBytes) {
+                    $piece = rtrim(mb_strcut($remaining, 0, $maxBytes, 'UTF-8'));
+                    if ($piece === '') {
+                        break;
+                    }
+
+                    $chunks[] = $piece;
+                    $remaining = ltrim(substr($remaining, strlen($piece)));
+                }
+
+                if ($remaining !== '') {
+                    $current = $remaining;
+                }
+
+                continue;
+            }
+
+            $candidate = $current === '' ? $word : "{$current} {$word}";
+            if (strlen($candidate) > $maxBytes) {
+                $chunks[] = $current;
+                $current = $word;
+
+                continue;
+            }
+
+            $current = $candidate;
+        }
+
+        if ($current !== '') {
+            $chunks[] = $current;
+        }
+
+        return $chunks;
     }
 
     private function cloudAccessToken(array $settings): string
@@ -334,6 +507,30 @@ class GoogleTextToSpeechStudioService
             .'data'
             .pack('V', $dataLength)
             .$pcm;
+    }
+
+    private function pcmFromAudioBinary(string $audioBinary): string
+    {
+        if (! str_starts_with($audioBinary, 'RIFF')) {
+            return $audioBinary;
+        }
+
+        $offset = 12;
+        $length = strlen($audioBinary);
+
+        while ($offset + 8 <= $length) {
+            $chunkId = substr($audioBinary, $offset, 4);
+            $size = unpack('Vsize', substr($audioBinary, $offset + 4, 4))['size'] ?? 0;
+            $dataStart = $offset + 8;
+
+            if ($chunkId === 'data') {
+                return substr($audioBinary, $dataStart, $size);
+            }
+
+            $offset = $dataStart + $size + ($size % 2);
+        }
+
+        throw new RuntimeException('Gemini TTS devolvió un WAV sin datos de audio.');
     }
 
     private function looksLikeGoogleApiKey(string $value): bool

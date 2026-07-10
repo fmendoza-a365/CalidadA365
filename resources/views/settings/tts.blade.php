@@ -57,9 +57,46 @@
 
         <form method="POST" action="{{ route('settings.tts.store') }}" class="space-y-6"
             x-data="{
-                speed: Number('{{ old('speaking_rate', $settings['speaking_rate']) }}'),
-                pitch: Number('{{ old('pitch', $settings['pitch']) }}')
-            }">
+                speed: Number(@js(old('speaking_rate', $settings['speaking_rate']))),
+                pitch: Number(@js(old('pitch', $settings['pitch']))),
+                ttsText: @js(old('tts_text', '')),
+                generating: false,
+                elapsed: 0,
+                timer: null,
+                get estimatedSegments() {
+                    return Math.max(1, Math.ceil(new Blob([this.ttsText || '']).size / 1200));
+                },
+                get estimatedLabel() {
+                    const seconds = Math.max(20, this.estimatedSegments * 25);
+                    return this.formatDuration(seconds);
+                },
+                get elapsedLabel() {
+                    return this.formatDuration(this.elapsed);
+                },
+                formatDuration(seconds) {
+                    const minutes = Math.floor(seconds / 60);
+                    const remaining = seconds % 60;
+
+                    if (minutes <= 0) {
+                        return `${remaining}s`;
+                    }
+
+                    return `${minutes}m ${remaining.toString().padStart(2, '0')}s`;
+                },
+                startGenerating() {
+                    if (this.generating) {
+                        return;
+                    }
+
+                    this.generating = true;
+                    this.elapsed = 0;
+
+                    this.timer = window.setInterval(() => {
+                        this.elapsed += 1;
+                    }, 1000);
+                }
+            }"
+            x-on:submit="startGenerating()">
             @csrf
             <input type="hidden" name="intent" value="generate">
 
@@ -131,18 +168,43 @@
 
                     <div class="form-group">
                         <label for="tts_text" class="form-label">Texto</label>
-                        <textarea name="tts_text" id="tts_text" rows="9" class="form-textarea"
+                        <textarea name="tts_text" id="tts_text" rows="9" class="form-textarea" x-model="ttsText"
                             placeholder="Escribe aquí el texto que quieres convertir en audio.">{{ old('tts_text') }}</textarea>
+                        <div class="mt-2 flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+                            <span x-text="`${(ttsText || '').length.toLocaleString()} / 5,000 caracteres`"></span>
+                            <span x-show="estimatedSegments > 1" x-cloak>
+                                <span x-text="`${estimatedSegments} segmentos estimados`"></span>
+                                <span> · tiempo aproximado </span>
+                                <span x-text="estimatedLabel"></span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="generating" x-transition class="alert alert-info" x-cloak>
+                <div class="flex items-center gap-3">
+                    <svg class="h-5 w-5 animate-spin text-blue-600 dark:text-blue-300" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <div>
+                        <p class="font-medium text-gray-900 dark:text-white">Generando audio...</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">
+                            Tiempo transcurrido: <span x-text="elapsedLabel"></span>.
+                            <span x-show="estimatedSegments > 1">El texto se procesará en <span x-text="estimatedSegments"></span> segmentos.</span>
+                        </p>
                     </div>
                 </div>
             </div>
 
             <div class="flex justify-end">
-                <button type="submit" class="btn-primary btn-lg">
+                <button type="submit" class="btn-primary btn-lg" :disabled="generating" :class="{ 'cursor-not-allowed opacity-70': generating }">
                     <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M6.5 5.2v9.6c0 .7.8 1.1 1.4.7l7.4-4.8a.8.8 0 000-1.4L7.9 4.5c-.6-.4-1.4 0-1.4.7z" />
                     </svg>
-                    Generar audio
+                    <span x-show="! generating">Generar audio</span>
+                    <span x-show="generating" x-cloak>Generando...</span>
                 </button>
             </div>
         </form>

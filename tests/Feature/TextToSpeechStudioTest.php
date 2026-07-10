@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesUsersWithRoles;
@@ -144,5 +145,101 @@ class TextToSpeechStudioTest extends TestCase
         );
 
         Http::assertNothingSent();
+    }
+
+    public function test_long_text_is_split_into_smaller_gemini_tts_requests(): void
+    {
+        Storage::fake('local');
+        Setting::set('ai.gemini_api_key', 'AIza-test-gemini-api-key', 'string', 'ai');
+
+        $part = 0;
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/interactions' => function () use (&$part) {
+                $part++;
+
+                return Http::response([
+                    'steps' => [
+                        [
+                            'content' => [
+                                [
+                                    'mime_type' => 'audio/l16',
+                                    'data' => base64_encode("fake-pcm-audio-part-{$part}"),
+                                    'channels' => 1,
+                                    'sample_rate' => 24000,
+                                    'type' => 'audio',
+                                ],
+                            ],
+                            'type' => 'model_output',
+                        ],
+                    ],
+                ]);
+            },
+        ]);
+
+        $admin = $this->userWithRole('admin');
+        $longText = str_repeat('Esta es una oración de prueba para validar la generación de audio en segmentos. ', 55);
+
+        $response = $this->actingAs($admin)
+            ->post(route('settings.tts.store'), [
+                'intent' => 'generate',
+                'language_code' => 'es-419',
+                'voice_name' => 'Charon',
+                'audio_encoding' => 'LINEAR16',
+                'speaking_rate' => '1',
+                'pitch' => '0',
+                'style_instructions' => 'Habla con tono profesional y claro.',
+                'tts_text' => $longText,
+            ]);
+
+        $response->assertRedirect(route('settings.tts'));
+        $response->assertSessionHas('tts_generated');
+
+        $recorded = Http::recorded();
+        $this->assertGreaterThan(1, $recorded->count());
+
+        foreach ($recorded as [$request]) {
+            $input = (string) ($request->data()['input'] ?? '');
+
+            $this->assertStringContainsString('Lee en Español (Latinoamérica).', $input);
+            $this->assertLessThanOrEqual(1600, strlen($input));
+        }
+
+        $generated = session('tts_generated');
+        $download = $this->actingAs($admin)->get($generated['download_url']);
+
+        $download->assertOk();
+        $this->assertStringStartsWith('RIFF', $download->streamedContent());
+        $this->assertStringContainsString('fake-pcm-audio-part-1', $download->streamedContent());
+        $this->assertStringContainsString('fake-pcm-audio-part-2', $download->streamedContent());
+    }
+
+    public function test_gemini_connection_timeout_returns_form_error_instead_of_500(): void
+    {
+        Setting::set('ai.gemini_api_key', 'AIza-test-gemini-api-key', 'string', 'ai');
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/interactions' => fn () => throw new ConnectionException('timeout'),
+        ]);
+
+        $admin = $this->userWithRole('admin');
+
+        $response = $this->actingAs($admin)
+            ->post(route('settings.tts.store'), [
+                'intent' => 'generate',
+                'language_code' => 'es-419',
+                'voice_name' => 'Charon',
+                'audio_encoding' => 'LINEAR16',
+                'speaking_rate' => '1',
+                'pitch' => '0',
+                'style_instructions' => '',
+                'tts_text' => 'Hola, este texto debe devolver un error controlado si Gemini no responde.',
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('tts_text');
+        $this->assertSame(
+            'No se pudo generar el audio con la configuración interna actual.',
+            session('errors')->first('tts_text')
+        );
     }
 }
