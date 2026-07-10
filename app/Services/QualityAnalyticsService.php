@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Campaign;
 use App\Models\Evaluation;
 use App\Models\EvaluationItem;
 use App\Models\Interaction;
 use App\Models\User;
-use App\Models\Campaign;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -45,7 +45,7 @@ class QualityAnalyticsService
         return Cache::remember($this->cacheKey('overview', $filters), $this->cacheTtl, function () use ($filters) {
             // Query 1: Main aggregates (count + avg in one query)
             $mainStats = Evaluation::query()
-                ->tap(fn($q) => $this->applyFilters($q, $filters))
+                ->tap(fn ($q) => $this->applyFilters($q, $filters))
                 ->selectRaw('COUNT(*) as total, AVG(percentage_score) as avg_score')
                 ->first();
 
@@ -70,7 +70,7 @@ class QualityAnalyticsService
 
             // Query 4: Consolidated aggregates (agents, monitors, feedback in one query)
             $extraStats = Evaluation::query()
-                ->tap(fn($q) => $this->applyFilters($q, $filters))
+                ->tap(fn ($q) => $this->applyFilters($q, $filters))
                 ->selectRaw('
                     COUNT(DISTINCT agent_id) as active_agents,
                     COUNT(DISTINCT evaluator_id) as active_monitors,
@@ -111,7 +111,7 @@ class QualityAnalyticsService
         return EvaluationItem::whereHas('evaluation', function ($q) use ($filters) {
             $this->applyFilters($q, $filters);
         })
-            ->whereHas('subAttribute', fn($q) => $q->where('is_critical', true))
+            ->whereHas('subAttribute', fn ($q) => $q->where('is_critical', true))
             ->where('status', 'non_compliant')
             ->distinct()
             ->pluck('evaluation_id');
@@ -156,15 +156,15 @@ class QualityAnalyticsService
                 break;
             case 'agent':
                 $query->join('users', 'evaluations.agent_id', '=', 'users.id')
-                    ->selectRaw("users.name as label, AVG(percentage_score) as avg_score, COUNT(*) as count")
+                    ->selectRaw('users.name as label, AVG(percentage_score) as avg_score, COUNT(*) as count')
                     ->groupBy('users.id', 'users.name')
                     ->orderByDesc('avg_score');
                 break;
         }
 
-        $rows = $query->get()->map(fn($item) => [
+        $rows = $query->get()->map(fn ($item) => [
             'bucket' => $groupBy === 'week' ? (string) $item->week_bucket : (string) $item->label,
-            'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
+            'label' => $groupBy === 'week' ? 'Semana '.(int) $item->week_bucket : $item->label,
             'avg_score' => round((float) $item->avg_score, 2),
             'count' => (int) $item->count,
         ])->toArray();
@@ -178,8 +178,8 @@ class QualityAnalyticsService
     public function getMPGrouped(string $groupBy, array $filters = []): array
     {
         $query = EvaluationItem::query()
-            ->whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
-            ->whereHas('subAttribute', fn($q) => $q->where('is_critical', true))
+            ->whereHas('evaluation', fn ($q) => $this->applyFilters($q, $filters))
+            ->whereHas('subAttribute', fn ($q) => $q->where('is_critical', true))
             ->where('evaluation_items.status', 'non_compliant')
             ->join('evaluations', 'evaluation_items.evaluation_id', '=', 'evaluations.id');
 
@@ -214,7 +214,7 @@ class QualityAnalyticsService
                 break;
             case 'agent':
                 $query->join('users', 'evaluations.agent_id', '=', 'users.id')
-                    ->selectRaw("users.name as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp")
+                    ->selectRaw('users.name as label, COUNT(*) as count, COUNT(DISTINCT evaluation_items.evaluation_id) as evaluations_with_mp')
                     ->groupBy('users.id', 'users.name')
                     ->orderByDesc('count');
                 break;
@@ -230,7 +230,7 @@ class QualityAnalyticsService
 
             $row = [
                 'bucket' => $bucket,
-                'label' => $groupBy === 'week' ? 'Semana ' . (int) $item->week_bucket : $item->label,
+                'label' => $groupBy === 'week' ? 'Semana '.(int) $item->week_bucket : $item->label,
                 'count' => (int) $item->count,
                 'evaluations_with_mp' => $evaluationsWithMp,
             ];
@@ -252,7 +252,7 @@ class QualityAnalyticsService
     public function getTopDefects(array $filters = [], int $limit = 10): array
     {
         return Cache::remember($this->cacheKey('topDefects', array_merge($filters, ['limit' => $limit])), $this->cacheTtl, function () use ($filters, $limit) {
-            $rows = EvaluationItem::whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
+            $rows = EvaluationItem::whereHas('evaluation', fn ($q) => $this->applyFilters($q, $filters))
                 ->where('status', 'non_compliant')
                 ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
                 ->select('quality_subattributes.name as label', DB::raw('COUNT(*) as count'), 'quality_subattributes.is_critical')
@@ -260,7 +260,7 @@ class QualityAnalyticsService
                 ->orderByDesc('count')
                 ->limit($limit)
                 ->get()
-                ->map(fn($item) => [
+                ->map(fn ($item) => [
                     'label' => $item->label,
                     'count' => (int) $item->count,
                     'is_critical' => (bool) $item->is_critical,
@@ -298,13 +298,13 @@ class QualityAnalyticsService
     public function getFeedbackBySupervisor(array $filters = []): array
     {
         $rows = Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->tap(fn ($q) => $this->applyFilters($q, $filters))
             ->join('users as agents', 'evaluations.agent_id', '=', 'agents.id')
             ->leftJoin('users as supervisors', 'agents.supervisor_id', '=', 'supervisors.id')
             ->selectRaw("COALESCE(supervisors.name, 'Sin Supervisor') as label, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
             ->groupBy('supervisors.id', 'supervisors.name')
             ->get()
-            ->map(fn($item) => [
+            ->map(fn ($item) => [
                 'label' => $item->label,
                 'total' => (int) $item->total,
                 'done' => (int) $item->done,
@@ -322,14 +322,15 @@ class QualityAnalyticsService
     public function getFeedbackByWeek(array $filters = []): array
     {
         $weekBucket = $this->getWeekOfMonthSql('evaluations.created_at');
+
         return Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->tap(fn ($q) => $this->applyFilters($q, $filters))
             ->selectRaw("$weekBucket as week_bucket, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
             ->groupByRaw($weekBucket)
             ->orderByRaw($weekBucket)
             ->get()
-            ->map(fn($item) => [
-                'label' => 'Semana ' . (int) $item->week_bucket,
+            ->map(fn ($item) => [
+                'label' => 'Semana '.(int) $item->week_bucket,
                 'total' => (int) $item->total,
                 'done' => (int) $item->done,
                 'done_pct' => $item->total > 0 ? round(($item->done / $item->total) * 100, 1) : 0,
@@ -342,12 +343,12 @@ class QualityAnalyticsService
         $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
 
         return Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->tap(fn ($q) => $this->applyFilters($q, $filters))
             ->selectRaw("$bucket as bucket, COUNT(*) as total, SUM(CASE WHEN agent_viewed_at IS NOT NULL THEN 1 ELSE 0 END) as done")
             ->groupByRaw($bucket)
             ->orderByRaw($bucket)
             ->get()
-            ->map(fn($item) => [
+            ->map(fn ($item) => [
                 'bucket' => (string) $item->bucket,
                 'label' => $this->periodLabel((string) $item->bucket, $period),
                 'total' => (int) $item->total,
@@ -441,7 +442,7 @@ class QualityAnalyticsService
 
     private function withGroupedInsights(array $rows, string $type, string $valueKey, string $countKey): array
     {
-        $totalCount = collect($rows)->sum(fn(array $row) => (int) ($row[$countKey] ?? 0));
+        $totalCount = collect($rows)->sum(fn (array $row) => (int) ($row[$countKey] ?? 0));
 
         return array_map(function (array $row) use ($type, $valueKey, $countKey, $totalCount) {
             $count = (int) ($row[$countKey] ?? 0);
@@ -590,11 +591,11 @@ class QualityAnalyticsService
         $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
 
         return Evaluation::query()
-            ->tap(fn($q) => $this->applyFilters($q, $filters))
+            ->tap(fn ($q) => $this->applyFilters($q, $filters))
             ->selectRaw("$bucket as bucket, COUNT(*) as total")
             ->groupByRaw($bucket)
             ->pluck('total', 'bucket')
-            ->map(fn($total) => (int) $total);
+            ->map(fn ($total) => (int) $total);
     }
 
     private function getTopDefectsByPeriod(string $period, array $filters, bool $criticalOnly = false): Collection
@@ -602,7 +603,7 @@ class QualityAnalyticsService
         $bucket = $this->getPeriodBucketSql('evaluations.created_at', $period);
 
         $query = EvaluationItem::query()
-            ->whereHas('evaluation', fn($q) => $this->applyFilters($q, $filters))
+            ->whereHas('evaluation', fn ($q) => $this->applyFilters($q, $filters))
             ->where('evaluation_items.status', 'non_compliant')
             ->join('evaluations', 'evaluation_items.evaluation_id', '=', 'evaluations.id')
             ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id');
@@ -615,7 +616,7 @@ class QualityAnalyticsService
             ->selectRaw("$bucket as bucket, quality_subattributes.name as label, quality_subattributes.is_critical, COUNT(*) as count")
             ->groupByRaw("$bucket, quality_subattributes.id, quality_subattributes.name, quality_subattributes.is_critical")
             ->get()
-            ->groupBy(fn($item) => (string) $item->bucket)
+            ->groupBy(fn ($item) => (string) $item->bucket)
             ->map(function (Collection $items) {
                 $top = $items->sortByDesc('count')->first();
 
@@ -629,135 +630,139 @@ class QualityAnalyticsService
 
     public function getAudioUploadPerformance(array $filters = [], int $recentLimit = 10): array
     {
-        $query = Interaction::query()
-            ->with([
-                'uploadedBy:id,name,username',
-                'campaign:id,parent_id,name',
-                'campaign.parent:id,name',
-                'aiEvaluation:id,interaction_id,status,ai_processed_at,reviewed_at,visible_to_agent_at',
-            ])
-            ->where('source_type', 'audio');
+        return Cache::remember($this->cacheKey('audioUploadPerformance', array_merge($filters, [
+            'recent_limit' => $recentLimit,
+        ])), $this->cacheTtl, function () use ($filters, $recentLimit) {
+            $query = Interaction::query()
+                ->with([
+                    'uploadedBy:id,name,username',
+                    'campaign:id,parent_id,name',
+                    'campaign.parent:id,name',
+                    'aiEvaluation:id,interaction_id,status,ai_processed_at,reviewed_at,visible_to_agent_at',
+                ])
+                ->where('source_type', 'audio');
 
-        $this->applyInteractionFilters($query, $filters);
+            $this->applyInteractionFilters($query, $filters);
 
-        $interactions = $query
-            ->orderBy('uploaded_by')
-            ->orderBy('uploaded_at')
-            ->orderBy('id')
-            ->get();
+            $interactions = $query
+                ->orderBy('uploaded_by')
+                ->orderBy('uploaded_at')
+                ->orderBy('id')
+                ->get();
 
-        $monitorRows = $interactions
-            ->groupBy('uploaded_by')
-            ->map(function (Collection $items) {
-                $items = $items->values();
-                $gaps = collect();
+            $monitorRows = $interactions
+                ->groupBy('uploaded_by')
+                ->map(function (Collection $items) {
+                    $items = $items->values();
+                    $gaps = collect();
 
-                $items->each(function (Interaction $interaction, int $index) use ($items, $gaps) {
-                    if ($index === 0) {
-                        return;
-                    }
+                    $items->each(function (Interaction $interaction, int $index) use ($items, $gaps) {
+                        if ($index === 0) {
+                            return;
+                        }
 
-                    $previous = $items[$index - 1];
-                    $gap = $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at);
+                        $previous = $items[$index - 1];
+                        $gap = $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at);
 
-                    if ($gap !== null) {
-                        $gaps->push($gap);
-                    }
+                        if ($gap !== null) {
+                            $gaps->push($gap);
+                        }
+                    });
+
+                    $aiDurations = $items
+                        ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at))
+                        ->filter(fn ($seconds) => $seconds !== null)
+                        ->values();
+
+                    $reviewDurations = $items
+                        ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at))
+                        ->filter(fn ($seconds) => $seconds !== null)
+                        ->values();
+
+                    $transcriptionDurations = $items
+                        ->map(fn (Interaction $interaction) => $this->secondsBetween(
+                            $interaction->uploaded_at,
+                            $this->metadataTimestamp($interaction, 'transcription_completed_at')
+                        ))
+                        ->filter(fn ($seconds) => $seconds !== null)
+                        ->values();
+
+                    $monitor = $items->first()?->uploadedBy;
+
+                    return [
+                        'id' => $monitor?->id,
+                        'label' => $monitor?->name ?? 'Sin monitor',
+                        'username' => $monitor?->username,
+                        'audio_count' => $items->count(),
+                        'avg_gap_seconds' => $this->average($gaps),
+                        'avg_gap_label' => $this->formatSeconds($this->average($gaps)),
+                        'max_gap_seconds' => $gaps->max(),
+                        'max_gap_label' => $this->formatSeconds($gaps->max()),
+                        'avg_transcription_seconds' => $this->average($transcriptionDurations),
+                        'avg_transcription_label' => $this->formatSeconds($this->average($transcriptionDurations)),
+                        'avg_ai_seconds' => $this->average($aiDurations),
+                        'avg_ai_label' => $this->formatSeconds($this->average($aiDurations)),
+                        'avg_review_seconds' => $this->average($reviewDurations),
+                        'avg_review_label' => $this->formatSeconds($this->average($reviewDurations)),
+                        'last_upload_at' => optional($items->last()?->uploaded_at)->toIso8601String(),
+                    ];
+                })
+                ->sortByDesc('audio_count')
+                ->values();
+
+            $allGaps = collect($monitorRows)->pluck('avg_gap_seconds')->filter(fn ($value) => $value !== null);
+            $allAi = collect($monitorRows)->pluck('avg_ai_seconds')->filter(fn ($value) => $value !== null);
+            $allReview = collect($monitorRows)->pluck('avg_review_seconds')->filter(fn ($value) => $value !== null);
+            $allTranscription = collect($monitorRows)->pluck('avg_transcription_seconds')->filter(fn ($value) => $value !== null);
+
+            $recent = $interactions
+                ->sortByDesc('uploaded_at')
+                ->take($recentLimit)
+                ->values()
+                ->map(function (Interaction $interaction) use ($interactions) {
+                    $previous = $interactions
+                        ->where('uploaded_by', $interaction->uploaded_by)
+                        ->where('uploaded_at', '<', $interaction->uploaded_at)
+                        ->sortByDesc('uploaded_at')
+                        ->first();
+
+                    $gap = $previous ? $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at) : null;
+                    $aiSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at);
+                    $reviewSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at);
+
+                    return [
+                        'id' => $interaction->id,
+                        'monitor' => $interaction->uploadedBy?->name ?? 'Sin monitor',
+                        'campaign' => $interaction->campaign?->displayName() ?? $interaction->campaign?->name ?? 'Sin campaña',
+                        'file_name' => $interaction->file_name,
+                        'uploaded_at' => optional($interaction->uploaded_at)->toIso8601String(),
+                        'since_previous_seconds' => $gap,
+                        'since_previous_label' => $this->formatSeconds($gap),
+                        'upload_to_ai_seconds' => $aiSeconds,
+                        'upload_to_ai_label' => $this->formatSeconds($aiSeconds),
+                        'upload_to_review_seconds' => $reviewSeconds,
+                        'upload_to_review_label' => $this->formatSeconds($reviewSeconds),
+                        'status' => $interaction->transcription_status ?? $interaction->status,
+                    ];
                 });
 
-                $aiDurations = $items
-                    ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at))
-                    ->filter(fn ($seconds) => $seconds !== null)
-                    ->values();
-
-                $reviewDurations = $items
-                    ->map(fn (Interaction $interaction) => $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at))
-                    ->filter(fn ($seconds) => $seconds !== null)
-                    ->values();
-
-                $transcriptionDurations = $items
-                    ->map(fn (Interaction $interaction) => $this->secondsBetween(
-                        $interaction->uploaded_at,
-                        $this->metadataTimestamp($interaction, 'transcription_completed_at')
-                    ))
-                    ->filter(fn ($seconds) => $seconds !== null)
-                    ->values();
-
-                $monitor = $items->first()?->uploadedBy;
-
-                return [
-                    'id' => $monitor?->id,
-                    'label' => $monitor?->name ?? 'Sin monitor',
-                    'username' => $monitor?->username,
-                    'audio_count' => $items->count(),
-                    'avg_gap_seconds' => $this->average($gaps),
-                    'avg_gap_label' => $this->formatSeconds($this->average($gaps)),
-                    'max_gap_seconds' => $gaps->max(),
-                    'max_gap_label' => $this->formatSeconds($gaps->max()),
-                    'avg_transcription_seconds' => $this->average($transcriptionDurations),
-                    'avg_transcription_label' => $this->formatSeconds($this->average($transcriptionDurations)),
-                    'avg_ai_seconds' => $this->average($aiDurations),
-                    'avg_ai_label' => $this->formatSeconds($this->average($aiDurations)),
-                    'avg_review_seconds' => $this->average($reviewDurations),
-                    'avg_review_label' => $this->formatSeconds($this->average($reviewDurations)),
-                    'last_upload_at' => optional($items->last()?->uploaded_at)->toIso8601String(),
-                ];
-            })
-            ->sortByDesc('audio_count')
-            ->values();
-
-        $allGaps = collect($monitorRows)->pluck('avg_gap_seconds')->filter(fn ($value) => $value !== null);
-        $allAi = collect($monitorRows)->pluck('avg_ai_seconds')->filter(fn ($value) => $value !== null);
-        $allReview = collect($monitorRows)->pluck('avg_review_seconds')->filter(fn ($value) => $value !== null);
-        $allTranscription = collect($monitorRows)->pluck('avg_transcription_seconds')->filter(fn ($value) => $value !== null);
-
-        $recent = $interactions
-            ->sortByDesc('uploaded_at')
-            ->take($recentLimit)
-            ->values()
-            ->map(function (Interaction $interaction) use ($interactions) {
-                $previous = $interactions
-                    ->where('uploaded_by', $interaction->uploaded_by)
-                    ->where('uploaded_at', '<', $interaction->uploaded_at)
-                    ->sortByDesc('uploaded_at')
-                    ->first();
-
-                $gap = $previous ? $this->secondsBetween($previous->uploaded_at, $interaction->uploaded_at) : null;
-                $aiSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->ai_processed_at);
-                $reviewSeconds = $this->secondsBetween($interaction->uploaded_at, $interaction->aiEvaluation?->reviewed_at);
-
-                return [
-                    'id' => $interaction->id,
-                    'monitor' => $interaction->uploadedBy?->name ?? 'Sin monitor',
-                    'campaign' => $interaction->campaign?->displayName() ?? $interaction->campaign?->name ?? 'Sin campaña',
-                    'file_name' => $interaction->file_name,
-                    'uploaded_at' => optional($interaction->uploaded_at)->toIso8601String(),
-                    'since_previous_seconds' => $gap,
-                    'since_previous_label' => $this->formatSeconds($gap),
-                    'upload_to_ai_seconds' => $aiSeconds,
-                    'upload_to_ai_label' => $this->formatSeconds($aiSeconds),
-                    'upload_to_review_seconds' => $reviewSeconds,
-                    'upload_to_review_label' => $this->formatSeconds($reviewSeconds),
-                    'status' => $interaction->transcription_status ?? $interaction->status,
-                ];
-            });
-
-        return [
-            'summary' => [
-                'total_audio' => $interactions->count(),
-                'monitors' => $monitorRows->count(),
-                'avg_gap_seconds' => $this->average($allGaps),
-                'avg_gap_label' => $this->formatSeconds($this->average($allGaps)),
-                'avg_transcription_seconds' => $this->average($allTranscription),
-                'avg_transcription_label' => $this->formatSeconds($this->average($allTranscription)),
-                'avg_ai_seconds' => $this->average($allAi),
-                'avg_ai_label' => $this->formatSeconds($this->average($allAi)),
-                'avg_review_seconds' => $this->average($allReview),
-                'avg_review_label' => $this->formatSeconds($this->average($allReview)),
-            ],
-            'by_monitor' => $monitorRows,
-            'recent' => $recent,
-        ];
+            return [
+                'summary' => [
+                    'total_audio' => $interactions->count(),
+                    'monitors' => $monitorRows->count(),
+                    'avg_gap_seconds' => $this->average($allGaps),
+                    'avg_gap_label' => $this->formatSeconds($this->average($allGaps)),
+                    'avg_transcription_seconds' => $this->average($allTranscription),
+                    'avg_transcription_label' => $this->formatSeconds($this->average($allTranscription)),
+                    'avg_ai_seconds' => $this->average($allAi),
+                    'avg_ai_label' => $this->formatSeconds($this->average($allAi)),
+                    'avg_review_seconds' => $this->average($allReview),
+                    'avg_review_label' => $this->formatSeconds($this->average($allReview)),
+                ],
+                'by_monitor' => $monitorRows,
+                'recent' => $recent,
+            ];
+        });
     }
 
     /**
@@ -824,14 +829,14 @@ class QualityAnalyticsService
         }
 
         return $query->join('users', 'evaluations.agent_id', '=', 'users.id')
-            ->selectRaw("
+            ->selectRaw('
                 users.id,
                 users.name as label,
                 AVG(percentage_score) as avg_score,
                 COUNT(*) as total_evals,
                 SUM(CASE WHEN percentage_score >= 90 THEN 1 ELSE 0 END) as excellent,
                 SUM(CASE WHEN percentage_score < 70 THEN 1 ELSE 0 END) as critical
-            ")
+            ')
             ->groupBy('users.id', 'users.name')
             ->orderByDesc('avg_score')
             ->orderBy('users.name');
@@ -865,7 +870,7 @@ class QualityAnalyticsService
             ->groupBy('campaigns.id', 'campaigns.name', 'parent_campaigns.id', 'parent_campaigns.name')
             ->orderByDesc('count')
             ->get()
-            ->map(fn($item) => [
+            ->map(fn ($item) => [
                 'label' => $item->label,
                 'count' => (int) $item->count,
             ])
@@ -952,27 +957,27 @@ class QualityAnalyticsService
             $query->forUser(auth()->user());
         }
 
-        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+        if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
             // Check if table joining is happening to avoid ambiguous columns
             // Some queries use raw Evaluation::query() which defaults to evaluations.*
             // We use evaluations.created_at to be safe because of joins in other methods.
             $query->whereBetween('evaluations.created_at', [
                 Carbon::parse($filters['start_date'])->startOfDay(),
-                Carbon::parse($filters['end_date'])->endOfDay()
+                Carbon::parse($filters['end_date'])->endOfDay(),
             ]);
         }
 
-        if (!empty($filters['campaign_id'])) {
+        if (! empty($filters['campaign_id'])) {
             $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
-        } elseif (!empty($filters['parent_campaign_id'])) {
+        } elseif (! empty($filters['parent_campaign_id'])) {
             $query->whereIn('evaluations.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
         }
 
-        if (!empty($filters['agent_id'])) {
+        if (! empty($filters['agent_id'])) {
             $query->where('evaluations.agent_id', $filters['agent_id']);
         }
 
-        if (!empty($filters['supervisor_id'])) {
+        if (! empty($filters['supervisor_id'])) {
             $agentIds = \App\Models\CampaignUserAssignment::where('supervisor_id', $filters['supervisor_id'])
                 ->where('is_active', true)
                 ->pluck('agent_id')
@@ -989,20 +994,20 @@ class QualityAnalyticsService
             $query->forUser(auth()->user());
         }
 
-        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+        if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
             $query->whereBetween('interactions.uploaded_at', [
                 Carbon::parse($filters['start_date'])->startOfDay(),
-                Carbon::parse($filters['end_date'])->endOfDay()
+                Carbon::parse($filters['end_date'])->endOfDay(),
             ]);
         }
 
-        if (!empty($filters['campaign_id'])) {
+        if (! empty($filters['campaign_id'])) {
             $query->whereIn('interactions.campaign_id', Campaign::idsForFilter($filters['campaign_id']));
-        } elseif (!empty($filters['parent_campaign_id'])) {
+        } elseif (! empty($filters['parent_campaign_id'])) {
             $query->whereIn('interactions.campaign_id', Campaign::idsForFilter($filters['parent_campaign_id']));
         }
 
-        if (!empty($filters['agent_id'])) {
+        if (! empty($filters['agent_id'])) {
             $query->where('interactions.agent_id', $filters['agent_id']);
         }
     }
@@ -1068,7 +1073,7 @@ class QualityAnalyticsService
                 'color' => 'text-cyan-500 dark:text-cyan-400',
                 'bg' => 'bg-cyan-50 dark:bg-cyan-950/20',
                 'border' => 'border-cyan-400',
-                'icon' => '<svg class="w-16 h-16 text-cyan-500 dark:text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="diamond-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee" /><stop offset="50%" stop-color="#818cf8" /><stop offset="100%" stop-color="#c084fc" /></linearGradient></defs><path d="M6 3h12l4 6-10 12L2 9z" fill="url(#diamond-grad)" fill-opacity="0.15" stroke="url(#diamond-grad)" stroke-width="1.8"/><path d="M11 3 8 9l4 12 4-12-3-6" stroke="url(#diamond-grad)" stroke-width="1"/><path d="M2 9h20" stroke="url(#diamond-grad)" stroke-width="1"/></svg>'
+                'icon' => '<svg class="w-16 h-16 text-cyan-500 dark:text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="diamond-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee" /><stop offset="50%" stop-color="#818cf8" /><stop offset="100%" stop-color="#c084fc" /></linearGradient></defs><path d="M6 3h12l4 6-10 12L2 9z" fill="url(#diamond-grad)" fill-opacity="0.15" stroke="url(#diamond-grad)" stroke-width="1.8"/><path d="M11 3 8 9l4 12 4-12-3-6" stroke="url(#diamond-grad)" stroke-width="1"/><path d="M2 9h20" stroke="url(#diamond-grad)" stroke-width="1"/></svg>',
             ];
         }
         if ($averageScore >= 80) {
@@ -1077,7 +1082,7 @@ class QualityAnalyticsService
                 'color' => 'text-amber-500 dark:text-amber-400',
                 'bg' => 'bg-amber-50 dark:bg-amber-950/20',
                 'border' => 'border-amber-400',
-                'icon' => '<svg class="w-16 h-16 text-amber-500 dark:text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24" /><stop offset="100%" stop-color="#d97706" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#gold-grad)" fill-opacity="0.15" stroke="url(#gold-grad)" stroke-width="1.8"/><circle cx="12" cy="11" r="4" stroke="url(#gold-grad)" stroke-width="1.5"/><path d="m12 9 1 2h2l-1.5 1.5.5 2-2-1-2 1 .5-2L9 11h2z" fill="url(#gold-grad)"/></svg>'
+                'icon' => '<svg class="w-16 h-16 text-amber-500 dark:text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24" /><stop offset="100%" stop-color="#d97706" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#gold-grad)" fill-opacity="0.15" stroke="url(#gold-grad)" stroke-width="1.8"/><circle cx="12" cy="11" r="4" stroke="url(#gold-grad)" stroke-width="1.5"/><path d="m12 9 1 2h2l-1.5 1.5.5 2-2-1-2 1 .5-2L9 11h2z" fill="url(#gold-grad)"/></svg>',
             ];
         }
         if ($averageScore >= 70) {
@@ -1086,15 +1091,16 @@ class QualityAnalyticsService
                 'color' => 'text-slate-500 dark:text-slate-400',
                 'bg' => 'bg-slate-50 dark:bg-slate-950/20',
                 'border' => 'border-slate-400',
-                'icon' => '<svg class="w-16 h-16 text-slate-500 dark:text-slate-400 drop-shadow-[0_0_10px_rgba(148,163,184,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="silver-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#cbd5e1" /><stop offset="50%" stop-color="#94a3b8" /><stop offset="100%" stop-color="#64748b" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#silver-grad)" fill-opacity="0.15" stroke="url(#silver-grad)" stroke-width="1.8"/><path d="M12 8v8" stroke="url(#silver-grad)" stroke-width="1.5"/><path d="M9 11h6" stroke="url(#silver-grad)" stroke-width="1.5"/></svg>'
+                'icon' => '<svg class="w-16 h-16 text-slate-500 dark:text-slate-400 drop-shadow-[0_0_10px_rgba(148,163,184,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="silver-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#cbd5e1" /><stop offset="50%" stop-color="#94a3b8" /><stop offset="100%" stop-color="#64748b" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#silver-grad)" fill-opacity="0.15" stroke="url(#silver-grad)" stroke-width="1.8"/><path d="M12 8v8" stroke="url(#silver-grad)" stroke-width="1.5"/><path d="M9 11h6" stroke="url(#silver-grad)" stroke-width="1.5"/></svg>',
             ];
         }
+
         return [
             'name' => 'Q4 - Bronce',
             'color' => 'text-orange-600 dark:text-orange-400',
             'bg' => 'bg-orange-50 dark:bg-orange-950/20',
             'border' => 'border-orange-400',
-            'icon' => '<svg class="w-16 h-16 text-orange-600 dark:text-orange-400 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="bronze-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fdba74" /><stop offset="50%" stop-color="#f97316" /><stop offset="100%" stop-color="#ea580c" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#bronze-grad)" fill-opacity="0.15" stroke="url(#bronze-grad)" stroke-width="1.8"/><path d="m12 8-3.5 6h7z" stroke="url(#bronze-grad)" stroke-width="1.5"/><circle cx="12" cy="13" r="0.5" fill="url(#bronze-grad)"/></svg>'
+            'icon' => '<svg class="w-16 h-16 text-orange-600 dark:text-orange-400 drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="bronze-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fdba74" /><stop offset="50%" stop-color="#f97316" /><stop offset="100%" stop-color="#ea580c" /></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#bronze-grad)" fill-opacity="0.15" stroke="url(#bronze-grad)" stroke-width="1.8"/><path d="m12 8-3.5 6h7z" stroke="url(#bronze-grad)" stroke-width="1.5"/><circle cx="12" cy="13" r="0.5" fill="url(#bronze-grad)"/></svg>',
         ];
     }
 

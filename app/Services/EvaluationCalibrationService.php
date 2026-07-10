@@ -2,15 +2,18 @@
 
 namespace App\Services;
 
-use App\Models\Evaluation;
 use App\Models\Campaign;
+use App\Models\Evaluation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class EvaluationCalibrationService
 {
     private const HIGH_DELTA_THRESHOLD = 10;
+
+    private const CACHE_TTL_SECONDS = 300;
 
     public function compareForEvaluation(Evaluation $evaluation): ?array
     {
@@ -122,20 +125,31 @@ class EvaluationCalibrationService
 
     private function comparisons(array $filters, User $user): Collection
     {
-        return $this->pairedManualEvaluationQuery($filters, $user)
-            ->get()
-            ->map(function (Evaluation $manualEvaluation) {
-                $aiEvaluation = $manualEvaluation->interaction?->evaluations
-                    ->firstWhere('type', 'ai');
+        return Cache::remember($this->cacheKey('comparisons', $filters, $user), self::CACHE_TTL_SECONDS, function () use ($filters, $user) {
+            return $this->pairedManualEvaluationQuery($filters, $user)
+                ->get()
+                ->map(function (Evaluation $manualEvaluation) {
+                    $aiEvaluation = $manualEvaluation->interaction?->evaluations
+                        ->firstWhere('type', 'ai');
 
-                if (! $aiEvaluation) {
-                    return null;
-                }
+                    if (! $aiEvaluation) {
+                        return null;
+                    }
 
-                return $this->compareEvaluations($aiEvaluation, $manualEvaluation);
-            })
-            ->filter()
-            ->values();
+                    return $this->compareEvaluations($aiEvaluation, $manualEvaluation);
+                })
+                ->filter()
+                ->values();
+        });
+    }
+
+    private function cacheKey(string $method, array $filters, User $user): string
+    {
+        return 'calibration.'.$method.'.'.md5(json_encode([
+            'filters' => $filters,
+            'user_id' => $user->id,
+            'roles' => $user->roles?->pluck('name')->sort()->values()->all() ?? [],
+        ]));
     }
 
     private function pairedManualEvaluationQuery(array $filters, User $user): Builder
