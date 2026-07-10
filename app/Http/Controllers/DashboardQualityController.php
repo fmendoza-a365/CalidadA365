@@ -21,6 +21,20 @@ class DashboardQualityController extends Controller
 
     public function index(Request $request)
     {
+        $user = $request->user();
+        $showInternalDashboard = ! $user->hasAnyRole(['agent', 'supervisor']);
+        $availableTabs = ['calidad', 'mp', 'feedback', 'ranking'];
+
+        if ($showInternalDashboard) {
+            $availableTabs = ['calidad', 'mp', 'feedback', 'calibracion', 'ranking', 'gestion'];
+        }
+
+        $activeTab = $request->query('tab', 'calidad');
+
+        if (! in_array($activeTab, $availableTabs, true)) {
+            $activeTab = 'calidad';
+        }
+
         $filters = [
             'start_date' => $request->input('start_date', now()->startOfMonth()->format('Y-m-d')),
             'end_date' => $request->input('end_date', now()->format('Y-m-d')),
@@ -28,65 +42,44 @@ class DashboardQualityController extends Controller
             'parent_campaign_id' => $request->input('parent_campaign_id'),
         ];
 
-        // Tab 1: Dashboard Calidad
         $stats = $this->analytics->getOverviewStats($filters);
-        $qualityMonth = $this->analytics->getQualityGrouped('month', $filters);
-        $qualityWeek = $this->analytics->getQualityGrouped('week', $filters);
-        $qualityCampaign = $this->analytics->getQualityGrouped('campaign', $filters);
-        $qualitySupervisor = $this->analytics->getQualityGrouped('supervisor', $filters);
-        $qualityDaily = $this->analytics->getQualityGrouped('daily', $filters);
-        $qualityTrendSeries = $this->analytics->getQualityTrendSeries($filters);
-
-        // Tab 2: Malas Prácticas
-        $mpMonth = $this->analytics->getMPGrouped('month', $filters);
-        $mpWeek = $this->analytics->getMPGrouped('week', $filters);
-        $mpCampaign = $this->analytics->getMPGrouped('campaign', $filters);
-        $mpSupervisor = $this->analytics->getMPGrouped('supervisor', $filters);
-        $mpDaily = $this->analytics->getMPGrouped('daily', $filters);
-        $mpTrendSeries = $this->analytics->getMpTrendSeries($filters);
-
-        // Tab 3: Seguimiento Feedback
-        $feedbackStats = $this->analytics->getFeedbackStats($filters);
-        $feedbackSupervisor = $this->analytics->getFeedbackBySupervisor($filters);
-        $feedbackWeek = $this->analytics->getFeedbackByWeek($filters);
-        $feedbackTrendSeries = $this->analytics->getFeedbackTrendSeries($filters);
-
-        // Tab 4/5: Rankings & Defects
-        $agentRanking = $this->analytics->getAgentRanking($filters);
-        $topDefects = $this->analytics->getTopDefects($filters);
-        $evalsByCampaign = $this->analytics->getEvalsByCampaign($filters);
-        $audioPerformance = $this->analytics->getAudioUploadPerformance($filters);
-        $calibrationSummary = $this->calibration->summary($filters, auth()->user());
-        $calibrationPairs = $this->calibration->recentPairs($filters, auth()->user());
-
         $campaigns = Campaign::forUser(auth()->user())->orderedForSelect()->get();
 
-        return view('dashboard.quality.index', compact(
-            'stats',
-            'qualityMonth',
-            'qualityWeek',
-            'qualityCampaign',
-            'qualitySupervisor',
-            'qualityDaily',
-            'qualityTrendSeries',
-            'mpMonth',
-            'mpWeek',
-            'mpCampaign',
-            'mpSupervisor',
-            'mpDaily',
-            'mpTrendSeries',
-            'feedbackStats',
-            'feedbackSupervisor',
-            'feedbackWeek',
-            'feedbackTrendSeries',
-            'agentRanking',
-            'topDefects',
-            'evalsByCampaign',
-            'audioPerformance',
-            'calibrationSummary',
-            'calibrationPairs',
-            'filters',
-            'campaigns'
-        ));
+        $data = compact('stats', 'filters', 'campaigns', 'activeTab', 'availableTabs');
+
+        match ($activeTab) {
+            'mp' => $data += [
+                'mpCampaign' => $this->analytics->getMPGrouped('campaign', $filters),
+                'mpSupervisor' => $showInternalDashboard ? $this->analytics->getMPGrouped('supervisor', $filters) : [],
+                'mpTrendSeries' => $this->analytics->getMpTrendSeries($filters),
+                'topDefects' => $this->analytics->getTopDefects($filters),
+            ],
+            'feedback' => $data += [
+                'feedbackStats' => $this->analytics->getFeedbackStats($filters),
+                'feedbackSupervisor' => $showInternalDashboard ? $this->analytics->getFeedbackBySupervisor($filters) : [],
+                'feedbackTrendSeries' => $this->analytics->getFeedbackTrendSeries($filters),
+            ],
+            'calibracion' => $data += [
+                'calibrationSummary' => $this->calibration->summary($filters, $user),
+                'calibrationPairs' => $this->calibration->recentPairs($filters, $user),
+            ],
+            'ranking' => $data += [
+                'agentRanking' => $this->analytics->getAgentRanking($filters),
+            ],
+            'gestion' => $data += [
+                'evalsByCampaign' => $this->analytics->getEvalsByCampaign($filters),
+                'agentRanking' => $this->analytics->getAgentRanking($filters),
+                'qualityTrendSeries' => $this->analytics->getQualityTrendSeries($filters),
+                'audioPerformance' => $this->analytics->getAudioUploadPerformance($filters),
+            ],
+            default => $data += [
+                'qualityCampaign' => $this->analytics->getQualityGrouped('campaign', $filters),
+                'qualitySupervisor' => $showInternalDashboard ? $this->analytics->getQualityGrouped('supervisor', $filters) : [],
+                'qualityTrendSeries' => $this->analytics->getQualityTrendSeries($filters),
+                'topDefects' => $this->analytics->getTopDefects($filters),
+            ],
+        };
+
+        return view('dashboard.quality.index', $data);
     }
 }

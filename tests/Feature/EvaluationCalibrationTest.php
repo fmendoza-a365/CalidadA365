@@ -79,7 +79,7 @@ class EvaluationCalibrationTest extends TestCase
         [$admin] = $this->evaluationPair();
 
         $this->actingAs($admin)
-            ->get(route('dashboard.quality'))
+            ->get(route('dashboard.quality', ['tab' => 'calibracion']))
             ->assertOk()
             ->assertSee('Calibración IA')
             ->assertSee('Pares Comparados')

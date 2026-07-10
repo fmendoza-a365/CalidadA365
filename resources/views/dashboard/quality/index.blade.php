@@ -5,23 +5,33 @@
         $currentUser = auth()->user();
         $isAgentDashboard = $currentUser->hasRole('agent');
         $showInternalDashboard = ! $currentUser->hasAnyRole(['agent', 'supervisor']);
+        $inactiveTabClass = 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750';
+        $tabUrl = fn (string $tab) => route('dashboard.quality', array_merge(request()->query(), ['tab' => $tab]));
+        $tabClass = fn (string $tab, string $activeClass) => 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all '.($activeTab === $tab ? $activeClass : $inactiveTabClass);
     @endphp
 
-    <div x-data="{ tab: 'calidad', qualityPeriod: 'day', mpPeriod: 'day', feedbackPeriod: 'week' }" class="space-y-5">
+    <div x-data="{ qualityPeriod: 'day', mpPeriod: 'day', feedbackPeriod: 'week', isLoading: false }" class="relative space-y-5">
+        <div x-show="isLoading" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/35 backdrop-blur-[1px]">
+            <div class="flex items-center gap-3 rounded-xl bg-white px-5 py-4 text-sm font-semibold text-gray-700 shadow-xl dark:bg-gray-900 dark:text-gray-200">
+                <span class="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></span>
+                Cargando dashboard...
+            </div>
+        </div>
 
         {{-- Filters --}}
-        <form method="GET" action="{{ route('dashboard.quality') }}" class="flex flex-wrap items-center gap-3">
+        <form method="GET" action="{{ route('dashboard.quality') }}" class="flex flex-wrap items-center gap-3" @submit="isLoading = true">
+            <input type="hidden" name="tab" value="{{ $activeTab }}">
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-400 font-medium uppercase tracking-wide">Desde</span>
                 <input type="date" name="start_date" value="{{ $filters['start_date'] }}"
                        class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                       onchange="this.form.submit()">
+                       onchange="this.form.requestSubmit()">
             </div>
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-400 font-medium uppercase tracking-wide">Hasta</span>
                 <input type="date" name="end_date" value="{{ $filters['end_date'] }}"
                        class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                       onchange="this.form.submit()">
+                       onchange="this.form.requestSubmit()">
             </div>
             @php
                 $parentCampaigns = $campaigns->whereNull('parent_id');
@@ -36,7 +46,7 @@
                 }
             }" class="flex flex-wrap items-center gap-3">
                 <select name="parent_campaign_id" x-model="parentCampaignId" 
-                        @change="campaignId = ''; $nextTick(() => $el.form.submit())"
+                        @change="campaignId = ''; $nextTick(() => $el.form.requestSubmit())"
                         class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Todas las campañas</option>
                     @foreach($parentCampaigns as $pCamp)
@@ -45,7 +55,7 @@
                 </select>
 
                 <select name="campaign_id" x-model="campaignId"
-                        @change="$el.form.submit()"
+                        @change="$el.form.requestSubmit()"
                         :disabled="!parentCampaignId || availableSubcampaigns.length === 0"
                         class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-50">
                     <option value="">Todas las subcampañas</option>
@@ -55,7 +65,7 @@
                 </select>
             </div>
             @if($showInternalDashboard)
-                <a href="{{ route('exports.calibration', request()->query()) }}" class="btn-secondary btn-md">Exportar calibración</a>
+                <a href="{{ route('exports.calibration', request()->except('tab')) }}" class="btn-secondary btn-md">Exportar calibración</a>
             @endif
         </form>
 
@@ -136,46 +146,41 @@
 
         {{-- Tab Buttons --}}
         <div class="flex flex-wrap gap-1.5 border-b border-gray-200 dark:border-gray-700 pb-3">
-            <button @click="tab = 'calidad'" :class="tab === 'calidad' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            <a href="{{ $tabUrl('calidad') }}" @click="isLoading = true" class="{{ $tabClass('calidad', 'bg-indigo-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Dashboard Calidad
-            </button>
-            <button @click="tab = 'mp'" :class="tab === 'mp' ? 'bg-rose-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            </a>
+            <a href="{{ $tabUrl('mp') }}" @click="isLoading = true" class="{{ $tabClass('mp', 'bg-rose-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 Malas Prácticas
-            </button>
-            <button @click="tab = 'feedback'" :class="tab === 'feedback' ? 'bg-teal-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            </a>
+            <a href="{{ $tabUrl('feedback') }}" @click="isLoading = true" class="{{ $tabClass('feedback', 'bg-teal-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 Seguimiento Feedback
-            </button>
+            </a>
             @if($showInternalDashboard)
-            <button @click="tab = 'calibracion'" :class="tab === 'calibracion' ? 'bg-sky-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            <a href="{{ $tabUrl('calibracion') }}" @click="isLoading = true" class="{{ $tabClass('calibracion', 'bg-sky-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
                 Calibración IA
-            </button>
+            </a>
             @endif
-            <button @click="tab = 'ranking'" :class="tab === 'ranking' ? 'bg-amber-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            <a href="{{ $tabUrl('ranking') }}" @click="isLoading = true" class="{{ $tabClass('ranking', 'bg-amber-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                 Ranking Asesores
-            </button>
+            </a>
             @if($showInternalDashboard)
-            <button @click="tab = 'gestion'" :class="tab === 'gestion' ? 'bg-violet-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all">
+            <a href="{{ $tabUrl('gestion') }}" @click="isLoading = true" class="{{ $tabClass('gestion', 'bg-violet-600 text-white shadow-md') }}">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                 Dashboard Gestión
-            </button>
+            </a>
             @endif
         </div>
 
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 1: DASHBOARD CALIDAD                  --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'calidad'" x-cloak class="space-y-5">
+        @if($activeTab === 'calidad')
+        <div class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                 Módulo — Seguimiento Calidad
@@ -205,11 +210,13 @@
                 @endif
             </div>
         </div>
+        @endif
 
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 2: MALAS PRÁCTICAS                    --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'mp'" x-cloak class="space-y-5">
+        @if($activeTab === 'mp')
+        <div class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 Módulo — Detalle MP
@@ -267,11 +274,13 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 3: SEGUIMIENTO FEEDBACK               --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'feedback'" x-cloak class="space-y-5">
+        @if($activeTab === 'feedback')
+        <div class="space-y-5">
             {{-- Feedback KPIs --}}
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
@@ -354,12 +363,13 @@
             </div>
             @endif
         </div>
+        @endif
 
-        @if($showInternalDashboard)
+        @if($showInternalDashboard && $activeTab === 'calibracion')
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: CALIBRACION IA                     --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'calibracion'" x-cloak class="space-y-5">
+        <div class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6a2 2 0 012-2h8M9 17H7a2 2 0 01-2-2V7m4 10a2 2 0 002 2h8a2 2 0 002-2v-6m-8-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>
                 Calibración IA vs Monitor
@@ -435,7 +445,8 @@
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 4: RANKING ASESORES                   --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'ranking'" x-cloak class="space-y-5">
+        @if($activeTab === 'ranking')
+        <div class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                 Módulo — Ranking de Asesores
@@ -513,12 +524,13 @@
                 </div>
             </div>
         </div>
+        @endif
 
-        @if($showInternalDashboard)
+        @if($showInternalDashboard && $activeTab === 'gestion')
         {{-- ══════════════════════════════════════════ --}}
         {{-- TAB 5: DASHBOARD GESTIÓN                  --}}
         {{-- ══════════════════════════════════════════ --}}
-        <div x-show="tab === 'gestion'" x-cloak class="space-y-5">
+        <div class="space-y-5">
             <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-2">
                 <svg class="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                 Módulo — Gestión General
@@ -691,6 +703,13 @@
 
         <script>
         (function() {
+            const activeTab = @json($activeTab);
+            const chartTabs = ['calidad', 'mp', 'feedback', 'gestion'];
+
+            if (!chartTabs.includes(activeTab)) {
+                return;
+            }
+
             let chartsBooted = false;
 
             function bootQualityCharts() {
@@ -713,10 +732,11 @@
 
                 chartsBooted = true;
                 const colors = charts.colors();
-                const qualityTrendSeries = @json($qualityTrendSeries);
-                const mpTrendSeries = @json($mpTrendSeries);
-                const feedbackTrendSeries = @json($feedbackTrendSeries);
 
+                window.QA365DashboardCharts = {};
+
+                @if($activeTab === 'calidad')
+                const qualityTrendSeries = @json($qualityTrendSeries);
                 const renderQualityTrend = (period = 'day') => charts.trendCombo('#chart-quality-trend', qualityTrendSeries[period] || [], {
                     barColor: colors.sky,
                     lineColor: colors.indigo,
@@ -727,6 +747,34 @@
                     lineSuffix: '%',
                 });
 
+                window.QA365DashboardCharts.renderQualityTrend = renderQualityTrend;
+                renderQualityTrend('day');
+                charts.trendCombo('#chart-quality-campaign', @json($qualityCampaign), {
+                    barColor: colors.sky,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
+                });
+                @if($showInternalDashboard)
+                charts.trendCombo('#chart-quality-supervisor', @json($qualitySupervisor), {
+                    barColor: colors.teal,
+                    lineColor: colors.indigo,
+                    barMetric: 'count',
+                    lineMetric: 'avg_score',
+                    barName: 'Evaluaciones',
+                    lineName: 'Calidad',
+                    lineSuffix: '%',
+                });
+                @endif
+                charts.horizontalBar('#chart-defects', @json($topDefects), {
+                    color: colors.rose,
+                    valueName: 'Incidencias',
+                });
+                @elseif($activeTab === 'mp')
+                const mpTrendSeries = @json($mpTrendSeries);
                 const renderMpTrend = (period = 'day') => charts.trendCombo('#chart-mp-trend', mpTrendSeries[period] || [], {
                     barColor: colors.rose,
                     lineColor: colors.orange,
@@ -741,6 +789,30 @@
                     ],
                 });
 
+                window.QA365DashboardCharts.renderMpTrend = renderMpTrend;
+                renderMpTrend('day');
+                charts.trendCombo('#chart-mp-campaign', @json($mpCampaign), {
+                    barColor: colors.orange,
+                    lineColor: colors.rose,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'MP',
+                    lineName: 'Participacion',
+                    lineSuffix: '%',
+                });
+                @if($showInternalDashboard)
+                charts.trendCombo('#chart-mp-supervisor', @json($mpSupervisor), {
+                    barColor: colors.rose,
+                    lineColor: colors.orange,
+                    barMetric: 'count',
+                    lineMetric: 'percentage',
+                    barName: 'MP',
+                    lineName: 'Participacion',
+                    lineSuffix: '%',
+                });
+                @endif
+                @elseif($activeTab === 'feedback')
+                const feedbackTrendSeries = @json($feedbackTrendSeries);
                 const renderFeedbackTrend = (period = 'week') => charts.trendCombo('#chart-feedback-trend', feedbackTrendSeries[period] || [], {
                     barColor: colors.teal,
                     lineColor: colors.amber,
@@ -755,56 +827,8 @@
                     ],
                 });
 
-                window.QA365DashboardCharts = {
-                    renderQualityTrend,
-                    renderMpTrend,
-                    renderFeedbackTrend,
-                };
-
-                renderQualityTrend('day');
-                charts.trendCombo('#chart-quality-campaign', @json($qualityCampaign), {
-                    barColor: colors.sky,
-                    lineColor: colors.indigo,
-                    barMetric: 'count',
-                    lineMetric: 'avg_score',
-                    barName: 'Evaluaciones',
-                    lineName: 'Calidad',
-                    lineSuffix: '%',
-                });
-                charts.trendCombo('#chart-quality-supervisor', @json($qualitySupervisor), {
-                    barColor: colors.teal,
-                    lineColor: colors.indigo,
-                    barMetric: 'count',
-                    lineMetric: 'avg_score',
-                    barName: 'Evaluaciones',
-                    lineName: 'Calidad',
-                    lineSuffix: '%',
-                });
-                charts.horizontalBar('#chart-defects', @json($topDefects), {
-                    color: colors.rose,
-                    valueName: 'Incidencias',
-                });
-
-                renderMpTrend('day');
-                charts.trendCombo('#chart-mp-campaign', @json($mpCampaign), {
-                    barColor: colors.orange,
-                    lineColor: colors.rose,
-                    barMetric: 'count',
-                    lineMetric: 'percentage',
-                    barName: 'MP',
-                    lineName: 'Participacion',
-                    lineSuffix: '%',
-                });
-                charts.trendCombo('#chart-mp-supervisor', @json($mpSupervisor), {
-                    barColor: colors.rose,
-                    lineColor: colors.orange,
-                    barMetric: 'count',
-                    lineMetric: 'percentage',
-                    barName: 'MP',
-                    lineName: 'Participacion',
-                    lineSuffix: '%',
-                });
-
+                window.QA365DashboardCharts.renderFeedbackTrend = renderFeedbackTrend;
+                @if($showInternalDashboard)
                 charts.trendCombo('#chart-feedback-supervisor', @json($feedbackSupervisor), {
                     barColor: colors.teal,
                     lineColor: colors.amber,
@@ -818,7 +842,11 @@
                         { key: 'pending', label: 'Pendientes' },
                     ],
                 });
+                @endif
                 renderFeedbackTrend('week');
+                @elseif($activeTab === 'gestion')
+                const qualityTrendSeries = @json($qualityTrendSeries);
+                const agentRanking = @json($agentRanking);
 
                 charts.trendCombo('#chart-evals-campaign', @json($evalsByCampaign), {
                     barColor: colors.violet,
@@ -829,7 +857,7 @@
                     lineName: 'Participacion',
                     lineSuffix: '%',
                 });
-                charts.trendCombo('#chart-quality-agent', @json($agentRanking), {
+                charts.trendCombo('#chart-quality-agent', agentRanking, {
                     barColor: colors.sky,
                     lineColor: colors.indigo,
                     barMetric: 'total_evals',
@@ -847,6 +875,7 @@
                     lineName: 'Calidad',
                     lineSuffix: '%',
                 });
+                @endif
 
                 charts.resizeAll();
             }

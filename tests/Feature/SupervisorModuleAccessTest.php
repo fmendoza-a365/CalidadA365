@@ -105,7 +105,7 @@ class SupervisorModuleAccessTest extends TestCase
         $this->evaluationFor($campaign, $version, $otherAgent, $otherSupervisor, $admin, 55);
 
         $this->actingAs($supervisor)
-            ->get(route('dashboard.quality'))
+            ->get(route('dashboard.quality', ['tab' => 'ranking']))
             ->assertOk()
             ->assertSee('Agente Equipo Julio')
             ->assertDontSee('Agente Externo Julio');
