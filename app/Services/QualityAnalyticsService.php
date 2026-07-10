@@ -249,12 +249,18 @@ class QualityAnalyticsService
     /**
      * Top defects: which specific criteria fail the most
      */
-    public function getTopDefects(array $filters = [], int $limit = 10): array
+    public function getTopDefects(array $filters = [], int $limit = 10, bool $criticalOnly = false): array
     {
-        return Cache::remember($this->cacheKey('topDefects', array_merge($filters, ['limit' => $limit])), $this->cacheTtl, function () use ($filters, $limit) {
-            $rows = EvaluationItem::whereHas('evaluation', fn ($q) => $this->applyFilters($q, $filters))
+        return Cache::remember($this->cacheKey('topDefects', array_merge($filters, ['limit' => $limit, 'critical_only' => $criticalOnly])), $this->cacheTtl, function () use ($filters, $limit, $criticalOnly) {
+            $query = EvaluationItem::whereHas('evaluation', fn ($q) => $this->applyFilters($q, $filters))
                 ->where('status', 'non_compliant')
-                ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id')
+                ->join('quality_subattributes', 'evaluation_items.subattribute_id', '=', 'quality_subattributes.id');
+
+            if ($criticalOnly) {
+                $query->where('quality_subattributes.is_critical', true);
+            }
+
+            $rows = $query
                 ->select('quality_subattributes.name as label', DB::raw('COUNT(*) as count'), 'quality_subattributes.is_critical')
                 ->groupBy('quality_subattributes.id', 'quality_subattributes.name', 'quality_subattributes.is_critical')
                 ->orderByDesc('count')
@@ -466,7 +472,7 @@ class QualityAnalyticsService
 
         return match ($type) {
             'quality' => "{$label}: {$count} evaluaciones, calidad {$value}% y {$percentage}% de participacion.",
-            'mp' => "{$label}: {$count} malas practicas, {$percentage}% del total observado.",
+            'mp' => "{$label}: {$count} ocurrencias de MP, {$percentage}% del total observado.",
             'feedback' => "{$label}: {$value}% de feedback visto, {$count} evaluaciones en seguimiento.",
             'defect' => "{$label}: {$count} incidencias, {$percentage}% de los fallos detectados.",
             'evals' => "{$label}: {$count} evaluaciones, {$percentage}% de la muestra.",

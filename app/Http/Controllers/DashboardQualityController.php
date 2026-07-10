@@ -52,7 +52,7 @@ class DashboardQualityController extends Controller
                 'mpCampaign' => $this->analytics->getMPGrouped('campaign', $filters),
                 'mpSupervisor' => $showInternalDashboard ? $this->analytics->getMPGrouped('supervisor', $filters) : [],
                 'mpTrendSeries' => $this->analytics->getMpTrendSeries($filters),
-                'topDefects' => $this->analytics->getTopDefects($filters),
+                'topDefects' => $this->analytics->getTopDefects($filters, 10, true),
             ],
             'feedback' => $data += [
                 'feedbackStats' => $this->analytics->getFeedbackStats($filters),

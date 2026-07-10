@@ -90,6 +90,39 @@ class QualityAnalyticsServiceTest extends TestCase
         $this->assertStringContainsString('pendientes', $feedback[0]['insight']);
     }
 
+    public function test_top_defects_can_be_limited_to_critical_malas_practicas(): void
+    {
+        [$campaign, $agent, $supervisor, $version, $criticalSubAttribute] = $this->dashboardFixtures();
+        $nonCriticalSubAttribute = QualitySubAttribute::create([
+            'attribute_id' => $criticalSubAttribute->attribute_id,
+            'name' => 'Tono no empatico',
+            'weight_percent' => 100,
+            'is_critical' => false,
+        ]);
+
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $criticalSubAttribute, '2026-07-02 10:00:00', 60, true);
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $nonCriticalSubAttribute, '2026-07-03 10:00:00', 80, true);
+        $this->createEvaluation($campaign, $agent, $supervisor, $version, $nonCriticalSubAttribute, '2026-07-04 10:00:00', 82, true);
+
+        $filters = [
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-31',
+        ];
+
+        $analytics = app(QualityAnalyticsService::class);
+        $criticalOnly = $analytics->getTopDefects($filters, 10, true);
+        $allDefects = $analytics->getTopDefects($filters);
+
+        $this->assertCount(1, $criticalOnly);
+        $this->assertSame('Consentimiento', $criticalOnly[0]['label']);
+        $this->assertSame(1, $criticalOnly[0]['count']);
+        $this->assertTrue($criticalOnly[0]['is_critical']);
+
+        $this->assertSame('Tono no empatico', $allDefects[0]['label']);
+        $this->assertSame(2, $allDefects[0]['count']);
+        $this->assertFalse($allDefects[0]['is_critical']);
+    }
+
     private function dashboardFixtures(): array
     {
         $admin = User::factory()->create();

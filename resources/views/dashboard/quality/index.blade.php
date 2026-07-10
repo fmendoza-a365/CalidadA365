@@ -84,11 +84,11 @@
                 <p class="text-2xl font-extrabold mt-1">{{ number_format($stats['average_score_no_mp'], 2) }}</p>
             </div>
             <div class="rounded-xl p-4 bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/20">
-                <p class="text-[11px] font-semibold opacity-80 uppercase tracking-wide"># Malas Prácticas</p>
+                <p class="text-[11px] font-semibold opacity-80 uppercase tracking-wide">Evals con MP</p>
                 <p class="text-2xl font-extrabold mt-1">{{ number_format($stats['mp_count']) }}</p>
             </div>
             <div class="rounded-xl p-4 bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/20">
-                <p class="text-[11px] font-semibold opacity-80 uppercase tracking-wide">% Malas Prácticas</p>
+                <p class="text-[11px] font-semibold opacity-80 uppercase tracking-wide">% Evals con MP</p>
                 <p class="text-2xl font-extrabold mt-1">{{ $stats['mp_percentage'] }}%</p>
             </div>
             <div class="rounded-xl p-4 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20">
@@ -138,7 +138,7 @@
                     <svg class="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                 </div>
                 <div>
-                    <p class="text-[11px] text-gray-400 font-medium">Score Crítico (&lt;70)</p>
+                    <p class="text-[11px] text-gray-400 font-medium">% Evals con MP</p>
                     <p class="text-lg font-bold text-rose-500">{{ $stats['mp_percentage'] }}%</p>
                 </div>
             </div>
@@ -225,7 +225,7 @@
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <div class="qd-card">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <h4 class="qd-card-title mb-0">Evolutivo de Malas Prácticas</h4>
+                        <h4 class="qd-card-title mb-0">Ocurrencias y Evals con MP</h4>
                         <div class="qd-period-control">
                             <button type="button" @click="mpPeriod = 'day'; window.QA365DashboardCharts?.renderMpTrend(mpPeriod)" :class="mpPeriod === 'day' ? 'is-active' : ''">Día</button>
                             <button type="button" @click="mpPeriod = 'week'; window.QA365DashboardCharts?.renderMpTrend(mpPeriod)" :class="mpPeriod === 'week' ? 'is-active' : ''">Semana</button>
@@ -234,22 +234,21 @@
                     </div>
                     <div id="chart-mp-trend" class="h-64"></div>
                 </div>
-                <div class="qd-card"><h4 class="qd-card-title">MP — Campaña</h4><div id="chart-mp-campaign" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Ocurrencias MP — Campaña</h4><div id="chart-mp-campaign" class="h-64"></div></div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 @if($showInternalDashboard)
-                <div class="qd-card"><h4 class="qd-card-title">MP — Supervisor</h4><div id="chart-mp-supervisor" class="h-64"></div></div>
+                <div class="qd-card"><h4 class="qd-card-title">Ocurrencias MP — Supervisor</h4><div id="chart-mp-supervisor" class="h-64"></div></div>
                 @endif
                 <div class="qd-card @if(! $showInternalDashboard) col-span-1 lg:col-span-2 @endif">
-                    <h4 class="qd-card-title">Criterios Críticos Fallidos</h4>
+                    <h4 class="qd-card-title">Malas Prácticas Fallidas</h4>
                     <div class="overflow-x-auto mt-2">
                         <table class="w-full text-xs">
                             <thead>
                                 <tr class="border-b border-gray-200 dark:border-gray-700">
                                     <th class="text-left py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Criterio</th>
-                                    <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Fallos</th>
-                                    <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Crítico</th>
+                                    <th class="text-center py-2 px-2 font-semibold text-gray-400 uppercase tracking-wide">Ocurrencias</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -257,16 +256,9 @@
                                     <tr class="border-b border-gray-100 dark:border-gray-800">
                                         <td class="py-2 px-2 text-gray-700 dark:text-gray-300">{{ $defect['label'] }}</td>
                                         <td class="py-2 px-2 text-center font-bold text-gray-900 dark:text-white">{{ $defect['count'] }}</td>
-                                        <td class="py-2 px-2 text-center">
-                                            @if($defect['is_critical'])
-                                                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">Sí</span>
-                                            @else
-                                                <span class="text-gray-300">—</span>
-                                            @endif
-                                        </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="3" class="py-4 text-center text-gray-400 text-xs">Sin datos</td></tr>
+                                    <tr><td colspan="2" class="py-4 text-center text-gray-400 text-xs">Sin datos</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -780,12 +772,12 @@
                     lineColor: colors.orange,
                     barMetric: 'count',
                     lineMetric: 'percentage',
-                    barName: 'MP',
-                    lineName: 'Eval. con MP',
+                    barName: 'Ocurrencias de MP',
+                    lineName: '% Evals con MP',
                     lineSuffix: '%',
                     details: [
-                        { key: 'total', label: 'Evaluaciones' },
-                        { key: 'evaluations_with_mp', label: 'Evals con MP' },
+                        { key: 'total', label: 'Total evaluaciones' },
+                        { key: 'evaluations_with_mp', label: 'Evaluaciones con MP' },
                     ],
                 });
 
@@ -796,8 +788,8 @@
                     lineColor: colors.rose,
                     barMetric: 'count',
                     lineMetric: 'percentage',
-                    barName: 'MP',
-                    lineName: 'Participacion',
+                    barName: 'Ocurrencias de MP',
+                    lineName: '% del total de MP',
                     lineSuffix: '%',
                 });
                 @if($showInternalDashboard)
@@ -806,8 +798,8 @@
                     lineColor: colors.orange,
                     barMetric: 'count',
                     lineMetric: 'percentage',
-                    barName: 'MP',
-                    lineName: 'Participacion',
+                    barName: 'Ocurrencias de MP',
+                    lineName: '% del total de MP',
                     lineSuffix: '%',
                 });
                 @endif
