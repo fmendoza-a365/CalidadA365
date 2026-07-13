@@ -47,11 +47,12 @@ class GenerateManualFeedbackJob implements ShouldQueue
                 default => 'No encontrado',
             };
             $note = filled($item->ai_notes) ? " Nota: {$item->ai_notes}" : '';
+
             return "- {$item->subAttribute->name} ({$item->subAttribute->attribute->name}): {$status}{$note}";
         })->implode("\n");
 
         $failedDetail = $failedItems->map(function ($item) {
-            return "- {$item->subAttribute->name}: No cumple. Evidencia: " . ($item->evidence_quote ?: 'Sin evidencia específica.');
+            return "- {$item->subAttribute->name}: No cumple. Evidencia: ".($item->evidence_quote ?: 'Sin evidencia específica.');
         })->implode("\n");
 
         $prompt = <<<PROMPT
@@ -91,6 +92,8 @@ PROMPT;
 
             if (! is_string($response) || empty($response)) {
                 Log::warning("GenerateManualFeedbackJob: AI retornó vacío para evaluación #{$evaluation->id}");
+                $this->storeFallbackFeedback($evaluation, $items, $failedItems, $passedItems, 'empty_ai_response');
+
                 return;
             }
 
@@ -115,13 +118,7 @@ PROMPT;
             $feedback = json_decode($jsonString, true);
 
             if (is_array($feedback) && isset($feedback['performanceSummary'])) {
-                $evaluation->update(['ai_feedback' => $feedback]);
-                Log::info("GenerateManualFeedbackJob: feedback AI generado para evaluación #{$evaluation->id}");
-
-                if (config('ai.feedback_tts.enabled')) {
-                    $evaluation->update(['feedback_audio_status' => 'pending']);
-                    GenerateFeedbackAudioJob::dispatch($evaluation->id);
-                }
+                $this->storeFeedback($evaluation, $feedback, 'ai');
 
                 return;
             }
@@ -130,13 +127,68 @@ PROMPT;
                 'json_error' => json_last_error_msg(),
                 'response_preview' => substr($response, 0, 300),
             ]);
+            $this->storeFallbackFeedback($evaluation, $items, $failedItems, $passedItems, 'invalid_ai_json');
         } catch (Throwable $e) {
-            Log::error("GenerateManualFeedbackJob: error para evaluación #{$evaluation->id}: " . $e->getMessage());
+            Log::error("GenerateManualFeedbackJob: error para evaluación #{$evaluation->id}: ".$e->getMessage());
+            $this->storeFallbackFeedback($evaluation, $items, $failedItems, $passedItems, 'ai_exception');
         }
+    }
+
+    private function storeFeedback(Evaluation $evaluation, array $feedback, string $source): void
+    {
+        $evaluation->update(['ai_feedback' => $feedback]);
+        Log::info("GenerateManualFeedbackJob: feedback {$source} generado para evaluación #{$evaluation->id}");
+
+        if (config('ai.feedback_tts.enabled')) {
+            $evaluation->update(['feedback_audio_status' => 'pending']);
+            GenerateFeedbackAudioJob::dispatch($evaluation->id);
+        }
+    }
+
+    private function storeFallbackFeedback(Evaluation $evaluation, $items, $failedItems, $passedItems, string $reason): void
+    {
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        Log::warning("GenerateManualFeedbackJob: usando feedback fallback para evaluación #{$evaluation->id}", [
+            'reason' => $reason,
+        ]);
+
+        $this->storeFeedback($evaluation, $this->fallbackFeedback($evaluation, $failedItems, $passedItems), 'fallback');
+    }
+
+    private function fallbackFeedback(Evaluation $evaluation, $failedItems, $passedItems): array
+    {
+        $failedLabels = $failedItems
+            ->map(fn ($item) => $item->subAttribute?->name)
+            ->filter()
+            ->take(5)
+            ->implode(', ');
+        $passedLabels = $passedItems
+            ->map(fn ($item) => $item->subAttribute?->name)
+            ->filter()
+            ->take(5)
+            ->implode(', ');
+        $score = number_format((float) $evaluation->percentage_score, 2, '.', '');
+
+        return [
+            'performanceSummary' => "La evaluación manual cerró con {$score}%. Cumplió {$passedItems->count()} criterios y no cumplió {$failedItems->count()}.",
+            'productKnowledge' => $failedLabels !== ''
+                ? "Reforzar los criterios observados: {$failedLabels}."
+                : 'No se registraron brechas relevantes de conocimiento del producto en los criterios revisados.',
+            'emotionalHandlingAndEmpathy' => 'Mantener una comunicación clara, empática y orientada a resolver la necesidad del cliente durante toda la interacción.',
+            'strengths' => $passedLabels !== ''
+                ? "Fortalezas observadas: {$passedLabels}."
+                : 'La evaluación no registró criterios cumplidos suficientes para destacar fortalezas específicas.',
+            'improvementOpportunities' => $failedLabels !== ''
+                ? "Priorizar la mejora en: {$failedLabels}. Revisar el caso con el supervisor y practicar el flujo esperado."
+                : 'Continuar reforzando consistencia y cierre de la atención según la ficha de calidad.',
+        ];
     }
 
     public function failed(Throwable $exception): void
     {
-        Log::error("GenerateManualFeedbackJob failed for evaluation {$this->evaluationId}: " . $exception->getMessage());
+        Log::error("GenerateManualFeedbackJob failed for evaluation {$this->evaluationId}: ".$exception->getMessage());
     }
 }

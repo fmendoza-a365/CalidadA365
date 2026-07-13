@@ -3,24 +3,28 @@
 namespace Tests\Feature;
 
 use App\Jobs\GenerateFeedbackAudioJob;
+use App\Jobs\GenerateManualFeedbackJob;
 use App\Models\Campaign;
 use App\Models\Evaluation;
+use App\Models\EvaluationItem;
 use App\Models\Interaction;
+use App\Models\QualityAttribute;
 use App\Models\QualityForm;
 use App\Models\QualityFormVersion;
+use App\Models\QualitySubAttribute;
 use App\Models\User;
+use App\Services\AIEvaluationService;
 use App\Services\FeedbackAudioService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use Spatie\Permission\Models\Role;
 use Tests\Concerns\CreatesUsersWithRoles;
 use Tests\TestCase;
 
 class FeedbackAudioTest extends TestCase
 {
-    use RefreshDatabase, CreatesUsersWithRoles;
+    use CreatesUsersWithRoles, RefreshDatabase;
 
     public function test_publish_dispatches_feedback_audio_job_only_when_tts_is_enabled(): void
     {
@@ -165,6 +169,65 @@ class FeedbackAudioTest extends TestCase
             'evaluation_id' => $evaluation->id,
             'event' => 'feedback_audio_failed',
         ]);
+    }
+
+    public function test_manual_feedback_job_uses_fallback_when_ai_returns_invalid_json(): void
+    {
+        Queue::fake();
+        config(['ai.feedback_tts.enabled' => true]);
+
+        [, , $evaluation] = $this->evaluation(Evaluation::STATUS_PUBLISHED_TO_AGENT);
+        $evaluation->update([
+            'type' => 'manual',
+            'ai_feedback' => null,
+            'ai_summary' => null,
+            'feedback_audio_status' => null,
+        ]);
+
+        $attribute = QualityAttribute::create([
+            'form_version_id' => $evaluation->form_version_id,
+            'name' => 'Gestion',
+            'weight' => 100,
+        ]);
+        $passed = QualitySubAttribute::create([
+            'attribute_id' => $attribute->id,
+            'name' => 'Saludo',
+            'weight_percent' => 50,
+        ]);
+        $failed = QualitySubAttribute::create([
+            'attribute_id' => $attribute->id,
+            'name' => 'Consentimiento',
+            'weight_percent' => 50,
+        ]);
+
+        EvaluationItem::create([
+            'evaluation_id' => $evaluation->id,
+            'subattribute_id' => $passed->id,
+            'status' => 'compliant',
+            'score' => 50,
+            'max_score' => 50,
+            'weighted_score' => 50,
+        ]);
+        EvaluationItem::create([
+            'evaluation_id' => $evaluation->id,
+            'subattribute_id' => $failed->id,
+            'status' => 'non_compliant',
+            'score' => 0,
+            'max_score' => 50,
+            'weighted_score' => 0,
+        ]);
+
+        $this->mock(AIEvaluationService::class, function ($mock) {
+            $mock->shouldReceive('analyze')->once()->andReturn('```json');
+        });
+
+        (new GenerateManualFeedbackJob($evaluation->id))->handle(app(AIEvaluationService::class));
+
+        $evaluation->refresh();
+        $this->assertSame('pending', $evaluation->feedback_audio_status);
+        $this->assertIsArray($evaluation->ai_feedback);
+        $this->assertStringContainsString('Consentimiento', $evaluation->ai_feedback['improvementOpportunities']);
+        Queue::assertPushed(GenerateFeedbackAudioJob::class, fn (GenerateFeedbackAudioJob $job): bool => $job->evaluationId === $evaluation->id);
     }
 
     public function test_feedback_audio_route_authorizes_and_serves_ready_audio(): void
