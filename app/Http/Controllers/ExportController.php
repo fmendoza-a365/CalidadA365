@@ -174,21 +174,11 @@ class ExportController extends Controller
             'interaction.agent',
             'interaction.supervisor',
             'interaction.uploadedBy',
-        ])->forUser(auth()->user());
+        ])->forUser(auth()->user())->finalForReporting();
 
         $this->applyEvaluationFilters($query, $request);
-        $this->applyFinalEvaluationScope($query);
 
         return $query;
-    }
-
-    private function applyFinalEvaluationScope(Builder $query): void
-    {
-        $query->where(function ($query) {
-            $query
-                ->where('type', 'manual')
-                ->orWhereDoesntHave('interaction.manualEvaluation');
-        });
     }
 
     private function applyEvaluationFilters(Builder $query, Request $request): void

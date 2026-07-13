@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Campaign;
 use App\Models\CampaignUserAssignment;
 use App\Models\Evaluation;
-use App\Models\User;
 use Illuminate\Support\Carbon;
 
 class AgentAnalyticsService
@@ -32,6 +31,8 @@ class AgentAnalyticsService
         }
 
         if ($agentIds) {
+            $query->finalForReporting();
+
             if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
                 $query->whereBetween('evaluations.created_at', [
                     Carbon::parse($filters['start_date'])->startOfDay(),
@@ -55,14 +56,14 @@ class AgentAnalyticsService
         }
 
         $rows = $query->join('users', 'evaluations.agent_id', '=', 'users.id')
-            ->selectRaw("
+            ->selectRaw('
                 users.id,
                 users.name as label,
                 AVG(percentage_score) as avg_score,
                 COUNT(*) as total_evals,
                 SUM(CASE WHEN percentage_score >= 90 THEN 1 ELSE 0 END) as excellent,
                 SUM(CASE WHEN percentage_score < 70 THEN 1 ELSE 0 END) as critical
-            ")
+            ')
             ->groupBy('users.id', 'users.name')
             ->orderByDesc('avg_score')
             ->limit($limit)

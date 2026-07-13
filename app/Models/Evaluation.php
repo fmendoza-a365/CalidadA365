@@ -475,6 +475,15 @@ class Evaluation extends Model
         });
     }
 
+    public function scopeFinalForReporting($query)
+    {
+        return $query->where(function ($query) {
+            $query
+                ->where('evaluations.type', 'manual')
+                ->orWhereDoesntHave('interaction.manualEvaluation');
+        });
+    }
+
     public function scopeForUser($query, $user)
     {
         // 1. View All

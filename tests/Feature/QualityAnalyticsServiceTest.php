@@ -123,6 +123,56 @@ class QualityAnalyticsServiceTest extends TestCase
         $this->assertFalse($allDefects[0]['is_critical']);
     }
 
+    public function test_manual_evaluation_replaces_ai_sibling_in_reporting_counts(): void
+    {
+        [$campaign, $agent, $supervisor, $version, $criticalSubAttribute] = $this->dashboardFixtures();
+
+        $aiEvaluation = $this->createEvaluation(
+            $campaign,
+            $agent,
+            $supervisor,
+            $version,
+            $criticalSubAttribute,
+            '2026-07-08 10:00:00',
+            55,
+            false
+        );
+
+        $manualEvaluation = Evaluation::create([
+            'interaction_id' => $aiEvaluation->interaction_id,
+            'form_version_id' => $version->id,
+            'campaign_id' => $campaign->id,
+            'agent_id' => $agent->id,
+            'type' => 'manual',
+            'total_score' => 92,
+            'max_possible_score' => 100,
+            'percentage_score' => 92,
+            'status' => Evaluation::STATUS_PUBLISHED_TO_AGENT,
+            'visible_to_agent_at' => '2026-07-08 10:30:00',
+        ]);
+        $manualEvaluation->forceFill([
+            'created_at' => '2026-07-08 10:30:00',
+            'updated_at' => '2026-07-08 10:30:00',
+        ])->save();
+
+        $filters = [
+            'start_date' => '2026-07-01',
+            'end_date' => '2026-07-31',
+        ];
+
+        $analytics = app(QualityAnalyticsService::class);
+        $overview = $analytics->getOverviewStats($filters);
+        $ranking = $analytics->getAgentRanking($filters);
+        $qualityByAgent = $analytics->getQualityGrouped('agent', $filters);
+
+        $this->assertSame(1, $overview['total_evaluations']);
+        $this->assertSame(92.0, $overview['average_score']);
+        $this->assertSame(1, $ranking[0]['total_evals']);
+        $this->assertSame(92.0, $ranking[0]['avg_score']);
+        $this->assertSame(1, $qualityByAgent[0]['count']);
+        $this->assertSame(92.0, $qualityByAgent[0]['avg_score']);
+    }
+
     private function dashboardFixtures(): array
     {
         $admin = User::factory()->create();

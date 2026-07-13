@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\TranscriptController;
 use App\Models\AgentResponse;
 use App\Models\Campaign;
 use App\Models\Evaluation;
-use App\Models\Interaction;
 use App\Models\InsightReport;
+use App\Models\Interaction;
 use App\Models\QualityForm;
 use App\Models\User;
 use App\Services\AgentFeedbackResponseService;
@@ -19,14 +18,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 
 class MobileDashboardController extends Controller
 {
-    public function __construct(private readonly QualityAnalyticsService $analytics)
-    {
-    }
+    public function __construct(private readonly QualityAnalyticsService $analytics) {}
 
     public function dashboard(Request $request): JsonResponse
     {
@@ -330,11 +327,7 @@ class MobileDashboardController extends Controller
     {
         return Evaluation::query()
             ->forUser($user)
-            ->where(function (Builder $query) {
-                $query
-                    ->where('type', 'manual')
-                    ->orWhereDoesntHave('interaction.manualEvaluation');
-            });
+            ->finalForReporting();
     }
 
     private function visibleInteractions(User $user): Builder
@@ -597,7 +590,8 @@ class MobileDashboardController extends Controller
 
     private function transcriptsPayload(User $user): Collection
     {
-        $conversationParser = new \App\Support\TranscriptConversationParser();
+        $conversationParser = new \App\Support\TranscriptConversationParser;
+
         return $this->visibleInteractions($user)
             ->with(['agent', 'campaign.parent', 'supervisor', 'evaluation'])
             ->latest('occurred_at')
@@ -639,7 +633,7 @@ class MobileDashboardController extends Controller
             ->get()
             ->map(function (Campaign $campaign) use ($user, $filters) {
                 $campaignIds = Campaign::idsForFilter($campaign->id);
-                $query = Evaluation::query()->forUser($user)->whereIn('campaign_id', $campaignIds);
+                $query = Evaluation::query()->forUser($user)->finalForReporting()->whereIn('campaign_id', $campaignIds);
                 $this->applyDateFilters($query, $filters);
                 $total = (clone $query)->count();
                 $average = (float) ((clone $query)->avg('percentage_score') ?? 0);
@@ -867,10 +861,10 @@ class MobileDashboardController extends Controller
                     'name' => $item->subAttribute?->name,
                     'weight_percent' => $item->subAttribute?->weight_percent,
                     'attribute_name' => $item->subAttribute?->attribute?->name,
-                ]
+                ],
             ])->values(),
-            'conversation_turns' => $evaluation->interaction && $evaluation->interaction->transcript_text 
-                ? (new \App\Support\TranscriptConversationParser())->parse($evaluation->interaction->transcript_text)
+            'conversation_turns' => $evaluation->interaction && $evaluation->interaction->transcript_text
+                ? (new \App\Support\TranscriptConversationParser)->parse($evaluation->interaction->transcript_text)
                 : [],
             'audio_url' => $evaluation->interaction && $evaluation->interaction->isAudio()
                 ? url('/api/mobile/transcripts/'.$evaluation->interaction->id.'/audio')

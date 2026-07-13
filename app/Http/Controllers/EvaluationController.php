@@ -29,10 +29,9 @@ class EvaluationController extends Controller
             'reviewer',
             'publisher',
             'dispute',
-        ])->forUser($user);
+        ])->forUser($user)->finalForReporting();
 
         $this->applyIndexFilters($query, $request);
-        $this->applyFinalEvaluationScope($query);
 
         $summary = $this->indexSummary(clone $query);
         $evaluations = $query->latest()->paginate(20)->withQueryString();
@@ -55,15 +54,6 @@ class EvaluationController extends Controller
         ];
 
         return view('evaluations.index', compact('evaluations', 'campaigns', 'statusOptions', 'typeOptions', 'summary'));
-    }
-
-    private function applyFinalEvaluationScope($query): void
-    {
-        $query->where(function ($query) {
-            $query
-                ->where('type', 'manual')
-                ->orWhereDoesntHave('interaction.manualEvaluation');
-        });
     }
 
     private function applyIndexFilters($query, Request $request): void

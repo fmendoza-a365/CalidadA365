@@ -812,6 +812,8 @@ class QualityAnalyticsService
         }
 
         if ($agentIds) {
+            $query->finalForReporting();
+
             if (! empty($filters['start_date']) && ! empty($filters['end_date'])) {
                 $query->whereBetween('evaluations.created_at', [
                     Carbon::parse($filters['start_date'])->startOfDay(),
@@ -958,6 +960,8 @@ class QualityAnalyticsService
      */
     protected function applyFilters($query, array $filters): void
     {
+        $query->finalForReporting();
+
         // Enforce user visibility scope globally to all analytics
         if (auth()->check()) {
             $query->forUser(auth()->user());
