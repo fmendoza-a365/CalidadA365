@@ -252,6 +252,7 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame('riesgo', $interaction->metadata['quality_signals']['empathy']);
 
         Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => $request['generationConfig']['thinkingConfig']['thinkingBudget'] === 0);
     }
 
     public function test_audio_transcription_remains_pending_when_required_analysis_is_missing(): void

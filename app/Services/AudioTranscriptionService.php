@@ -232,6 +232,9 @@ PROMPT;
                         'topK' => 1,
                         'maxOutputTokens' => 16384,
                         'responseMimeType' => 'application/json',
+                        'thinkingConfig' => [
+                            'thinkingBudget' => 0,
+                        ],
                     ],
                 ]);
 
@@ -550,6 +553,9 @@ PROMPT;
                     'topK' => 1,
                     'maxOutputTokens' => 12000,
                     'responseMimeType' => 'application/json',
+                    'thinkingConfig' => [
+                        'thinkingBudget' => 0,
+                    ],
                 ],
             ]);
 
