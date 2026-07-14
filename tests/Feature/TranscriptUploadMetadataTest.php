@@ -206,6 +206,54 @@ class TranscriptUploadMetadataTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    public function test_audio_transcription_focuses_retry_on_analysis_sections_still_missing(): void
+    {
+        Storage::fake('local');
+        Setting::set('ai.gemini_api_key', 'test-gemini-key', 'string', 'ai');
+
+        $partialAnalysis = $this->analysisPayload();
+        unset($partialAnalysis['quality_signals']);
+
+        Http::fakeSequence()
+            ->push($this->geminiTextResponse("[00:00] Agente: Hola\n[00:04] Cliente: Tengo un reclamo."), 200)
+            ->push($this->geminiTextResponse(json_encode($partialAnalysis, JSON_UNESCAPED_UNICODE)), 200)
+            ->push($this->geminiTextResponse(json_encode([
+                'quality_signals' => $this->analysisPayload()['quality_signals'],
+            ], JSON_UNESCAPED_UNICODE)), 200);
+
+        $admin = $this->userWithRoleAndPermissions('admin');
+        $campaign = Campaign::create([
+            'name' => 'Campaña Audio',
+            'is_active' => true,
+        ]);
+
+        Storage::disk('local')->put('audios/focused-repair.wav', $this->wavBytes(3));
+
+        $interaction = Interaction::create([
+            'campaign_id' => $campaign->id,
+            'agent_id' => $admin->id,
+            'supervisor_id' => $admin->id,
+            'occurred_at' => now(),
+            'uploaded_by' => $admin->id,
+            'file_path' => 'audios/focused-repair.wav',
+            'file_name' => 'focused-repair.wav',
+            'source_type' => 'audio',
+            'transcription_status' => 'pending',
+            'transcript_text' => '',
+            'status' => 'uploaded',
+        ]);
+
+        (new TranscribeAudioJob($interaction->id))->handle(app(AudioTranscriptionService::class));
+
+        $interaction->refresh();
+
+        $this->assertSame('completed', $interaction->transcription_status);
+        $this->assertSame('mixto', $interaction->metadata['sentiment']['overall']);
+        $this->assertSame('riesgo', $interaction->metadata['quality_signals']['empathy']);
+
+        Http::assertSentCount(3);
+    }
+
     public function test_audio_transcription_remains_pending_when_required_analysis_is_missing(): void
     {
         Storage::fake('local');
@@ -213,6 +261,7 @@ class TranscriptUploadMetadataTest extends TestCase
 
         Http::fakeSequence()
             ->push($this->geminiTextResponse(json_encode(['transcript' => '[00:00] Agente: Hola'], JSON_UNESCAPED_UNICODE)), 200)
+            ->push($this->geminiTextResponse(json_encode(['sentiment_segments' => []], JSON_UNESCAPED_UNICODE)), 200)
             ->push($this->geminiTextResponse(json_encode(['sentiment_segments' => []], JSON_UNESCAPED_UNICODE)), 200);
 
         $admin = $this->userWithRoleAndPermissions('admin');
@@ -245,7 +294,7 @@ class TranscriptUploadMetadataTest extends TestCase
         $this->assertSame('', $interaction->transcript_text);
         $this->assertEmpty($interaction->metadata['sentiment'] ?? null);
 
-        Http::assertSentCount(2);
+        Http::assertSentCount(3);
     }
 
     public function test_audio_transcription_stores_technical_dead_air_metrics(): void
@@ -573,7 +622,7 @@ class TranscriptUploadMetadataTest extends TestCase
 
         for ($index = 0; $index < $sampleCount; $index++) {
             $sample = (int) round(sin(2 * pi() * 440 * ($index / $sampleRate)) * 12000);
-            $data .= pack('v', $sample & 0xffff);
+            $data .= pack('v', $sample & 0xFFFF);
         }
 
         return $data;

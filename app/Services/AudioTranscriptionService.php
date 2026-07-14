@@ -19,8 +19,7 @@ class AudioTranscriptionService
 
     public function __construct(
         protected AudioSilenceAnalysisService $silenceAnalysisService,
-    )
-    {
+    ) {
         $config = AiSettings::transcriptionConfig();
 
         $this->apiKey = $config['api_key'] ?? '';
@@ -284,20 +283,22 @@ PROMPT;
             $cleanTranscript = str_replace('\n', "\n", $parsed['transcript']);
             $parsedAcousticAnalysis = is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [];
             $acousticAnalysis = $this->mergeTechnicalSilenceAnalysis($parsedAcousticAnalysis, $technicalSilence);
-
-            if (! $this->hasRequiredAudioAnalysis([
+            $initialAnalysis = [
                 'sentiment' => $parsed['sentiment'] ?? null,
                 'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
                 'acoustic_analysis' => $acousticAnalysis,
                 'quality_signals' => $parsed['quality_signals'] ?? null,
-            ])) {
+            ];
+
+            if (! $this->hasRequiredAudioAnalysis($initialAnalysis)) {
                 Log::warning('AudioTranscriptionService: Transcription JSON missing required analysis; running second-pass audio analysis');
 
                 $analysis = $this->analyzeAudioSignals(
                     $base64Audio,
                     $mimeType,
                     $cleanTranscript,
-                    $technicalSilence
+                    $technicalSilence,
+                    $initialAnalysis
                 );
 
                 $parsed['sentiment'] = $analysis['sentiment'];
@@ -397,7 +398,9 @@ PROMPT;
         string $base64Audio,
         string $mimeType,
         string $transcript,
-        array $technicalSilence
+        array $technicalSilence,
+        array $existingAnalysis = [],
+        bool $allowFocusedRetry = true
     ): array {
         $transcriptContext = mb_strlen($transcript) > 60000
             ? mb_substr($transcript, 0, 60000)."\n\n[Transcripción truncada para análisis por longitud]"
@@ -416,7 +419,9 @@ Reglas:
 - Todo audio debe tener análisis de sentimiento, emociones, señales acústicas y señales operativas.
 - Si una señal no se aprecia, usa "no_detectado"; no omitas el campo.
 - Si hay silencio o audio ininteligible, genera al menos un segmento "system" con sentimiento "neutro", emoción "calma" y evidencia "audio sin voz clara" o equivalente.
-- Alinea "sentiment_segments" con intervenciones de la transcripción cuando existan.
+- Genera entre 1 y 24 elementos en "sentiment_segments". Selecciona momentos representativos de toda la llamada y agrupa intervenciones consecutivas con la misma emoción; no generes un elemento por cada línea.
+- Alinea "sentiment_segments" con intervenciones de la transcripción cuando existan y limita cada evidencia a 160 caracteres.
+- Las listas dentro de "quality_signals" deben tener máximo 4 elementos cada una.
 - Usa scores de sentimiento entre -1.0 y 1.0 e intensity entre 0 y 100.
 
 Formato obligatorio:
@@ -501,10 +506,19 @@ Formato obligatorio:
 TRANSCRIPCIÓN:
 PROMPT;
 
+        $missingFields = $this->missingRequiredAudioAnalysis($existingAnalysis);
+        if ($missingFields !== []) {
+            $prompt .= "\n\nSECCIONES QUE FALTAN O ESTAN INCOMPLETAS: ".implode(', ', $missingFields).'.';
+            $prompt .= "\nDebes incluirlas completas en la respuesta. Puedes incluir tambien las otras secciones si ayudan a mantener coherencia.";
+        }
+        if (! $allowFocusedRetry) {
+            $prompt .= "\nEste es el intento focalizado final: respeta estrictamente el limite de 24 tramos y devuelve JSON cerrado y valido.";
+        }
+
         $prompt .= "\n".$transcriptContext;
         $prompt .= $this->technicalSilencePrompt($technicalSilence);
 
-        $response = Http::timeout(300)
+        $response = Http::timeout($allowFocusedRetry ? 180 : 120)
             ->withHeaders([
                 'Content-Type' => 'application/json',
             ])
@@ -548,24 +562,58 @@ PROMPT;
         $rawText = trim($response->json('candidates.0.content.parts.0.text', ''));
 
         if ($rawText === '') {
+            if ($allowFocusedRetry) {
+                Log::warning('AudioTranscriptionService: Empty repair response; running focused retry', [
+                    'finish_reason' => $response->json('candidates.0.finishReason'),
+                    'missing_fields' => $this->missingRequiredAudioAnalysis($existingAnalysis),
+                ]);
+
+                return $this->analyzeAudioSignals(
+                    $base64Audio,
+                    $mimeType,
+                    $transcript,
+                    $technicalSilence,
+                    $existingAnalysis,
+                    false
+                );
+            }
+
             throw new TransientAiProviderException('Gemini returned an empty audio analysis response.', 'gemini');
         }
 
         $parsed = $this->parseJsonPayload($this->normalizeGeminiText($rawText)) ?? [];
 
-        $analysis = [
+        $generatedAnalysis = [
             'sentiment' => $parsed['sentiment'] ?? null,
             'sentiment_segments' => $parsed['sentiment_segments'] ?? [],
-            'acoustic_analysis' => $this->mergeTechnicalSilenceAnalysis(
-                is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [],
-                $technicalSilence
-            ),
+            'acoustic_analysis' => is_array($parsed['acoustic_analysis'] ?? null) ? $parsed['acoustic_analysis'] : [],
             'quality_signals' => $parsed['quality_signals'] ?? null,
         ];
+        $analysis = $this->mergeAudioAnalysis($existingAnalysis, $generatedAnalysis, $technicalSilence);
 
         if (! $this->hasRequiredAudioAnalysis($analysis)) {
+            $missingFields = $this->missingRequiredAudioAnalysis($analysis);
+
+            Log::warning('AudioTranscriptionService: Repair response incomplete', [
+                'finish_reason' => $response->json('candidates.0.finishReason'),
+                'response_chars' => strlen($rawText),
+                'missing_fields' => $missingFields,
+                'focused_retry' => ! $allowFocusedRetry,
+            ]);
+
+            if ($allowFocusedRetry) {
+                return $this->analyzeAudioSignals(
+                    $base64Audio,
+                    $mimeType,
+                    $transcript,
+                    $technicalSilence,
+                    $analysis,
+                    false
+                );
+            }
+
             throw new TransientAiProviderException(
-                'Gemini audio analysis response is missing required sentiment, emotion, acoustic, or quality signal fields.',
+                'Gemini audio analysis response is missing required fields: '.implode(', ', $missingFields).'.',
                 'gemini'
             );
         }
@@ -578,14 +626,45 @@ PROMPT;
      */
     private function hasRequiredAudioAnalysis(array $result): bool
     {
-        return is_array($result['sentiment'] ?? null)
-            && ! empty($result['sentiment'])
-            && is_array($result['sentiment_segments'] ?? null)
-            && count($result['sentiment_segments']) > 0
-            && is_array($result['acoustic_analysis'] ?? null)
-            && ! empty($result['acoustic_analysis'])
-            && is_array($result['quality_signals'] ?? null)
-            && ! empty($result['quality_signals']);
+        return $this->missingRequiredAudioAnalysis($result) === [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<int, string>
+     */
+    private function missingRequiredAudioAnalysis(array $result): array
+    {
+        return collect(['sentiment', 'sentiment_segments', 'acoustic_analysis', 'quality_signals'])
+            ->filter(fn (string $key) => ! is_array($result[$key] ?? null) || empty($result[$key]))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $existing
+     * @param  array<string, mixed>  $generated
+     * @param  array<string, mixed>  $technicalSilence
+     * @return array<string, mixed>
+     */
+    private function mergeAudioAnalysis(array $existing, array $generated, array $technicalSilence): array
+    {
+        $merged = [];
+
+        foreach (['sentiment', 'sentiment_segments', 'acoustic_analysis', 'quality_signals'] as $key) {
+            $generatedValue = $generated[$key] ?? null;
+            $existingValue = $existing[$key] ?? null;
+            $merged[$key] = is_array($generatedValue) && ! empty($generatedValue)
+                ? $generatedValue
+                : $existingValue;
+        }
+
+        $merged['acoustic_analysis'] = $this->mergeTechnicalSilenceAnalysis(
+            is_array($merged['acoustic_analysis'] ?? null) ? $merged['acoustic_analysis'] : [],
+            $technicalSilence
+        );
+
+        return $merged;
     }
 
     /**
@@ -953,5 +1032,4 @@ PROMPT;
             return null;
         }
     }
-
 }
