@@ -73,7 +73,7 @@ TAREA 1 - TRANSCRIPCIÓN:
 TAREA 2 - ANÁLISIS EMOCIONAL Y ACÚSTICO:
 Analiza la llamada por tramos usando lo que se escucha en el audio y lo que se dice en la transcripción.
 - Considera sentimiento, emoción, tono de voz, ritmo/velocidad, volumen aparente, claridad, pausas relevantes, tensión, interrupciones y manejo emocional.
-- Genera tramos alineados con la transcripción. Usa "index" empezando en 0 según cada intervención transcrita.
+- Genera máximo 24 tramos representativos alineados con toda la transcripción; agrupa intervenciones consecutivas con la misma emoción. Usa "index" empezando en 0.
 - Usa "start" cuando puedas estimar el segundo real del tramo; si no, usa el timestamp de la intervención.
 - No inventes datos imposibles. Si una señal acústica no se aprecia, marca "no_detectado" o usa un score conservador.
 - El análisis emocional es señal de apoyo para calidad; no reemplaza la evidencia textual.
@@ -409,116 +409,17 @@ PROMPT;
             ? mb_substr($transcript, 0, 60000)."\n\n[Transcripción truncada para análisis por longitud]"
             : $transcript;
 
-        $prompt = <<<'PROMPT'
-Tenemos la transcripción, pero falta el análisis emocional/acústico obligatorio.
-
-Analiza nuevamente el AUDIO y usa la transcripción como apoyo. Debes devolver SOLO JSON válido con estos campos:
-- sentiment
-- sentiment_segments
-- acoustic_analysis
-- quality_signals
-
-Reglas:
-- Todo audio debe tener análisis de sentimiento, emociones, señales acústicas y señales operativas.
-- Si una señal no se aprecia, usa "no_detectado"; no omitas el campo.
-- Si hay silencio o audio ininteligible, genera al menos un segmento "system" con sentimiento "neutro", emoción "calma" y evidencia "audio sin voz clara" o equivalente.
-- Genera entre 1 y 24 elementos en "sentiment_segments". Selecciona momentos representativos de toda la llamada y agrupa intervenciones consecutivas con la misma emoción; no generes un elemento por cada línea.
-- Alinea "sentiment_segments" con intervenciones de la transcripción cuando existan y limita cada evidencia a 160 caracteres.
-- Las listas dentro de "quality_signals" deben tener máximo 4 elementos cada una.
-- Usa scores de sentimiento entre -1.0 y 1.0 e intensity entre 0 y 100.
-
-Formato obligatorio:
-{
-  "sentiment": {
-    "overall": "positivo|neutro|negativo|mixto",
-    "overall_score": 0.0,
-    "agent": {
-      "sentiment": "positivo|neutro|negativo",
-      "score": 0.0,
-      "tone": "descripción breve",
-      "pace": "pausado|normal|rápido|variable|no_detectado",
-      "energy": "baja|media|alta|variable|no_detectado"
-    },
-    "client": {
-      "sentiment": "positivo|neutro|negativo",
-      "score": 0.0,
-      "tone": "descripción breve",
-      "pace": "pausado|normal|rápido|variable|no_detectado",
-      "energy": "baja|media|alta|variable|no_detectado",
-      "satisfaction": "satisfecho|insatisfecho|neutro"
-    },
-    "summary": "Resumen breve del sentimiento general de la llamada."
-  },
-  "sentiment_segments": [
-    {
-      "index": 0,
-      "start": 0,
-      "speaker": "agent|client|system",
-      "sentiment": "positivo|neutro|negativo|mixto",
-      "emotion": "calma|confianza|satisfaccion|preocupacion|frustracion|tension_controlada|enojo|tristeza|molestia",
-      "score": 0.0,
-      "intensity": 0,
-      "tone": "tono percibido",
-      "pace": "pausado|normal|rápido|variable|no_detectado",
-      "volume": "bajo|medio|alto|variable|no_detectado",
-      "clarity": "claro|regular|bajo|no_detectado",
-      "evidence": "frase o señal que justifica el tramo"
-    }
-  ],
-  "acoustic_analysis": {
-    "agent_speech_rate_wpm": 0,
-    "client_speech_rate_wpm": 0,
-    "overall_pace": "pausado|normal|rápido|variable|no_detectado",
-    "agent_energy": "baja|media|alta|variable|no_detectado",
-    "client_energy": "baja|media|alta|variable|no_detectado",
-    "clarity": "claro|regular|bajo|no_detectado",
-    "interruptions": 0,
-    "agent_interruptions": 0,
-    "client_interruptions": 0,
-    "long_pauses": 0,
-    "silence_ratio": 0.0,
-    "talk_balance": "agent_dominant|client_dominant|balanced|no_detectado",
-    "talk_balance_note": "lectura breve",
-    "emotional_turning_point": {
-      "second": 0,
-      "label": "MM:SS",
-      "type": "recuperacion|deterioro|sin_cambio|no_detectado",
-      "summary": "momento donde cambia o se estabiliza la emoción"
-    },
-    "notes": "observaciones acústicas relevantes"
-  },
-  "quality_signals": {
-    "empathy": "fortaleza|neutral|riesgo",
-    "active_listening": "fortaleza|neutral|riesgo",
-    "objection_handling": "fortaleza|neutral|riesgo",
-    "resolution_clarity": "fortaleza|neutral|riesgo",
-    "script_control": "fortaleza|neutral|riesgo",
-    "closing_quality": "fortaleza|neutral|riesgo",
-    "customer_experience_risk": "bajo|medio|alto",
-    "emotional_recovery": "recupera|contiene|empeora|sin_riesgo|no_detectado",
-    "agent_control": "alto|medio|bajo|no_detectado",
-    "frustration_cause": "motivo o no_detectado",
-    "customer_left_unresolved": true,
-    "supervisor_alerts": [],
-    "critical_moments": [],
-    "coaching_recommendations": [],
-    "summary": "impacto de estas señales en calidad y experiencia"
-  }
-}
-
-TRANSCRIPCIÓN:
-PROMPT;
-
         $missingFields = $this->missingRequiredAudioAnalysis($existingAnalysis);
-        if ($missingFields !== []) {
-            $prompt .= "\n\nSECCIONES QUE FALTAN O ESTAN INCOMPLETAS: ".implode(', ', $missingFields).'.';
-            $prompt .= "\nDebes incluirlas completas en la respuesta. Puedes incluir tambien las otras secciones si ayudan a mantener coherencia.";
-        }
-        if (! $allowFocusedRetry) {
-            $prompt .= "\nEste es el intento focalizado final: respeta estrictamente el limite de 24 tramos y devuelve JSON cerrado y valido.";
-        }
-
-        $prompt .= "\n".$transcriptContext;
+        $segmentLimit = $allowFocusedRetry ? 24 : 12;
+        $template = json_encode(
+            $this->audioAnalysisTemplate($missingFields),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+        );
+        $prompt = 'Tenemos la transcripcion, pero faltan estas secciones obligatorias: '.implode(', ', $missingFields).".\n"
+            ."Analiza nuevamente el AUDIO y usa la transcripcion como apoyo. Devuelve SOLO JSON valido y exclusivamente las claves del formato indicado.\n"
+            ."Genera entre 1 y {$segmentLimit} tramos emocionales representativos de toda la llamada; agrupa estados consecutivos y limita cada evidencia a 160 caracteres.\n"
+            ."Si una senal no se aprecia, usa no_detectado. Las listas operativas deben tener maximo 4 elementos.\n"
+            ."Formato obligatorio:\n{$template}\n\nTRANSCRIPCION:\n{$transcriptContext}";
         $prompt .= $this->technicalSilencePrompt($technicalSilence);
 
         $response = Http::timeout($allowFocusedRetry ? 180 : 120)
@@ -625,6 +526,91 @@ PROMPT;
         }
 
         return $analysis;
+    }
+
+    /**
+     * @param  array<int, string>  $fields
+     * @return array<string, mixed>
+     */
+    private function audioAnalysisTemplate(array $fields): array
+    {
+        $templates = [
+            'sentiment' => [
+                'overall' => 'positivo|neutro|negativo|mixto',
+                'overall_score' => 0.0,
+                'agent' => [
+                    'sentiment' => 'positivo|neutro|negativo',
+                    'score' => 0.0,
+                    'tone' => 'descripcion breve',
+                    'pace' => 'pausado|normal|rapido|variable|no_detectado',
+                    'energy' => 'baja|media|alta|variable|no_detectado',
+                ],
+                'client' => [
+                    'sentiment' => 'positivo|neutro|negativo',
+                    'score' => 0.0,
+                    'tone' => 'descripcion breve',
+                    'pace' => 'pausado|normal|rapido|variable|no_detectado',
+                    'energy' => 'baja|media|alta|variable|no_detectado',
+                    'satisfaction' => 'satisfecho|insatisfecho|neutro',
+                ],
+                'summary' => 'resumen breve',
+            ],
+            'sentiment_segments' => [[
+                'index' => 0,
+                'start' => 0,
+                'speaker' => 'agent|client|system',
+                'sentiment' => 'positivo|neutro|negativo|mixto',
+                'emotion' => 'calma|confianza|satisfaccion|preocupacion|frustracion|tension_controlada|enojo|tristeza|molestia',
+                'score' => 0.0,
+                'intensity' => 0,
+                'tone' => 'tono breve',
+                'pace' => 'pausado|normal|rapido|variable|no_detectado',
+                'volume' => 'bajo|medio|alto|variable|no_detectado',
+                'clarity' => 'claro|regular|bajo|no_detectado',
+                'evidence' => 'evidencia breve',
+            ]],
+            'acoustic_analysis' => [
+                'agent_speech_rate_wpm' => 0,
+                'client_speech_rate_wpm' => 0,
+                'overall_pace' => 'pausado|normal|rapido|variable|no_detectado',
+                'agent_energy' => 'baja|media|alta|variable|no_detectado',
+                'client_energy' => 'baja|media|alta|variable|no_detectado',
+                'clarity' => 'claro|regular|bajo|no_detectado',
+                'interruptions' => 0,
+                'agent_interruptions' => 0,
+                'client_interruptions' => 0,
+                'long_pauses' => 0,
+                'silence_ratio' => 0.0,
+                'talk_balance' => 'agent_dominant|client_dominant|balanced|no_detectado',
+                'talk_balance_note' => 'lectura breve',
+                'emotional_turning_point' => [
+                    'second' => 0,
+                    'label' => 'MM:SS',
+                    'type' => 'recuperacion|deterioro|sin_cambio|no_detectado',
+                    'summary' => 'cambio emocional breve',
+                ],
+                'notes' => 'observaciones breves',
+            ],
+            'quality_signals' => [
+                'empathy' => 'fortaleza|neutral|riesgo',
+                'active_listening' => 'fortaleza|neutral|riesgo',
+                'objection_handling' => 'fortaleza|neutral|riesgo',
+                'resolution_clarity' => 'fortaleza|neutral|riesgo',
+                'script_control' => 'fortaleza|neutral|riesgo',
+                'closing_quality' => 'fortaleza|neutral|riesgo',
+                'customer_experience_risk' => 'bajo|medio|alto',
+                'emotional_recovery' => 'recupera|contiene|empeora|sin_riesgo|no_detectado',
+                'agent_control' => 'alto|medio|bajo|no_detectado',
+                'frustration_cause' => 'motivo o no_detectado',
+                'customer_left_unresolved' => true,
+                'supervisor_alerts' => [],
+                'critical_moments' => [],
+                'coaching_recommendations' => [],
+                'summary' => 'impacto breve en calidad y experiencia',
+            ],
+        ];
+
+        return array_intersect_key($templates, array_flip($fields));
     }
 
     /**

@@ -253,6 +253,11 @@ class TranscriptUploadMetadataTest extends TestCase
 
         Http::assertSentCount(3);
         Http::assertSent(fn ($request) => $request['generationConfig']['thinkingConfig']['thinkingBudget'] === 0);
+
+        $focusedPrompt = Http::recorded()[2][0]->data()['contents'][0]['parts'][1]['text'];
+        $this->assertStringContainsString('quality_signals', $focusedPrompt);
+        $this->assertStringContainsString('entre 1 y 12 tramos', $focusedPrompt);
+        $this->assertStringNotContainsString('"acoustic_analysis"', $focusedPrompt);
     }
 
     public function test_audio_transcription_remains_pending_when_required_analysis_is_missing(): void
